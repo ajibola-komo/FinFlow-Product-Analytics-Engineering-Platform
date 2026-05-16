@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.pyc
+
+# Virtual environment
+venv/
+.env/
+.env
+.tmp/
+.vscode/
+.venv/
+
+# dbt
+target/
+dbt_packages/
+logs/
+dbt_internal_packages/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+#data exports folder
+csv/
+parquet/
+
+#tableau
+Tableau/

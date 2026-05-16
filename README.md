@@ -61,3 +61,10 @@ dbt Transformation Layer
 Analytics Marts
         ↓
 BI Dashboards (Tableau)
+
+---
+# BI Layer Strategy
+
+The project uses Tableau Public as the visualization layer. Since Tableau Public is file-based, curated analytics datasets are exported daily from the data warehouse into versioned CSV/Parquet files.
+
+This simulates a real-world semantic layer where downstream BI tools consume governed, pre-aggregated datasets rather than querying raw data sources directly.

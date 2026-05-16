@@ -43,6 +43,19 @@ The project focuses on demonstrating modern analytics engineering practices comm
 
 ---
 
+## Tech Stack
+
+| Layer | Tool |
+|---|---|
+| Data generation | Python (Faker, NumPy, Pandas) |
+| Compute & Orchestration | AWS EC2 (Linux), Git-based deployment |
+| Storage | Amazon S3 |
+| Warehouse | Snowflake / DuckDB |
+| Transformation | dbt |
+| Visualization | Tableau |
+
+---
+
 # Architecture Overview
 
 ## High-Level Architecture
@@ -61,10 +74,15 @@ dbt Transformation Layer
 Analytics Marts
         ↓
 BI Dashboards (Tableau)
+```
 
 ---
+
 # BI Layer Strategy
 
 The project uses Tableau Public as the visualization layer. Since Tableau Public is file-based, curated analytics datasets are exported daily from the data warehouse into versioned CSV/Parquet files.
 
 This simulates a real-world semantic layer where downstream BI tools consume governed, pre-aggregated datasets rather than querying raw data sources directly.
+
+**Ajibola Komolafe** — Data and Analytics Engineer
+[LinkedIn](https://www.linkedin.com/in/ajibola-k-4ba921123/) · [GitHub](https://github.com/ajibola-komo)

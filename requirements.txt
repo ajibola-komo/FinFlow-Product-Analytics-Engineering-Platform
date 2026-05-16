@@ -1,0 +1,8 @@
+numpy
+duckdb
+pandas
+dbt-core
+dbt-snowflake
+faker
+python-dotenv
+boto3

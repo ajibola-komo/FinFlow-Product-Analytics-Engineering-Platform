@@ -1,45 +1,53 @@
 # FinFlow Product Analytics Engineering Platform
 
-Production-style SaaS analytics platform simulating scalable event-driven data pipelines with dbt, partitioned data lake architecture, incremental processing, and growth metrics modeling.
+Event-driven fintech analytics platform combining analytics engineering and product analytics to model user behavior, retention, growth, and financial activity at scale.
 
 ---
 
 # Problem Statement
 
-Modern startups generate massive volumes of user interaction data every day across web and mobile applications. However, many early-stage companies struggle to build scalable analytics systems capable of transforming raw event data into reliable business insights.
+Modern fintech products generate large volumes of user behavioral and transactional data across multiple channels including mobile applications, payment systems, investment platforms, and agency banking services. Every user action from onboarding and account funding to transfers, investments, and daily engagement produces event-level data that needs to be captured, processed, and converted into meaningful business insights.
 
-Without a properly designed analytics platform, organizations often face several challenges:
+In many early-stage and scaling fintech companies, building a reliable and scalable analytics system is still a major challenge.
 
-- Inability to track user engagement and retention accurately
-- Slow dashboard performance caused by unpartitioned datasets
-- Expensive full-refresh transformation workflows
-- Inconsistent business metrics across teams
-- Lack of automated daily data pipelines
-- Difficulty analyzing conversion funnels and revenue growth drivers
+Without a well-designed analytics platform, teams typically face issues such as:
+
+- Data being spread across multiple products and systems, which makes it difficult to get a unified view of the customer
+- Inconsistent definitions of key metrics like revenue, active users, and retention across teams
+- Slow query performance due to unoptimized data models and storage structures
+- Heavy reliance on full refresh processes that do not scale with growing data volumes
+- Limited visibility into customer behaviour across the full lifecycle and across products
+- Difficulty accurately tracking funnels, retention, and cross-product adoption
+- Lack of automated and reliable pipelines for daily data ingestion and transformation
+
+This project is designed to address these challenges by building a production-style fintech product analytics and analytics engineering platform that simulates how modern digital financial systems collect, process, model, and analyze large-scale event-driven data across multiple products.
 
 ---
 
 # Project Objectives
 
-This project aims to solve these challenges by designing and implementing a production-style event-driven growth analytics platform that simulates how modern SaaS startups collect, process, transform, and analyze user behavior data at scale.
+This project aims to design and implement a production-style fintech product analytics and analytics engineering platform that simulates how modern digital financial systems collect, process, model, and analyze large-scale behavioral and transactional data.
 
-The platform is designed to:
+The platform is built to achieve the following objectives:
 
-- Generate realistic daily user event data
-- Ingest and store data in a partitioned raw data lake
-- Implement incremental loading strategies for efficient processing
-- Transform raw data into analytics-ready models using dbt
-- Orchestrate automated daily workflows
-- Deliver business-critical growth and retention metrics through dashboards
+- Generate realistic synthetic event data across a multi-product fintech ecosystem covering payments, investments, and agency banking
+Model end-to-end customer journeys to support product analytics use cases such as retention, funnels, and cross-product engagement
+- Design a scalable data architecture with historical backfills and incremental daily ingestion patterns
+- Implement a partitioned data lake structure and transform raw data into analytics-ready models using dbt
+- Build consistent product and growth metrics to enable reliable reporting and decision-making
+- Support core analytics use cases including cohort analysis, funnel analysis, and user behavior tracking
+- Simulate automated daily data pipelines using scheduled orchestration workflows
+- Deliver curated datasets optimized for BI dashboards and business insights in Tableau
+- Demonstrate best practices in analytics engineering including modular modeling, incremental processing, and scalable ELT design
 
-The project focuses on demonstrating modern analytics engineering practices commonly used in startup environments, including:
+The project focuses on demonstrating modern analytics engineering and product analytics practices commonly used in startup environments, including:
 
-- Event-driven data modeling
-- Partition-aware warehouse design
-- Incremental ELT pipelines
-- Workflow orchestration and automation
-- Scalable fact and dimension modeling
-- Product and growth analytics
+- Event-driven data modeling for capturing user behavior across product interactions
+- Partition-aware warehouse design for scalable and efficient data storage
+- Incremental ELT pipelines for optimized processing of growing data volumes
+- Workflow orchestration and automation for reliable daily data ingestion
+- Scalable dimensional modeling using fact and dimension tables
+- Product and growth analytics to support insights on retention, funnels, and engagement
 
 ---
 
@@ -94,10 +102,11 @@ All datasets are fully synthetic, generated using custom Python modules built on
 
 - A 3-year baseline dataset is first generated i.e. from 3 years ago up to yesterday.
 - A scheduled DAG simulates a daily batch ingestion process by generating synthetic event data for the previous day at 9 AM and and writes it as a new partition in the historical dataset.
-- The data simulates user activity within a fintech platform consisting of three core products:
-    - An investment application
-    - A bank transfer application
-    - An agency banking application
+- The data simulates user activity within a fintech platform consisting of two core products:
+    - A digital savings product
+    - A digital investment product
+
+The dataset is low-medium frequency but behaviour rich.
 
 Generated datasets are exported as Parquet files for efficient storage and downstream ingestion into S3 and Snowflake.
 
@@ -111,20 +120,7 @@ Star schema with 4 fact tables and 10 dimension tables.
 
 | Table | Type | Grain | Approx. rows |
 |---|---|---|---|
-| `fact_transaction` | Fact | One row per transaction | ~900,000 |
-| `fact_sale` | Fact | One row per line item per transaction | ~1,800,000 |
-| `fact_clickstream` | Fact | One row per web session | ~14,000,000 |
-| `fact_inventory` | Fact | One row per store × product × month | ~586,000 |
-| `dim_date` | Dimension | One row per calendar date | ~3,650 |
-| `dim_customer` | Dimension | One row per customer | ~150,000 |
-| `dim_product` | Dimension | One row per SKU | 470 |
-| `dim_store` | Dimension | One row per store | 50 |
-| `dim_promotion` | Dimension | One row per promotion | 150 |
-| `dim_campaign` | Dimension | One row per campaign | 120 |
-| `dim_category` | Dimension | One row per category | 10 |
-| `dim_subcategory` | Dimension | One row per subcategory | 28 |
-| `dim_brand` | Dimension | One row per brand | 50 |
-| `dim_location` | Dimension | One row per city | ~ 25 |
+| `fact_transactions` | Fact | One row per transaction | 8_000_000|
 
 ---
 

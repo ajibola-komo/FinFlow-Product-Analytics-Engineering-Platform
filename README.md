@@ -1,4 +1,4 @@
-# Event-Driven Growth Analytics Platform
+# FinFlow Product Analytics Engineering Platform
 
 Production-style SaaS analytics platform simulating scalable event-driven data pipelines with dbt, partitioned data lake architecture, incremental processing, and growth metrics modeling.
 
@@ -76,9 +76,59 @@ Analytics Marts
 BI Dashboards (Tableau)
 ```
 
+## Data Lakehouse Architecture
+
+The project implements a Medallion-inspired transformation pattern using dbt within Snowflake, with raw data stored in S3.
+```
+Python scripts → S3 (data lake) → Snowflake → dbt (Bronze → Silver → Gold) → Tableau
+```
+
+- **Bronze** — raw ingested data
+- **Silver** — cleaned, standardized, and enriched datasets
+- **Gold** — aggregated, analytics-ready data marts
+
+---
+## Synthetic Data Generation
+
+All datasets are fully synthetic, generated using custom Python modules built on Pandas and NumPy.
+
+- A 3-year baseline dataset is first generated i.e. from 3 years ago up to yesterday.
+- A scheduled DAG simulates a daily batch ingestion process by generating synthetic event data for the previous day at 9 AM and and writes it as a new partition in the historical dataset.
+- The data simulates user activity within a fintech platform consisting of three core products:
+    - An investment application
+    - A bank transfer application
+    - An agency banking application
+
+Generated datasets are exported as Parquet files for efficient storage and downstream ingestion into S3 and Snowflake.
+
+> The full data dictionary covering all fact & dimension tables, column definitions, data types, and grain is available in `docs/data_dictionary/`.
+
+
 ---
 
-# BI Layer Strategy
+## Data Model
+Star schema with 4 fact tables and 10 dimension tables.
+
+| Table | Type | Grain | Approx. rows |
+|---|---|---|---|
+| `fact_transaction` | Fact | One row per transaction | ~900,000 |
+| `fact_sale` | Fact | One row per line item per transaction | ~1,800,000 |
+| `fact_clickstream` | Fact | One row per web session | ~14,000,000 |
+| `fact_inventory` | Fact | One row per store × product × month | ~586,000 |
+| `dim_date` | Dimension | One row per calendar date | ~3,650 |
+| `dim_customer` | Dimension | One row per customer | ~150,000 |
+| `dim_product` | Dimension | One row per SKU | 470 |
+| `dim_store` | Dimension | One row per store | 50 |
+| `dim_promotion` | Dimension | One row per promotion | 150 |
+| `dim_campaign` | Dimension | One row per campaign | 120 |
+| `dim_category` | Dimension | One row per category | 10 |
+| `dim_subcategory` | Dimension | One row per subcategory | 28 |
+| `dim_brand` | Dimension | One row per brand | 50 |
+| `dim_location` | Dimension | One row per city | ~ 25 |
+
+---
+
+## BI Layer Strategy
 
 The project uses Tableau Public as the visualization layer. Since Tableau Public is file-based, curated analytics datasets are exported daily from the data warehouse into versioned CSV/Parquet files.
 

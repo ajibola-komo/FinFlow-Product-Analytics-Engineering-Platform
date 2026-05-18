@@ -1,0 +1,5 @@
+product_id,product_name,product_display_name,product_category,interest_rate_min,interest_rate_max,tenure_days,is_open_ended,liquidity_type,early_withdrawal_allowed,penalty_rate_pct,risk_level
+101,flex_save,FinFlow Flex Save,Savings,6,6,90,FALSE,flexible,TRUE,0,Low
+102,fixed_save,FinFlow Fixed Save,Savings,8,8,120,FALSE,locked,FALSE,2,Medium
+103,treasury_bills,FinFlow Treasury Bills,Fixed Income,10,10,180,FALSE,locked,FALSE,2,Medium
+104,mutual_funds,FinFlow Mutual Funds,Investments,3,5,,TRUE,flexible,TRUE,0,High

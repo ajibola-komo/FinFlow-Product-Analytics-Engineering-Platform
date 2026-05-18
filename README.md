@@ -26,7 +26,7 @@ This project is designed to address these challenges by building a production-st
 
 # Project Objectives
 
-This project aims to design and implement a production-style fintech product analytics and analytics engineering platform that simulates how modern digital financial systems collect, process, model, and analyze large-scale behavioral and transactional data.
+This project aims to design and implement a production-style fintech product analytics and analytics engineering platform that simulates how modern digital financial systems collect, process, model, and analyze behavioral and transactional data.
 
 The platform is built to achieve the following objectives:
 

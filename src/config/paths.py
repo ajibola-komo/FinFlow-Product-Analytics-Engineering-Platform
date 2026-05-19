@@ -27,3 +27,10 @@ SNOWFLAKE_DIM_PRODUCT_PATH = SNOWFLAKE_SQL_DIR / "dim_product.sql"
 SNOWFLAKE_DIM_USER_PATH = SNOWFLAKE_SQL_DIR / "dim_user.sql"
 SNOWFLAKE_DIM_WALLET_PATH = SNOWFLAKE_SQL_DIR / "dim_wallet.sql"
 SNOWFLAKE_DIM_DATE_PATH = SNOWFLAKE_SQL_DIR / "dim_date.sql"
+
+#parquet paths
+DATES_PARQUET_PATH = PARQUET_DIR / "dim_date.parquet"
+PRODUCTS_PARQUET_PATH = PARQUET_DIR / "dim_product.parquet"
+USERS_PARQUET_PATH = PARQUET_DIR / "dim_user.parquet"
+WALLETS_PARQUET_PATH = PARQUET_DIR / "dim_wallet.parquet"
+EVENT_TYPES_PARQUET_PATH = PARQUET_DIR / "dim_event_type.parquet"

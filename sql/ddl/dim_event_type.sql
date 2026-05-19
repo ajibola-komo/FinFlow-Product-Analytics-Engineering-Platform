@@ -1,4 +1,4 @@
-CREATE TABLE dim_event_type (
+CREATE OR REPLACE TABLE dim_event_type (
     event_type_id INT PRIMARY KEY,
     event_type_code VARCHAR(100) NOT NULL,
     event_type_display_name VARCHAR(150) NOT NULL,

@@ -1,4 +1,4 @@
-CREATE TABLE IF NOT EXISTS dim_date (
+CREATE OR REPLACE TABLE dim_date (
     date_id         INT PRIMARY KEY,
     date            DATE NOT NULL,
     year            INT,
@@ -20,7 +20,7 @@ INSERT INTO dim_date
 WITH dates AS (
     SELECT generate_series(
         DATE '2023-01-01',
-        CURRENT_DATE + INTERVAL '1 year',
+        CURRENT_DATE + INTERVAL '3 year'::DATE,
         INTERVAL '1 day'
     ) AS date
 )

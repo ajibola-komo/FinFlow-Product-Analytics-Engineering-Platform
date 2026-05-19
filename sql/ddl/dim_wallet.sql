@@ -1,4 +1,4 @@
-CREATE TABLE dim_wallet(
+CREATE OR REPLACE TABLE dim_wallet(
     wallet_id INT PRIMARY KEY,
     user_id INT NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

@@ -5,13 +5,24 @@ from src.generators.dim_product import generate_products
 from src.generators.dim_event_type import generate_event_types
 from src.generators.dim_date import generate_dates
 from src.snowflake_setup.create_snowflake_tables import create_snowflake_bronze_tables
+from dotenv import load_dotenv
+from src.storage.s3_upload import upload_parquet_files
+from src.storage.snowflake_upload import upload_from_s3_to_snowflake
+from src.run_dbt.run_dbt import run_dbt_models
+
+load_dotenv()
 
 def create():
-    conn = db.connect()
     create_snowflake_bronze_tables()
-    generate_dates(conn)
-    generate_products(conn)
-    generate_event_types(conn)
-    generate_users(conn,50000)
+    with db.connect() as conn:
+        generate_dates(conn)
+        generate_products(conn)
+        generate_event_types(conn)
+        generate_users(conn,50000)
+    
+    upload_parquet_files()
+    upload_from_s3_to_snowflake()
+    run_dbt_models()
+
 
 create()

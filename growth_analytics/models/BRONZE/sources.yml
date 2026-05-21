@@ -1,0 +1,17 @@
+version: 2
+
+sources:
+  - name: bronze                          # logical name used in dbt ({{ source('bronze', 'table') }})
+    database: FINFLOW                    # Snowflake database
+    schema: BRONZE                        # Snowflake schema
+    description: "Raw ingested data from S3 via Snowflake external stage"
+
+    tables:
+      - name: dim_user
+        description: "Conformed users dimension including demographics, acquisition channel, loyalty status, and marketing consent"
+      - name: dim_product
+        description: "Product dimension table containing table details"
+      - name: dim_date
+        description: "Date dimension table containing date-related attributes."
+      - name: dim_event_type
+        description: "Event dimension table containing event types information."

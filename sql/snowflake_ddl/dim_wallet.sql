@@ -7,7 +7,5 @@ CREATE OR REPLACE TABLE dim_wallet(
     wallet_activated_date_id INT,
     ingested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    foreign key (user_id) references dim_user(user_id),
-    foreign key (wallet_created_date_id) references dim_date(date_id),
-    foreign key (wallet_activated_date_id) references dim_date(date_id)
+    foreign key (user_id) references dim_user(user_id)
 );

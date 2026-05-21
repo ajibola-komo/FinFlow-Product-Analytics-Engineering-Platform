@@ -34,9 +34,21 @@ SNOWFLAKE_DDL_PATHS = [SNOWFLAKE_DIM_EVENT_TYPE_PATH, SNOWFLAKE_DIM_PRODUCT_PATH
                          ]
 
 
+
 #parquet paths
 DATES_PARQUET_PATH = PARQUET_DIR / "dim_date.parquet"
 PRODUCTS_PARQUET_PATH = PARQUET_DIR / "dim_product.parquet"
 USERS_PARQUET_PATH = PARQUET_DIR / "dim_user.parquet"
 WALLETS_PARQUET_PATH = PARQUET_DIR / "dim_wallet.parquet"
 EVENT_TYPES_PARQUET_PATH = PARQUET_DIR / "dim_event_type.parquet"
+
+#s3
+S3_BUCKET_NAME = "finflow-s3-bucket"
+
+S3_LOCAL_FILE_PATHS = [DATES_PARQUET_PATH, PRODUCTS_PARQUET_PATH, USERS_PARQUET_PATH, EVENT_TYPES_PARQUET_PATH]
+
+S3_KEYS = [
+    "dim_date.parquet", "dim_product.parquet", "dim_user.parquet", "dim_event_type.parquet"
+]
+
+TABLE_NAMES = ["dim_date","dim_product","dim_user","dim_event_type"]

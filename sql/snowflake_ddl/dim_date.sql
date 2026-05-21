@@ -1,6 +1,6 @@
-CREATE OR REPLACE TABLE dim_date (
+CREATE OR REPLACE TABLE FINFLOW.BRONZE.DIM_DATE (
     date_id INT PRIMARY KEY,
-    date DATE,
+    full_date DATE,
     year INT,
     quarter INT,
     month INT,

@@ -22,11 +22,20 @@ def create_snowflake_bronze_tables():
     cursor.execute(f"USE SCHEMA {database_name}.{schema_name}")
 
     for ddl_path in SNOWFLAKE_DDL_PATHS:
-        sql_path = ddl_path
-        with open(sql_path, "r") as f:
-            ddl = f.read()
-        
-        cursor.execute(ddl)
+        try:
+            print(f"Running: {ddl_path}")
+
+            with open(ddl_path, "r") as f:
+                ddl = f.read()
+
+                cursor.execute(ddl)
+
+            print(f"SUCCESS: {ddl_path}")
+
+        except Exception as e:
+            print(f"FAILED: {ddl_path}")
+            print(e)
+            raise
 
     cursor.close()
     conn.close()

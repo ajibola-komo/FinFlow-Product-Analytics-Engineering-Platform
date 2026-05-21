@@ -6,7 +6,5 @@ CREATE OR REPLACE TABLE dim_event_type (
     event_type_category VARCHAR(50) NOT NULL,
     event_type_stage VARCHAR(50) NOT NULL,
     is_conversion_milestone BOOLEAN NOT NULL,
-    product_area VARCHAR(50) NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    product_area VARCHAR(50) NOT NULL
 );

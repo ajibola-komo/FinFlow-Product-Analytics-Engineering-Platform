@@ -4,12 +4,11 @@ import faker as fk
 import re
 from src.config.constants import (DEFAULT_SIGNUP_START_DATE, DEFAULT_SIGNUP_END_DATE, DEFAULT_SIGNUP_START_TIMESTAMP, 
                                   DEFAULT_SIGNUP_END_TIMESTAMP, EMAIL_DOMAIN, GENDER, GENDER_WEIGHTS, 
-                                  COUNTRIES_LIST, COUNTRIES_WEIGHTS, UK_REGIONS, IRELAND_REGIONS, UK_REGION_WEIGHTS, IRELAND_REGION_WEIGHTS,
-                                  GREATER_LONDON_CITIES, WALES_CITIES, SCOTLAND_CITIES, NORTH_WEST_CITIES, SOUTH_EAST_CITIES, MIDLANDS_CITIES,
-                                  GREATER_LONDON_WEIGHTS, WALES_WEIGHTS, SCOTLAND_WEIGHTS, NORTH_WEST_WEIGHTS, SOUTH_EAST_WEIGHTS, MIDLANDS_WEIGHTS,
-                                  DUBLIN_REGION_CITIES, REST_OF_IRELAND_CITIES, DUBLIN_REGION_WEIGHTS, REST_OF_IRELAND_WEIGHTS)
+                                  )
 from src.config.paths import (DDL_DIM_USER_PATH, USERS_PARQUET_PATH)
 from src.logic.location_distribution import get_location_distribution
+from src.logic.age_distribution import get_age_distribution
+from src.logic.signup_distribution import get_signup_distribution
 
 
 def generate_users(conn, num_of_users):
@@ -69,10 +68,10 @@ def generate_users(conn, num_of_users):
 
 
     kyc_completed = np.random.choice([True, False], num_of_users, p=[0.7, 0.3])
-    date_of_birth = [fake.date_of_birth(minimum_age=18, maximum_age=80) for _ in range(num_of_users)]
-    signup_date = [fake.date_between(start_date=DEFAULT_SIGNUP_START_DATE, end_date=DEFAULT_SIGNUP_END_DATE) for _ in range(num_of_users)]
-    birth_date_id = [int(date_of_birth[i].strftime('%Y%m%d')) for i in range(num_of_users)]
-    signup_date_id = [int(signup_date[i].strftime('%Y%m%d')) for i in range(num_of_users)]
+    date_of_birth = get_age_distribution(num_of_users)
+    signup_date = get_signup_distribution(date_of_birth)
+    birth_date_id = [int(pd.Timestamp(date_of_birth[i]).strftime('%Y%m%d')) for i in range(num_of_users)]
+    signup_date_id = [int(pd.Timestamp(signup_date[i]).strftime('%Y%m%d')) for i in range(num_of_users)]
 
     df_raw = pd.DataFrame({
         'user_id': user_id,

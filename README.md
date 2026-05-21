@@ -6,7 +6,7 @@ Event-driven fintech analytics platform combining analytics engineering and prod
 
 # Problem Statement
 
-Modern fintech products generate large volumes of user behavioral and transactional data across multiple channels including mobile applications, payment systems, investment platforms, and agency banking services. Every user action from onboarding and account funding to transfers, investments, and daily engagement produces event-level data that needs to be captured, processed, and converted into meaningful business insights.
+Modern fintech products generate large volumes of user behavioral and transactional data across multiple channels including mobile applications, payment systems, and investment platforms. Every user action from onboarding and account funding to transfers, investments, and daily engagement produces event-level data that needs to be captured, processed, and converted into meaningful business insights.
 
 In many early-stage and scaling fintech companies, building a reliable and scalable analytics system is still a major challenge.
 

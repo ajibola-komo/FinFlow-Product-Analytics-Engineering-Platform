@@ -10,7 +10,5 @@ CREATE OR REPLACE TABLE dim_product (
     liquidity_type VARCHAR(50) NOT NULL,
     early_withdrawal_allowed BOOLEAN NOT NULL,
     penalty_rate_pct DECIMAL(5,2),
-    risk_level VARCHAR(50) NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    risk_level VARCHAR(50) NOT NULL
 );

@@ -4,15 +4,17 @@ from datetime import timedelta, datetime, date, time
 TIMEZONE = "UTC"
 # Default Time Range for Data Processing
 DEFAULT_SIGNUP_START_DATE = date(2016, 1, 1)
-DEFAULT_SIGNUP_END_DATE = date.today(TIMEZONE)
+DEFAULT_SIGNUP_END_DATE = date.today()
 # Time Range for Data Processing
 DEFAULT_SIGNUP_START_TIMESTAMP = datetime.combine(DEFAULT_SIGNUP_START_DATE, time.min)
 DEFAULT_SIGNUP_END_TIMESTAMP = datetime.combine(DEFAULT_SIGNUP_END_DATE, time.max)
 
 DEFAULT_TRANSACTION_START_DATE = date(2023, 1, 1)
-DEFAULT_TRANSACTION_END_DATE = date.today(TIMEZONE)
+DEFAULT_TRANSACTION_END_DATE = date.today()
 DEFAULT_TRANSACTION_START_TIMESTAMP = datetime.combine(DEFAULT_TRANSACTION_START_DATE, time.min)
 DEFAULT_TRANSACTION_END_TIMESTAMP = datetime.combine(DEFAULT_TRANSACTION_END_DATE, time.max)
+CURRENT_YEAR = date.today().year
+CURRENT_MONTH = date.today().month
 
 #dim_user constants
 EMAIL_DOMAIN = ["@example.com","abc.com","xyz.com","test.com","demo.com"]

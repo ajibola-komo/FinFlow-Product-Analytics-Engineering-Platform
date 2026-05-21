@@ -11,8 +11,6 @@ CREATE OR REPLACE TABLE dim_user(
     birth_date_id INT,
     signup_date DATE NOT NULL,
     signup_date_id INT,
-    ingested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     foreign key (birth_date_id) references dim_date(date_id),
     foreign key (signup_date_id) references dim_date(date_id)
 )

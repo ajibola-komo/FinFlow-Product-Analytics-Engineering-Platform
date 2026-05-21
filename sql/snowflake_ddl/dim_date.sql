@@ -17,11 +17,11 @@ CREATE OR REPLACE TABLE dim_date (
 INSERT INTO dim_date
 WITH params AS (
     SELECT 
-        DATE '2023-01-01' AS start_date,
+        DATE '1945-01-01' AS start_date,
         DATEADD(YEAR, 3, CURRENT_DATE()) AS end_date,
         DATEDIFF(
             DAY,
-            DATE '2023-01-01',
+            DATE '1945-01-01',
             DATEADD(YEAR, 3, CURRENT_DATE())
         ) AS day_count
 ),

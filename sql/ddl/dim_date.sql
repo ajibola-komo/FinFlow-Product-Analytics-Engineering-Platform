@@ -18,7 +18,7 @@ INSERT INTO dim_date
 WITH dates AS (
     SELECT *
     FROM generate_series(
-        MAKE_DATE(1945,01,01),
+        MAKE_DATE(1959,01,01),
         CURRENT_DATE + INTERVAL '3 YEAR',
         INTERVAL '1 DAY'
     ) AS t(date)

@@ -45,13 +45,14 @@ WALLETS_PARQUET_PATH = PARQUET_DIR / "dim_wallet.parquet"
 EVENT_TYPES_PARQUET_PATH = PARQUET_DIR / "dim_event_type.parquet"
 PLANS_PARQUET_PATH = PARQUET_DIR / "dim_plan.parquet"
 
+
 #s3
 S3_BUCKET_NAME = "finflow-s3-bucket"
 
-S3_LOCAL_FILE_PATHS = [DATES_PARQUET_PATH, PRODUCTS_PARQUET_PATH, USERS_PARQUET_PATH, EVENT_TYPES_PARQUET_PATH, PLANS_PARQUET_PATH]
+S3_LOCAL_FILE_PATHS = [DATES_PARQUET_PATH, PRODUCTS_PARQUET_PATH, USERS_PARQUET_PATH, EVENT_TYPES_PARQUET_PATH, PLANS_PARQUET_PATH, WALLETS_PARQUET_PATH]
 
 S3_KEYS = [
-    "dim_date.parquet", "dim_product.parquet", "dim_user.parquet", "dim_event_type.parquet", "dim_plan.parquet"
+    "dim_date.parquet", "dim_product.parquet", "dim_user.parquet", "dim_event_type.parquet", "dim_plan.parquet","dim_wallet.parquet"
 ]
 
-TABLE_NAMES = ["dim_date","dim_product","dim_user","dim_event_type","dim_plan"]
+TABLE_NAMES = ["dim_date","dim_product","dim_user","dim_event_type","dim_plan","dim_wallet"]

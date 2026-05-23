@@ -10,8 +10,8 @@ def generate_list_of_wallets(conn):
     conn.execute(create_db)
 
     users_data = conn.execute('''
-            SELECT * FROM dim_users order by signup_date
-    ''')
+            SELECT * FROM dim_user order by signup_date
+    ''').df()
 
     total_users = len(users_data)
 
@@ -23,9 +23,8 @@ def generate_list_of_wallets(conn):
 
     kyc_status = users_data["kyc_completed"]
 
-    activated_at = np.full(
+    activated_at = np.empty(
         total_users,
-        pd.NaT,
         dtype="datetime64[ns]"
     )
 
@@ -33,26 +32,28 @@ def generate_list_of_wallets(conn):
 
     random_offsets = np.random.randint(0,30,size=onboarded_customers.sum())
 
-    activated_at[onboarded_customers] = [ca + timedelta(days=(ro)) for ca,ro in zip(created_at[onboarded_customers], random_offsets)]
+    activated_at[onboarded_customers] = [ca + timedelta(days=(int(ro))) for ca,ro in zip(created_at[onboarded_customers], random_offsets)]
+    activated_at[~onboarded_customers] = None
+
+    activated_at_id = np.empty(total_users, dtype=object)
 
     created_at_id = [int(pd.Timestamp(created_at[i]).strftime('%Y%m%d')) for i in range(total_users)]
-    activated_at_id = [int(pd.Timestamp(activated_at[i]).strftime('%Y%m%d')) for i in range(total_users)]
+    activated_at_id[onboarded_customers] = [int(pd.Timestamp(i).strftime('%Y%m%d')) for i in activated_at[onboarded_customers]]
 
 
-    df_raw = pd.DataFrame(
+    df_raw = pd.DataFrame({
         "wallet_id":wallet_id,
-        "user_id":users_id,
+        "user_id":user_ids,
         "created_at":created_at,
         "activated_at":activated_at,
         "wallet_created_at_id":created_at_id,
         "wallet_activated_at_id":activated_at_id
-    )
-
+    })
     conn.register('df_raw', df_raw)
 
-    conn.execute('''INSERT df_raw into dim_wallet''')
+    conn.execute('''INSERT into dim_wallet select * from df_raw''')
 
-    conn.execute(f'''COPY dim_wallet to '{WALLETS_PARQUET_PATH}' (FORMAT PARQUET, OVERWRITEORIGNORE TRUE) ''')
+    conn.execute(f'''COPY dim_wallet to '{WALLETS_PARQUET_PATH}' (FORMAT PARQUET) ''')
 
     
 

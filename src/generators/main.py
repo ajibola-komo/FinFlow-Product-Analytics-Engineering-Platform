@@ -1,15 +1,16 @@
 import duckdb as db
 import numpy as np
-from generators.dimensions.dim_user import generate_users
-from generators.dimensions.dim_product import generate_products
-from generators.dimensions.dim_event_type import generate_event_types
-from generators.dimensions.dim_date import generate_dates
+from src.generators.dimensions.dim_user import generate_users
+from src.generators.dimensions.dim_product import generate_products
+from src.generators.dimensions.dim_event_type import generate_event_types
+from src.generators.dimensions.dim_date import generate_dates
 from src.snowflake_setup.create_snowflake_tables import create_snowflake_bronze_tables
 from dotenv import load_dotenv
 from src.storage.s3_upload import upload_parquet_files
 from src.storage.snowflake_upload import upload_from_s3_to_snowflake
 from src.run_dbt.run_dbt import run_dbt_models
-from generators.dimensions.dim_plan import generate_dim_plan
+from src.generators.dimensions.dim_plan import generate_dim_plan
+from src.generators.dimensions.dim_wallet import generate_list_of_wallets
 
 load_dotenv()
 
@@ -21,6 +22,8 @@ def create():
         generate_event_types(conn)
         generate_dim_plan(conn)
         generate_users(conn,50000)
+        generate_list_of_wallets(conn)
+
     
     upload_parquet_files()
     upload_from_s3_to_snowflake()

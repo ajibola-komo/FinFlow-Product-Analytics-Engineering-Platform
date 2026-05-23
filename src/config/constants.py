@@ -1,20 +1,26 @@
-from datetime import timedelta, datetime, date, time
+from datetime import date, datetime, time, timedelta, timezone
 
-# Timezone
 TIMEZONE = "UTC"
-# Default Time Range for Data Processing
-DEFAULT_SIGNUP_START_DATE = date(2016, 1, 1)
-DEFAULT_SIGNUP_END_DATE = date.today()
-# Time Range for Data Processing
-DEFAULT_SIGNUP_START_TIMESTAMP = datetime.combine(DEFAULT_SIGNUP_START_DATE, time.min)
-DEFAULT_SIGNUP_END_TIMESTAMP = datetime.combine(DEFAULT_SIGNUP_END_DATE, time.max)
 
-DEFAULT_TRANSACTION_START_DATE = date(2023, 1, 1)
-DEFAULT_TRANSACTION_END_DATE = date.today()
-DEFAULT_TRANSACTION_START_TIMESTAMP = datetime.combine(DEFAULT_TRANSACTION_START_DATE, time.min)
-DEFAULT_TRANSACTION_END_TIMESTAMP = datetime.combine(DEFAULT_TRANSACTION_END_DATE, time.max)
-CURRENT_YEAR = date.today().year
-CURRENT_MONTH = date.today().month
+TODAY = date.today()
+
+# Signup range
+DEFAULT_SIGNUP_START_DATE = date(2016, 1, 1)
+DEFAULT_SIGNUP_END_DATE = TODAY - timedelta(days=1)
+
+DEFAULT_SIGNUP_START_TIMESTAMP = datetime.combine(DEFAULT_SIGNUP_START_DATE, time.min, tzinfo=timezone.utc)
+DEFAULT_SIGNUP_END_TIMESTAMP = datetime.combine(DEFAULT_SIGNUP_END_DATE, time.max, tzinfo=timezone.utc)
+
+# Transaction range
+CURRENT_YEAR = TODAY.year
+CURRENT_MONTH = TODAY.month
+
+DEFAULT_TRANSACTION_START_DATE = date(CURRENT_YEAR - 3, 1, 1)
+DEFAULT_TRANSACTION_END_DATE = TODAY - timedelta(days=1)
+
+DEFAULT_TRANSACTION_START_TIMESTAMP = datetime.combine(DEFAULT_TRANSACTION_START_DATE, time.min, tzinfo=timezone.utc)
+DEFAULT_TRANSACTION_END_TIMESTAMP = datetime.combine(DEFAULT_TRANSACTION_END_DATE, time.max, tzinfo=timezone.utc)
+
 
 #dim_user constants
 EMAIL_DOMAIN = ["@example.com","abc.com","xyz.com","test.com","demo.com"]

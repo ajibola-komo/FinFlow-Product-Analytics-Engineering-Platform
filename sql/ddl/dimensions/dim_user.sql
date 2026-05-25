@@ -9,7 +9,7 @@ CREATE OR REPLACE TABLE dim_user(
     kyc_completed BOOLEAN NOT NULL,
     date_of_birth DATE,
     birth_date_id INT,
-    signup_date DATE NOT NULL,
+    signup_date TIMESTAMP NOT NULL,
     signup_date_id INT,
     foreign key (birth_date_id) references dim_date(date_id),
     foreign key (signup_date_id) references dim_date(date_id)

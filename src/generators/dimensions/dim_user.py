@@ -20,7 +20,6 @@ def generate_users(conn, num_of_users):
     #generate fake user data using faker library
     fake_gb = fk.Faker('en_GB')
     fake_ie = fk.Faker('en_IE')
-    fake = fk.Faker()
 
     #user_id = np.arange(1, num_of_users + 1)
     gender = np.random.choice(GENDER, num_of_users, p=GENDER_WEIGHTS)

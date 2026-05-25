@@ -9,7 +9,7 @@ CREATE OR REPLACE TABLE dim_user(
     kyc_completed BOOLEAN NOT NULL,
     date_of_birth DATE,
     birth_date_id INT,
-    signup_date DATE NOT NULL,
+    signup_date TIMESTAMP NOT NULL,
     signup_date_id INT,
     ingested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP

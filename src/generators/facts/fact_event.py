@@ -1,7 +1,10 @@
 import numpy as np
 import pandas as pd
 from src.config.paths import (DDL_FACT_EVENT_PATH, FACT_EVENTS_PARQUET_PATH)
-from src.config.constants import (DEFAULT_TRANSACTION_START_TIMESTAMP,DEFAULT_TRANSACTION_START_DATE, DEFAULT_TRANSACTION_END_TIMESTAMP)
+from src.config.constants import (DEFAULT_TRANSACTION_START_TIMESTAMP,DEFAULT_TRANSACTION_START_DATE, DEFAULT_TRANSACTION_END_TIMESTAMP,
+                                  POST_SIGN_UP_DELAYED_LOGINS, POST_SIGN_UP_IMMEDIATE_LOGINS, POST_SIGN_UP_SAME_DAY_LOGINS,
+                                  IMMEDIATE_LOGINS_TIME_FRAME, SAME_DAY_LOGINS_TIME_FRAME, DELAYED_LOGINS_TIME_FRAME, UNACTIVATED_USERS_TIME_FRAME
+                                  )
 from datetime import timedelta
 
 
@@ -11,7 +14,8 @@ def generate_fact_events(conn, num_of_events):
 
     conn.execute(create_db)
 
-    users_data = conn.execute(f'''SELECT user_id, signup_date FROM dim_user
+    #populate all possible signups within the project uration
+    users_data = conn.execute(f'''SELECT user_id, signup_date, kyc_completed FROM dim_user
      where signup_date >= '{DEFAULT_TRANSACTION_START_DATE}' order by signup_date''').df()
 
     event_type_lookup = conn.execute(
@@ -40,31 +44,90 @@ def generate_fact_events(conn, num_of_events):
     event_time[:total_signups] = users_data["signup_date"]
     event_type_ids[:total_signups] = event_type_map["signup_completed"]
 
-    post_registration_logins = total_signups * 2
+    
 
-    signup_dates = users_data["signup_date"] 
-    random_offset = np.random.randint(60,300,size=total_signups)
-    user_ids[total_signups:post_registration_logins] = users_data["user_id"]
-    event_time[total_signups:post_registration_logins] = [pd.Timestamp(sd) + timedelta(seconds=int(ro)) for sd, ro in zip(signup_dates, random_offset)]
-    event_type_ids[total_signups:post_registration_logins] = event_type_map["app_login"]
+    signups_df = pd.DataFrame(
+        {
+            "user_id": users_data["user_id"],
+            "signup_date":users_data["signup_date"],
+            "kyc_completed":users_data["kyc_completed"]
+        }
+    )
+
+    signups_df = signups_df.sample(frac=1).reset_index(drop=True)
+
+    activated_df = signups_df[signups_df["kyc_completed"] == True].copy()
+
+    activated_df["login_segment"] = np.random.choice(
+    ["immediate", "same_day", "delayed"],
+    size=len(activated_df),
+    p=[POST_SIGN_UP_IMMEDIATE_LOGINS, POST_SIGN_UP_SAME_DAY_LOGINS, POST_SIGN_UP_DELAYED_LOGINS]
+)
+
+    #immediate logins
+    immediate_logins_df = activated_df[activated_df["login_segment"] == "immediate"].copy()
+    n_immediate = len(immediate_logins_df)
+    immediate_end  = total_signups + n_immediate
+    
+    
+
+    random_offset = np.random.randint(IMMEDIATE_LOGINS_TIME_FRAME[0],IMMEDIATE_LOGINS_TIME_FRAME[1],size=len(immediate_logins_df))
+    user_ids[total_signups:immediate_end] = immediate_logins_df["user_id"]
+    signup_dates = immediate_logins_df["signup_date"]
+    event_time[total_signups:immediate_end] = [pd.Timestamp(sd) + timedelta(seconds=int(ro)) for sd, ro in zip(signup_dates, random_offset)]
+    event_type_ids[total_signups:immediate_end] = event_type_map["app_login"]
+
+    #same day logins
+    same_day_logins_df = activated_df[activated_df["login_segment"] == "same_day"].copy()
+    n_same_day  = len(same_day_logins_df)
+    same_day_end   = immediate_end + n_same_day
+    random_offset = np.random.randint(SAME_DAY_LOGINS_TIME_FRAME[0],SAME_DAY_LOGINS_TIME_FRAME[1], size=len(same_day_logins_df))
+    user_ids[immediate_end:same_day_end] = same_day_logins_df["user_id"]
+    signup_dates = same_day_logins_df["signup_date"]
+    event_time[immediate_end:same_day_end] = [pd.Timestamp(sd) + timedelta(seconds=int(ro)) for sd,ro in zip(signup_dates, random_offset)]
+    event_type_ids[immediate_end:same_day_end] = event_type_map["app_login"]
+
+    #delayed logins
+    delayed_logins_df = activated_df[activated_df["login_segment"] == "delayed"].copy()
+    n_delayed   = len(delayed_logins_df)
+    delayed_end    = same_day_end  + n_delayed
+    random_offset = np.random.randint(DELAYED_LOGINS_TIME_FRAME[0],DELAYED_LOGINS_TIME_FRAME[1], size=len(delayed_logins_df))
+    user_ids[same_day_end:delayed_end] = delayed_logins_df["user_id"]
+    signup_dates = delayed_logins_df["signup_date"]
+    event_time[same_day_end:delayed_end] = [pd.Timestamp(sd) + timedelta(seconds=int(ro)) for sd,ro in zip(signup_dates, random_offset)]
+    event_type_ids[same_day_end:delayed_end] = event_type_map["app_login"]
+
+    unactivated_users_df = signups_df[signups_df["kyc_completed"] == False].copy()
+    unactivated_users_df = unactivated_users_df.sample(frac=0.2).reset_index(drop=True)
+
+    unactivated_users_login = len(unactivated_users_df)
+    unactivated_end = delayed_end + unactivated_users_login
+
+    random_offset = np.random.randint(UNACTIVATED_USERS_TIME_FRAME[0],UNACTIVATED_USERS_TIME_FRAME[1], size=unactivated_users_login)
+
+    user_ids[delayed_end:unactivated_end] = unactivated_users_df["user_id"]
+    signup_dates = unactivated_users_df["signup_date"]
+    event_time[delayed_end:unactivated_end] = [pd.Timestamp(sd) + timedelta(seconds=int(ro)) for sd,ro in zip(signup_dates, random_offset)]
+    event_type_ids[delayed_end:unactivated_end] = event_type_map["app_login"]
+
 
     
-    activated_users = conn.execute(f'''SELECT * FROM dim_user where kyc_completed = TRUE and signup_date >= '{DEFAULT_TRANSACTION_START_DATE}' order by signup_date''').df()
+    kyc_completed_users = pd.combine([immediate_logins_df,delayed_logins_df, same_day_logins_df])
 
-    total_activated_users = len(activated_users)
+    total_activated_users = len(kyc_completed_users)
 
-    kyc_activated_transactions = post_registration_logins + total_activated_users
+    kyc_activated_transactions = total_signups + n_immediate + n_same_day + n_delayed
 
     random_offset = np.random.randint(300, 345600, size=total_activated_users)
-    activated_users_signup_dates = activated_users["signup_date"]
+    activated_users_signup_dates = kyc_completed_users["signup_date"] #have a look at this
 
-    user_ids[post_registration_logins:kyc_activated_transactions] = activated_users["user_id"]
-    event_time[post_registration_logins:kyc_activated_transactions] = [pd.Timestamp(sd) + timedelta(seconds=int(ro)) for sd, ro in zip(activated_users_signup_dates, random_offset)]
-    event_type_ids[post_registration_logins:kyc_activated_transactions] = event_type_map["kyc_completed"]
+    user_ids[unactivated_end:kyc_activated_transactions] = kyc_completed_users["user_id"]
+    event_time[unactivated_end:kyc_activated_transactions] = [pd.Timestamp(sd) + timedelta(seconds=int(ro)) for sd, ro in zip(activated_users_signup_dates, random_offset)]
+    event_type_ids[unactivated_end:kyc_activated_transactions] = event_type_map["kyc_completed"]
 
-    kyc_completion_time = event_time[post_registration_logins:kyc_activated_transactions]
+    kyc_completion_time = event_time[unactivated_end:kyc_activated_transactions]
 
-    kyc_dict = dict(zip(activated_users["user_id"], kyc_completion_time))
+    kyc_dict = dict(zip(kyc_completed_users["user_id"], kyc_completion_time))
 
     subset_size = int(len(users_data) * 0.6)
     

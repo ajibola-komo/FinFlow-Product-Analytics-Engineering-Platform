@@ -3,7 +3,9 @@ import pandas as pd
 from src.config.paths import (DDL_FACT_EVENT_PATH, FACT_EVENTS_PARQUET_PATH)
 from src.config.constants import (DEFAULT_TRANSACTION_START_TIMESTAMP,DEFAULT_TRANSACTION_START_DATE, DEFAULT_TRANSACTION_END_TIMESTAMP,
                                   POST_SIGN_UP_DELAYED_LOGINS, POST_SIGN_UP_IMMEDIATE_LOGINS, POST_SIGN_UP_SAME_DAY_LOGINS,
-                                  IMMEDIATE_LOGINS_TIME_FRAME, SAME_DAY_LOGINS_TIME_FRAME, DELAYED_LOGINS_TIME_FRAME, UNACTIVATED_USERS_TIME_FRAME
+                                  IMMEDIATE_LOGINS_TIME_FRAME, SAME_DAY_LOGINS_TIME_FRAME, DELAYED_LOGINS_TIME_FRAME, 
+                                  UNACTIVATED_USERS_TIME_FRAME, WALLET_ACTIVATION_SUBSET, IMMEDIATE_WALLET_ACTIVATION_TIME_FRAME, 
+                                  DELAYED_WALLET_ACTIVATION_TIME_FRAME, IMMEDIATE_ACTIVATION_SUBSET
                                   )
 from datetime import timedelta
 
@@ -17,6 +19,8 @@ def generate_fact_events(conn, num_of_events):
     #populate all possible signups within the project uration
     users_data = conn.execute(f'''SELECT user_id, signup_date, kyc_completed FROM dim_user
      where signup_date >= '{DEFAULT_TRANSACTION_START_DATE}' order by signup_date''').df()
+    
+    user_wallet_data = conn.execute(f'''SELECT user_id, wallet_id from dim_wallet''').df()
 
     event_type_lookup = conn.execute(
     '''
@@ -29,6 +33,11 @@ def generate_fact_events(conn, num_of_events):
     event_type_lookup["event_type_code"],
     event_type_lookup["event_type_id"]
 ))
+    
+    wallet_id_map = dict(zip(
+        user_wallet_data["user_id"],
+        user_wallet_data["wallet_id"]
+    ))
 
     #event_id, user_id, event_type_id,investment_id wallet_id, event_time,event_date_id
 
@@ -37,6 +46,13 @@ def generate_fact_events(conn, num_of_events):
     user_ids = np.empty(num_of_events, dtype=object)
 
     event_type_ids = np.empty(num_of_events, dtype=object)
+
+    wallet_ids = np.empty(num_of_events, dtype=object)
+
+    transaction_ids = np.empty(num_of_events, dtype=object)
+
+    investment_ids = np.empty(num_of_events, dtype=object)
+
 
     total_signups = len(users_data)
 
@@ -110,50 +126,48 @@ def generate_fact_events(conn, num_of_events):
     event_time[delayed_end:unactivated_end] = [pd.Timestamp(sd) + timedelta(seconds=int(ro)) for sd,ro in zip(signup_dates, random_offset)]
     event_type_ids[delayed_end:unactivated_end] = event_type_map["app_login"]
 
-
+    immediate_logins_df["last_login_time"] = event_time[total_signups:immediate_end]
+    same_day_logins_df["last_login_time"] = event_time[immediate_end:same_day_end]
+    delayed_logins_df["last_login_time"] = event_time[same_day_end:delayed_end]
     
-    kyc_completed_users = pd.combine([immediate_logins_df,delayed_logins_df, same_day_logins_df])
+    kyc_completed_users = pd.concat([immediate_logins_df,same_day_logins_df, delayed_logins_df], ignore_index=True)
 
     total_activated_users = len(kyc_completed_users)
 
-    kyc_activated_transactions = total_signups + n_immediate + n_same_day + n_delayed
+    kyc_activated_transactions = unactivated_end + total_activated_users
 
     random_offset = np.random.randint(300, 345600, size=total_activated_users)
-    activated_users_signup_dates = kyc_completed_users["signup_date"] #have a look at this
 
     user_ids[unactivated_end:kyc_activated_transactions] = kyc_completed_users["user_id"]
-    event_time[unactivated_end:kyc_activated_transactions] = [pd.Timestamp(sd) + timedelta(seconds=int(ro)) for sd, ro in zip(activated_users_signup_dates, random_offset)]
+    event_time[unactivated_end:kyc_activated_transactions] = [pd.Timestamp(sd) + timedelta(seconds=int(ro)) for sd, ro in zip(kyc_completed_users["last_login_time"], random_offset)]
     event_type_ids[unactivated_end:kyc_activated_transactions] = event_type_map["kyc_completed"]
 
     kyc_completion_time = event_time[unactivated_end:kyc_activated_transactions]
 
+    #wallet activation
     kyc_dict = dict(zip(kyc_completed_users["user_id"], kyc_completion_time))
-
-    subset_size = int(len(users_data) * 0.6)
     
-    customer_subset = conn.execute(f'''SELECT du.user_id, du.signup_date, dw.wallet_id FROM dim_user du
-                                   inner join dim_wallet dw
-                                   on du.user_id = dw.user_id 
-                                   where kyc_completed = TRUE and signup_date >= '{DEFAULT_TRANSACTION_START_DATE}'
-                                   limit {subset_size}''').df()
+    customer_subset_df = kyc_completed_users.sample(frac=WALLET_ACTIVATION_SUBSET, random_state=42)
+
+    split_index = int(len(customer_subset_df) * IMMEDIATE_ACTIVATION_SUBSET)
+
+    immediate_wallet_activation_df = customer_subset_df.iloc[:split_index]
+    delayed_wallet_activation_df = customer_subset_df.iloc[split_index:]
     
-    total_wallet_activation_events = len(customer_subset)
+    immediate_wallet_activation_events = len(immediate_wallet_activation_df)
 
-    wallet_activation_transactions = kyc_activated_transactions + total_wallet_activation_events
+    immediate_wallet_activation_transactions = kyc_activated_transactions + immediate_wallet_activation_events
 
-    wallet_ids = np.empty(num_of_events, dtype=object)
-    transaction_ids = np.empty(num_of_events, dtype=object)
 
-    random_offset = np.random.randint(60,10080, size=total_wallet_activation_events)
+    random_offset = np.random.randint(IMMEDIATE_WALLET_ACTIVATION_TIME_FRAME[0],IMMEDIATE_WALLET_ACTIVATION_TIME_FRAME[1], size=immediate_wallet_activation_events)
 
-    user_ids[kyc_activated_transactions:wallet_activation_transactions] = customer_subset["user_id"]
-    event_time[kyc_activated_transactions:wallet_activation_transactions] = [kyc_dict[uid] + timedelta(minutes=int(ro)) for uid, ro in zip(user_ids[kyc_activated_transactions:wallet_activation_transactions], random_offset)]
-    wallet_ids[kyc_activated_transactions:wallet_activation_transactions] = customer_subset["wallet_id"]
-    event_type_ids[kyc_activated_transactions:wallet_activation_transactions] = event_type_map["wallet_funded"]
-    transaction_ids[kyc_activated_transactions:wallet_activation_transactions] = np.arange(101, total_wallet_activation_events + 101)
+    uids = immediate_wallet_activation_df["user_id"].values
 
-    
-
+    user_ids[kyc_activated_transactions:immediate_wallet_activation_transactions] = immediate_wallet_activation_df["user_id"]
+    event_time[kyc_activated_transactions:immediate_wallet_activation_transactions] = [kyc_dict[uid] + timedelta(minutes=int(ro)) for uid, ro in zip(user_ids[kyc_activated_transactions:immediate_wallet_activation_transactions], random_offset)]
+    wallet_ids[kyc_activated_transactions:immediate_wallet_activation_transactions] = [wallet_id_map.get(uid) for uid in uids]
+    event_type_ids[kyc_activated_transactions:immediate_wallet_activation_transactions] = event_type_map["wallet_funded"]
+    transaction_ids[kyc_activated_transactions:immediate_wallet_activation_transactions] = np.arange(101, immediate_wallet_activation_transactions + 101)
 
     #populated_events = pd.notna(event_time)
     

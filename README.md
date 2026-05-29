@@ -67,7 +67,7 @@ The project focuses on demonstrating modern analytics engineering and product an
 
 # Product or Platform Event Flow
 
-![Event Flow Diagram](Event-Driven-Growth-Analytics-Platform\docs\images\event_flow_diagram.png)
+![Event Flow Diagram](docs\images\event_flow_diagram.png)
 
 # Architecture Overview
 

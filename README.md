@@ -26,12 +26,12 @@ This project is designed to address these challenges by building a production-st
 
 # Project Objectives
 
-This project aims to design and implement a production-style fintech product analytics and analytics engineering platform that simulates how modern digital financial systems collect, process, model, and analyze behavioral and transactional data.
+This project aims to design and implement a production-style **fintech product analytics** and analytics engineering platform that simulates how modern digital financial systems collect, process, model, and analyze behavioral and transactional data.
 
 The platform is built to achieve the following objectives:
 
-- Generate realistic synthetic event data across a multi-product fintech ecosystem covering payments, investments, and agency banking
-Model end-to-end customer journeys to support product analytics use cases such as retention, funnels, and cross-product engagement
+- Generate realistic synthetic event streams for a multi-product fintech platform, modeling customer behavior across wallet funding, payments, savings, investments, and other money movement activities.
+- Model end-to-end customer journeys to support product analytics use cases such as retention, funnels, and cross-product engagement
 - Design a scalable data architecture with historical backfills and incremental daily ingestion patterns
 - Implement a partitioned data lake structure and transform raw data into analytics-ready models using dbt
 - Build consistent product and growth metrics to enable reliable reporting and decision-making
@@ -56,13 +56,18 @@ The project focuses on demonstrating modern analytics engineering and product an
 | Layer | Tool |
 |---|---|
 | Data generation | Python (Faker, NumPy, Pandas) |
-| Compute & Orchestration | AWS EC2 (Linux), Git-based deployment |
+| Workflow Orchestration| Airflow |
+| Compute & Infrastructre| AWS EC2 (Linux), Git-based deployment |
 | Storage | Amazon S3 |
 | Warehouse | Snowflake / DuckDB |
 | Transformation | dbt |
-| Visualization | Tableau |
+| Visualization | Power BI |
 
 ---
+
+# Product or Platform Event Flow
+
+![Event Flow Diagram](Event-Driven-Growth-Analytics-Platform\docs\images\event_flow_diagram.png)
 
 # Architecture Overview
 
@@ -81,7 +86,7 @@ dbt Transformation Layer
         ↓
 Analytics Marts
         ↓
-BI Dashboards (Tableau)
+BI Dashboards (Power BI)
 ```
 
 ## Data Lakehouse Architecture

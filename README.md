@@ -58,7 +58,7 @@ The project focuses on demonstrating modern analytics engineering and product an
 | Data generation | Python (Faker, NumPy, Pandas) |
 | Workflow Orchestration| Airflow |
 | Compute & Infrastructre| AWS EC2 (Linux), Git-based deployment |
-| Storage | Amazon S3 |
+| Storage | AWS S3 |
 | Warehouse | Snowflake / DuckDB |
 | Transformation | dbt |
 | Visualization | Power BI |

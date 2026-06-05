@@ -77,6 +77,33 @@ COUNTRIES_LIST = ["UK", "Ireland"]
 COUNTRIES_WEIGHTS = [0.8, 0.2]  # Assuming 80% of users are from the UK and 20% from Ireland
 AGE_BUCKETS = ["18-24", "25-34", "35-44", "45-54", "55-65"]
 AGE_WEIGHTS = [0.20, 0.35, 0.25, 0.15, 0.05]
+CUSTOMER_PERSONA_MAP = {
+    'Starter Investor':{
+        'age_range':[18,31],
+        'income_range':[18000,50000]
+    },
+    'Goal-Oriented Saver':{
+        'age_range':[25,56],
+        'income_range':[25000,90000]
+    },
+    'Wealth Builder':{
+        'age_range':[25,61],
+        'income_range':[40000,150000]
+    },
+    'Active Investor':{
+        'age_range':[25,66],
+        'income_range':[60000,120000]
+    },
+    'Capital Preserver':{
+        'age_range':[45,66],
+        'income_range':[50000,85000]
+    }
+}
+CUSTOMER_PERSONAS = list(CUSTOMER_PERSONA_MAP.keys()) 
+CUSTOMER_PERSONA_WEIGHTS = [0.25,0.3,0.25,0.1,0.1]
+
+ACQUISITION_CHANNELS = ['Organic Search','Paid Social','Referral Program','Direct Traffic','Paid Search','Partnerships']
+CHANNEL_WEIGHTS = [0.25,0.2,0.2,0.15,0.1,0.1]
 
 #events simulation
 POST_SIGN_UP_IMMEDIATE_LOGINS = 0.45

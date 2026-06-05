@@ -2,12 +2,12 @@ import numpy as np
 import pandas as pd
 import faker as fk
 import re
-from src.config.constants import (DEFAULT_SIGNUP_START_DATE, DEFAULT_SIGNUP_END_DATE, DEFAULT_SIGNUP_START_TIMESTAMP, 
-                                  DEFAULT_SIGNUP_END_TIMESTAMP, EMAIL_DOMAIN, GENDER, GENDER_WEIGHTS, 
+from src.config.constants import (EMAIL_DOMAIN, GENDER, GENDER_WEIGHTS, ACQUISITION_CHANNELS,
+                                  CHANNEL_WEIGHTS
                                   )
 from src.config.paths import (DDL_DIM_USER_PATH, USERS_PARQUET_PATH)
 from src.logic.location_distribution import get_location_distribution
-from src.logic.age_distribution import get_age_distribution
+from src.logic.persona_age_income_distribution import get_age_persona_income_distribution
 from src.logic.signup_distribution import get_signup_distribution
 
 
@@ -69,9 +69,17 @@ def generate_users(conn, num_of_users):
 )
     email_ids = [f"{first_name[i].lower()}.{last_name[i].lower()}{random_suffix[i]}{email_domains[i]}" for i in range(num_of_users)]
 
+    acquisition_channels = np.random.choice(ACQUISITION_CHANNELS, p = CHANNEL_WEIGHTS, size=num_of_users)
+
+    demographics = get_age_persona_income_distribution(num_of_users)
+
+    customer_personas = np.array(demographics['persona'])
+
+    reported_annual_incomes = np.array(demographics['income'])
+
 
     kyc_completed = np.random.choice([True, False], num_of_users, p=[0.7, 0.3])
-    date_of_birth = get_age_distribution(num_of_users)
+    date_of_birth = np.array(demographics['birth_date'])
     signup_date = get_signup_distribution(date_of_birth)
     birth_date_id = [int(pd.Timestamp(date_of_birth[i]).strftime('%Y%m%d')) for i in range(num_of_users)]
     signup_date_id = [int(pd.Timestamp(signup_date[i]).strftime('%Y%m%d')) for i in range(num_of_users)]
@@ -83,6 +91,9 @@ def generate_users(conn, num_of_users):
         'region': regions,
         'city': cities,
         'email_address': email_ids,
+        'reported_annual_income':reported_annual_incomes,
+        'acquisition_channel':acquisition_channels,
+        'customer_persona':customer_personas,
         'kyc_completed': kyc_completed,
         'date_of_birth': date_of_birth,
         'birth_date_id': birth_date_id,
@@ -107,6 +118,9 @@ def generate_users(conn, num_of_users):
     'region',
     'city',
     'email_address',
+    'reported_annual_income',
+    'acquisition_channel',
+    'customer_persona',
     'kyc_completed',
     'date_of_birth',
     'birth_date_id',

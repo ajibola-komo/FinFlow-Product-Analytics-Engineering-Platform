@@ -24,7 +24,7 @@ def create():
         generate_dim_plan(conn)
         generate_users(conn,50000)
         generate_list_of_wallets(conn)
-        generate_fact_events(conn,300000)
+        #generate_fact_events(conn,300000)
 
     
     upload_parquet_files()

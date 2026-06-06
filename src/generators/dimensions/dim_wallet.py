@@ -36,7 +36,7 @@ def generate_list_of_wallets(conn):
     activated_at[active_mask] = [ca + timedelta(minutes=(int(ro))) for ca,ro in zip(created_at[active_mask], activation_timeframe[active_mask])]
     activated_at[~active_mask] = None
 
-    activated_at_id = np.full(total_users, pd.nan)
+    activated_at_id = np.full(total_users, pd.NaT) #initialize with NaT, will fill only for activated users
 
     created_at_id = [int(pd.Timestamp(created_at[i]).strftime('%Y%m%d')) for i in range(total_users)]
     activated_at_id[active_mask] = [int(pd.Timestamp(i).strftime('%Y%m%d')) for i in activated_at[active_mask]]

@@ -14,6 +14,8 @@ CREATE OR REPLACE TABLE dim_user(
     birth_date_id INT,
     signup_date TIMESTAMP NOT NULL,
     signup_date_id INT,
+    is_activated_user BOOLEAN,
+    wallet_activation_timeframe INT,
     foreign key (birth_date_id) references dim_date(date_id),
     foreign key (signup_date_id) references dim_date(date_id)
 )

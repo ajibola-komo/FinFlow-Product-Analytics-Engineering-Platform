@@ -2,8 +2,8 @@ import numpy as np
 import pandas as pd
 import faker as fk
 import re
-from src.config.constants import (EMAIL_DOMAIN, GENDER, GENDER_WEIGHTS, ACQUISITION_CHANNELS,
-                                  CHANNEL_WEIGHTS
+from src.config.constants import (CUSTOMER_PERSONA_MAP, EMAIL_DOMAIN, GENDER, GENDER_WEIGHTS, ACQUISITION_CHANNELS,
+                                  CHANNEL_WEIGHTS, IS_ACTIVATED_USER
                                   )
 from src.config.paths import (DDL_DIM_USER_PATH, USERS_PARQUET_PATH)
 from src.logic.location_distribution import get_location_distribution
@@ -69,7 +69,7 @@ def generate_users(conn, num_of_users):
 )
     email_ids = [f"{first_name[i].lower()}.{last_name[i].lower()}{random_suffix[i]}{email_domains[i]}" for i in range(num_of_users)]
 
-    acquisition_channels = np.random.choice(ACQUISITION_CHANNELS, p = CHANNEL_WEIGHTS, size=num_of_users)
+    
 
     demographics = get_age_persona_income_distribution(num_of_users)
 
@@ -77,8 +77,17 @@ def generate_users(conn, num_of_users):
 
     reported_annual_incomes = np.array(demographics['income'])
 
+    is_activated_user = np.array(demographics['is_activated_user'])
 
-    kyc_completed = np.random.choice([True, False], num_of_users, p=[0.7, 0.3])
+    wallet_activation_timeframe = np.array(demographics['wallet_activation_timeframe'])
+
+    acquisition_channels = [np.random.choice(ACQUISITION_CHANNELS, p = CUSTOMER_PERSONA_MAP[cp]['acquisition_channels_weights']) for cp in customer_personas]
+
+    kyc_completed = np.full(num_of_users, False) #initialize with False, will update to True for users who completed KYC
+    active_mask = is_activated_user == True
+    kyc_completed[active_mask] = True #assuming all activated users completed KYC, this will set kyc_completed to True for those users
+    kyc_completed[~active_mask] = np.random.choice([True, False], size=(~active_mask).sum(), p=[0.3, 0.7])
+    
     date_of_birth = np.array(demographics['birth_date'])
     signup_date = get_signup_distribution(date_of_birth)
     birth_date_id = [int(pd.Timestamp(date_of_birth[i]).strftime('%Y%m%d')) for i in range(num_of_users)]
@@ -98,7 +107,9 @@ def generate_users(conn, num_of_users):
         'date_of_birth': date_of_birth,
         'birth_date_id': birth_date_id,
         'signup_date': signup_date,
-        'signup_date_id': signup_date_id
+        'signup_date_id': signup_date_id,
+        'is_activated_user': is_activated_user,
+        'wallet_activation_timeframe': wallet_activation_timeframe
     })
 
     df_raw = df_raw.sort_values(
@@ -125,7 +136,9 @@ def generate_users(conn, num_of_users):
     'date_of_birth',
     'birth_date_id',
     'signup_date',
-    'signup_date_id'
+    'signup_date_id',
+    'is_activated_user',
+    'wallet_activation_timeframe'
 ]]
 
     #write the generated data to a parquet file

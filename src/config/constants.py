@@ -80,30 +80,48 @@ AGE_WEIGHTS = [0.20, 0.35, 0.25, 0.15, 0.05]
 CUSTOMER_PERSONA_MAP = {
     'Starter Investor':{
         'age_range':[18,31],
-        'income_range':[18000,50000]
+        'income_range':[18000,50000],
+        'wallet_activation_weight':[0.25,0.75], #25% activate wallet immediately, 75% delay activation
+        'mins_to_first_funding':[25920,36000] ,#between 18 and 25 days
+        'acquisition_channels_weights': [0.15,0.4,0.2,0.05,0.1,0.1] #higher weight on paid social and referral program
     },
     'Goal-Oriented Saver':{
         'age_range':[25,56],
-        'income_range':[25000,90000]
+        'income_range':[25000,90000],
+        'wallet_activation_weight':[0.45,0.55],
+        'mins_to_first_funding':[14400,21600], #between 10 and 15 days
+        'acquisition_channels_weights': [0.3,0.15,0.2,0.15,0.1,0.1]
     },
     'Wealth Builder':{
         'age_range':[25,61],
-        'income_range':[40000,150000]
+        'income_range':[40000,150000],
+        'wallet_activation_weight':[0.7,0.3],
+        'mins_to_first_funding':[4320,10080], #between 3 and 7 days
+        'acquisition_channels_weights': [0.25,0.1,0.2,0.2,0.1,0.15]
     },
     'Active Investor':{
         'age_range':[25,66],
-        'income_range':[60000,120000]
+        'income_range':[60000,120000],
+        'wallet_activation_weight':[0.85,0.15],
+        'mins_to_first_funding':[1440,4320], #between 1 and 3 days
+        'acquisition_channels_weights': [0.2,0.1,0.15,0.3,0.15,0.1]
     },
     'Capital Preserver':{
         'age_range':[45,66],
-        'income_range':[50000,85000]
+        'income_range':[50000,85000],
+        'wallet_activation_weight':[0.5,0.5],
+        'mins_to_first_funding':[10080,20160], #between 7 and 14 days
+        'acquisition_channels_weights': [0.3,0.05,0.25,0.25,0.05,0.1]
     }
 }
 CUSTOMER_PERSONAS = list(CUSTOMER_PERSONA_MAP.keys()) 
 CUSTOMER_PERSONA_WEIGHTS = [0.25,0.3,0.25,0.1,0.1]
+IS_ACTIVATED_USER = [True, False]
 
 ACQUISITION_CHANNELS = ['Organic Search','Paid Social','Referral Program','Direct Traffic','Paid Search','Partnerships']
 CHANNEL_WEIGHTS = [0.25,0.2,0.2,0.15,0.1,0.1]
+
+
 
 #events simulation
 POST_SIGN_UP_IMMEDIATE_LOGINS = 0.45

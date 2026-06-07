@@ -1,11 +1,16 @@
 event_type_id,event_type_code,event_type_display_name,event_type_description,event_type_category,event_type_stage,is_conversion_milestone,product_area
-1,signup_completed,Signup Completed,User successfully completed account registration,Exposure,Acquisition,TRUE,shared
+1,signup_completed,Signup Completed,User successfully completed account registration,Acquisition,Acquisition,TRUE,shared
 2,app_login,App Login,User logged into the application,Engagement,Engagement,FALSE,shared
 3,kyc_completed,KYC Completed,User successfully completed KYC verification,Onboarding,Onboarding,TRUE,shared
-4,review_current_investment,Review Current Investment,User reviewed their current investment portfolio,Engagement,Engagement,FALSE,shared
-5,wallet_funded,Wallet Funded,User funded their investment wallet,Activation,Activation,TRUE,shared
-6,savings_plan_created,Savings Plan Created,User created a new savings plan,Engagement,Engagement,TRUE,savings
-7,investment_plan_created,Investment Plan Created,User created a new investment plan,Engagement,Engagement,TRUE,investment
-8,review_other_plans,Review Other Investment Plans,User explored other available investment plans,Engagement,Consideration,FALSE,shared
-9,wallet_withdrawal,Wallet Withdrawal,User withdrew funds from wallet,Liquidity_Action,Consideration,FALSE,shared
-10,assets_sale,Assets Sale,User sold their assets,Liquidity_Action,Consideration,FALSE,investment
+4,wallet_funded,Wallet Funded,User successfully funded their wallet.,Activation,Activation,TRUE,shared
+5,review_plan_options,Review Plan Options,User explored available investment plans,Engagement,Consideration,FALSE,shared
+6,plan_selected,Plan Selected,User selected an investment plan,Consideration,Consideration,FALSE,shared
+7,savings_plan_created,Savings Plan Created,User created a new savings plan,Engagement,Adoption,TRUE,savings
+8,investment_plan_created,Investment Plan Created,User created a new investment plan,Engagement,Adoption,TRUE,investment
+9,plan_funded,Plan Funded,User funded their selected plan,Activation,Adoption,TRUE,shared
+10,review_current_investment,Review Current Investment,User reviewed their current investment portfolio,Engagement,Engagement,FALSE,shared
+11,request_early_withdrawal,Request Early Withdrawal,"User requests early withdrawal, this triggers a penalty fee depending on the active plan",Churn Risk,Churn,FALSE,shared
+12,investment_vests,Investment Vests,User's investment matures,Liquidity_Action,Retention,FALSE,shared
+13,investment_proceeds_wallet_transfer,Invest Proceeds Wallet Transfer,User's investment proceeds are transferred to their wallet,Liquidity_Action,Retention,FALSE,shared
+14,wallet_withdrawal,Wallet Withdrawal,User withdrew funds from wallet,Liquidity_Action,Retention,FALSE,shared
+15,assets_sale,Assets Sale,User sold their assets,Liquidity_Action,Retention,FALSE,investment

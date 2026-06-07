@@ -35,7 +35,7 @@ The platform is built to achieve the following objectives:
 - Demonstrate best practices in analytics engineering including modular modeling, incremental processing, and scalable ELT design
 
 ### Architecture
-![Data Warehouse Architecture](docs/images/finflow_data_warehouse_architecture.png)
+![Data Warehouse Architecture](../images/finflow_data_warehouse_architecture.png)
 
 ### Data Volumes
 **Initial Batch Load**
@@ -92,6 +92,50 @@ The platform is built on a modern analytics engineering stack:
 - Wallet activation represents the first successful wallet funding event.
 - Historical data is generated using persona-driven behavioral models.
 - Customer behavior varies based on persona, acquisition channel, and lifecycle stage.
+
+---
+## 2. Business Definitions (Source of Truth)
+> This section defines how the business interprets data, independent of implementation.
+
+### 2.1. Users
+A **user** is an individual who registers for and engages with FinFlow's products and services. Users may exist in one of the following lifecycle states:. Users may be:
+- **Registered User**: A user who has successfully created an account but has not yet completed all onboarding requirements required to activate their account. This includes pending KYC verification and wallet funding.
+- **KYC Completed User**: A user who has successfully completed KYC verification but is yet to initiate the initial wallet funding or deposit required to activate their account
+- **Activated User**: A user who has successfully completed KYC verification and activated their account by completing their first wallet funding transaction. Activated users are eligible to access and engage with FinFlow's product offerings.
+
+### 2.2. Wallets & Investment Positions
+
+- A **wallet** is a customer-owned account used to hold cash balances within the FinFlow platform. Wallets serve as the primary source and destination for money movement activities, including deposits, withdrawals, transfers, and investment funding transactions.
+
+Funds held within a wallet are considered **uninvested cash balances** and remain available for future transactions or investment activities. 
+- An **investment position** represents a customer's active or historical investment in a specific product, fund, or investment vehicle offered by FinFlow. Investment positions track the lifecycle of invested funds from creation through maturity, redemption, or closure.
+
+    Investment positions maintain a historical record of investment activity, including:
+    - Initial investment amount
+    - Investment start date
+    - Current position status
+    - Position value over time
+    - Maturity or termination date
+    - Realized gains and losses (where applicable)
+    Funds allocated to an investment position are considered **actively invested** and are no longer available within the customer's wallet balance until redeemed, matured, or withdrawn according to product rules.
+
+### User Events
+
+A **User Event** denotes a captured timestamped user action within the application. Finflow's event taxonomy is as follows:
+
+- signup_completed
+- app_login
+- kyc_completed
+- review_plans
+- wallet_funded
+- plan_selected
+- savings_plan_created
+- investment_plan_created
+- review_current_investment
+- wallet_withdrawal
+- investment_vests
+- investment_proceeds_wallet_transfer
+- assets_sale
 
 ---
 ## 8. Data Refresh and Cadence

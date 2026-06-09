@@ -42,7 +42,7 @@ The platform is built to achieve the following objectives:
 | Table | Type | Grain | Approx. rows |
 |---|---|---|---|
 | `dim_date` | dimension | One record per calendar date | ~3,650 rows |
-| `dim_event_type` | dimension | One record per distinct event type | 12 rows |
+| `dim_event_type` | dimension | One record per distinct event type | 14 rows |
 | `dim_product` | dimension | One record per distinct product offering | 2 rows |
 | `dim_plan` | dimension | One record per product plan variant | 4 rows |
 | `dim_user` | dimension | One record per registered user | ~500K rows |
@@ -98,10 +98,52 @@ The platform is built on a modern analytics engineering stack:
 > This section defines how the business interprets data, independent of implementation.
 
 ### 2.1. Users
-A **user** is an individual who registers for and engages with FinFlow's products and services. Users may exist in one of the following lifecycle states:. Users may be:
+A **user** is an individual who registers for and engages with FinFlow's products and services. Users may exist in one of the following lifecycle states:
+
 - **Registered User**: A user who has successfully created an account but has not yet completed all onboarding requirements required to activate their account. This includes pending KYC verification and wallet funding.
 - **KYC Completed User**: A user who has successfully completed KYC verification but is yet to initiate the initial wallet funding or deposit required to activate their account
 - **Activated User**: A user who has successfully completed KYC verification and activated their account by completing their first wallet funding transaction. Activated users are eligible to access and engage with FinFlow's product offerings.
+
+To enable realistic behavioural simulation, users are assigned to a customer persona during data generation. Customer personas represent the foundational segmentation layer within the FinFlow synthetic data generation framework. Each generated user is assigned a persona based on predefined distribution weights. Personas determine key user attributes including:
+- `Age Range`
+- `Reported Annual Income`
+- `Acquisition Channel Propensity`
+- `Wallet Activation Likelihood`
+- `Time-to-first-funding Behaviour`
+- `Behavioural Segment Assignment`
+
+Behavioural segments derived from personas are then used to simulate downstream customer actions such as application logins, wallet funding activity, product adoption, investment creation, and retention patterns.
+
+The platform models the following customer personas:
+| Persona       | Age Group     | Income Range  | Distribution  |
+| ---------| ------------- | --------------| --------------|
+| `Starter Investor` | 18 - 30 | £18,000 - £50,000 | 25% |
+| `Goal-Oriented Saver` | 25 - 55 | £25,000 - £90,000 | 30% |
+| `Wealth Builder` | 25 - 60 | £40,000 - £150,000 | 25% |
+| `Active Investor` | 25–65 | £60,000 - £120,000 | 10% |
+| `Capital Preserver` | 45+ | £70,000 - £150,000 | 10% |
+
+The platform models the following behavioural segments:
+| Behaviour Segment       | Description    |
+| ---------| ------------- | 
+| High Engagement High Balance (HEHB) | Frequent platform usage with consistently high wallet and investment balances. Typically exhibits strong product adoption and investment activity. |
+| High Engagement Low Balance (HELB) | Very active users who engage frequently with the platform but maintain relatively smaller balances and contribution amounts. |
+| Moderate Engagement High Balance (MEHB) | Users who engage periodically but maintain larger balances and investment positions. |
+| Moderate Engagement Low Balance (MELB) | Average users with moderate platform activity and relatively smaller balances. |
+| Low Engagement High Balance (LEHB) | Users who rarely interact with the platform but maintain significant savings or investment holdings. |
+| Low Engagement Low Balance (LELB) | Infrequent users with low balances and minimal product activity. Represents the highest churn-risk segment. |
+
+The personas influence the behavioural segments as follows:
+Behavioural segments are assigned probabilistically based on the user's persona. This relationship ensures that generated customer behaviour remains consistent with the expected characteristics of each persona.
+
+| Persona | HEHB | HELB | MEHB | MELB | LEHB | LELB |
+|----------|-----:|-----:|-----:|-----:|-----:|-----:|
+| Starter Investor | 2% | 55% | 3% | 20% | 0% | 20% |
+| Goal-Oriented Saver | 3% | 15% | 10% | 45% | 7% | 20% |
+| Wealth Builder | 20% | 5% | 45% | 10% | 15% | 5% |
+| Active Investor | 70% | 5% | 15% | 5% | 5% | 0% |
+| Capital Preserver | 5% | 0% | 35% | 0% | 60% | 0% |
+
 
 ### 2.2. Wallets & Investment Positions
 
@@ -113,30 +155,544 @@ Funds held within a wallet are considered **uninvested cash balances** and remai
     Investment positions maintain a historical record of investment activity, including:
     - Initial investment amount
     - Investment start date
-    - Current position status
-    - Position value over time
-    - Maturity or termination date
-    - Realized gains and losses (where applicable)
+    - Investment tenure
+    - Associated plan and product
+    - Investment value at creation
     Funds allocated to an investment position are considered **actively invested** and are no longer available within the customer's wallet balance until redeemed, matured, or withdrawn according to product rules.
 
-### User Events
+### 2.3. User Events
 
 A **User Event** denotes a captured timestamped user action within the application. Finflow's event taxonomy is as follows:
 
 - signup_completed
 - app_login
 - kyc_completed
-- review_plans
+- review_plan_options
 - wallet_funded
 - plan_selected
 - savings_plan_created
 - investment_plan_created
 - review_current_investment
+- request_early_withdrawal
 - wallet_withdrawal
 - investment_vests
 - investment_proceeds_wallet_transfer
 - assets_sale
 
+### 2.4. Transactions
+
+A **transaction** captures and tracks every money movement within the application. Witin the FinFlow application
+context, transactions are generated for the following activities:
+- **Wallet Funding** – Transfer of funds from an external bank account or payment source into a user's FinFlow wallet.
+- **Wallet Withdrawal** – Transfer of funds from a user's FinFlow wallet to an external bank account.
+- **Investment Position Funding** – Transfer of funds from a user's wallet into a savings or investment position.
+- **Investment Proceeds Wallet Transfer** – Transfer of principal and accrued returns from a matured or terminated investment position back into the user's wallet.
+- **Early Withdrawal Penalty** – Fee charged when a user terminates an eligible investment position before its maturity date.
+- **Asset Sale Proceeds Transfer** – Transfer of proceeds generated from the sale of investment assets into the user's wallet.
+
+Transactions serve as the primary source for:
+- Wallet balance calculations
+- Assets Under Management (AUM) reporting
+- Funding and withdrawal analytics
+- Investment contribution analysis
+- Cash flow reporting
+- Customer financial behaviour analysis
+
+Each transaction records the amount, transaction type, source account, destination account, transaction timestamp, and transaction status.
+
+---
+
+## 3. Data Generation Framework (Simulation Rules)
+### 3.1 Data Generation Principles
+
+The FinFlow synthetic dataset is generated using deterministic business rules designed to emulate realistic customer behaviour within a digital wealth management platform.
+
+The generation framework follows the following principles:
+
+- Business-driven rather than random generation.
+- Customer behaviour is influenced by persona assignment.
+- Event generation follows lifecycle progression rules.
+- Financial transactions must satisfy balance and product constraints.
+- Historical records are preserved to support trend analysis.
+- Daily incremental loads simulate real operational activity.
+
+### 3.2 Customer Lifecycle Simulation
+
+Customers progress through the following lifecycle stages:
+
+Acquisition
+→ Onboarding
+→ Activation
+→ Consideration
+→ Adoption
+→ Engagement
+→ Retention
+→ Churn
+
+Not all users successfully progress through every stage.
+Transition probabilities are influenced by customer persona and behavioural segment.
+
+### 3.3 Persona Assignment Logic
+
+Each generated user is assigned a persona using weighted probability distributions.
+
+The persona determines:
+
+- Age range
+- Income range
+- Acquisition channel
+- Wallet activation likelihood
+- Funding behaviour
+- Behavioural segment assignment
+
+### 3.4 Behavioural Simulation Logic
+
+Behavioural segments drive customer activity generation.
+
+The following attributes are influenced by behavioural segment:
+
+- Monthly login frequency
+- Deposit frequency
+- Product adoption likelihood
+- Investment frequency
+- Retention probability
+- Withdrawal probability
+
+| Behaviour Segment | Login Frequency (per Month) | Deposit Frequency (per Month) | Investment Frequency (per Month) | Typical Behaviour |
+|-------------------|----------------------------|------------------------------|----------------------------------|-------------------|
+| High Engagement High Balance | 20 – 40 | 2 – 4 | 1 – 4 | Frequent platform usage, multiple active products, highest balances and retention. |
+| High Engagement Low Balance | 15 – 35 | 1 – 3 | 0 – 1 | Frequent engagement but lower balances and smaller contributions. |
+| Moderate Engagement High Balance | 6 – 15 | 1 – 2 | 1 – 2 | Periodic platform usage with larger balances and long-term investment behaviour. |
+| Moderate Engagement Low Balance | 4 – 12 | 0 – 2 | 0 – 1 | Average users with moderate product adoption and contribution levels. |
+| Low Engagement High Balance | 1 – 5 | 0 – 1 | 0 – 1 | Infrequent platform usage but maintains substantial balances and longer holding periods. |
+| Low Engagement Low Balance | 0 – 3 | 0 – 1 | 0 | Minimal platform activity, low balances, and highest churn risk. |
+
+### 3.5. Event Generation Rules
+
+### signup_completed
+
+Trigger:
+- A  prospective customer successfully completes account registration.
+
+Business Rule:
+- User must be at least 18 years old.
+- User must be assigned a valid customer persona.
+- User must be assigned an acquisition channel.
+- User is created with a unique user ID.
+- A wallet is automatically provisioned for the user at account creation.
+- Newly created wallets are initially unactivated.
+- KYC completion and wallet activation are not required at signup.
+- Each user can only complete account registration once.
+
+Generated Tables:
+- dim_user
+- dim_wallet
+- fact_user_event
+
+### app_login
+
+Trigger:
+- A registered user successfully authenticates and logs into the application.
+
+Business Rules:
+- User must have successfully completed account registration.
+- User account must exist in the system.
+- User may be in a Registered, KYC Completed, or Activated state.
+- Multiple login events may be generated by the same user over time.
+
+Generated Tables:
+- fact_user_event
+
+### kyc_completed
+
+Trigger:
+- A registered user successfully completes identity verification (KYC)
+
+Business Rules:
+- User must have successfully completed account registration.
+- User account must exist in the system.
+- KYC can only be completed once per user.
+- User transitions from Registered User status to KYC Completed User status.
+- KYC completion does not automatically activate the user's account.
+- Wallet funding must occur before account activation.
+
+Generated Tables:
+- fact_user_event
+
+
+### wallet_funded
+
+Trigger:
+- User must have completed KYC
+
+Business Rule:
+- User must have completed KYC verification.
+- Wallet funding transfers funds from an external account into the user's wallet.
+- The first successful wallet funding activates the user's account.
+- A transaction record is generated to capture the funding activity.
+- Users may perform multiple wallet funding transactions over time.
+
+Generated Tables:
+- fact_user_event
+- fact_transaction
+- dim_wallet
+
+### review_plan_options
+
+Trigger:
+- User must be logged into the application
+
+Business Rule:
+- This is an action that precedes investment plan creation
+- It could also be a general user action that does not end up in a plan creation
+
+Generated Tables:
+- fact_user_event
+
+### plan_selected
+
+Trigger:
+- User must be logged into the application
+- User must have reviewed possible plan options
+- User must have completed identity verification (KYC)
+- User's account must be activated by completing and initial wallet funding
+
+Business Rule:
+- User selects a specific savings or investment plan.
+- Plan selection does not transfer funds.
+- Plan selection does not create a funded investment position.
+- A user may select multiple plans over time.
+- This event represents progression from Consideration to Adoption.
+
+Generated Tables:
+- fact_user_event
+
+### savings_plan_created
+
+Trigger:
+- User must be logged into the application.
+- User must have reviewed available plan options.
+- User must have completed identity verification (KYC).
+- User account must be activated through successful wallet funding.
+- User must have selected a savings plan.
+- User wallet balance must be sufficient to fund the selected plan.
+
+Business Rule:
+- User creates and funds a savings plan.
+- Funds are transferred from the user's wallet to a new savings position.
+- Funding amount must be greater than zero.
+- The savings position is created with an Active status.
+- A transaction record is generated to capture the transfer of funds.
+- This event represents successful product adoption and financial commitment by the user.
+- A user may create multiple savings plans over time. 
+
+Generated Tables:
+- fact_investment_position
+- fact_user_event
+- fact_transaction
+
+### investment_plan_created
+
+Trigger:
+- User must be logged into the application.
+- User must have reviewed available plan options.
+- User must have completed identity verification (KYC).
+- User account must be activated through successful wallet funding.
+- User must have selected an investment plan.
+- User wallet balance must be sufficient to fund the selected plan.
+
+Business Rule:
+- User creates and funds an investment plan.
+- Funds are transferred from the user's wallet to a new investment position.
+- Funding amount must be greater than zero.
+- The investment position is created with an Active status.
+- A transaction record is generated to capture the transfer of funds.
+- This event represents successful product adoption and financial commitment by the user.
+- A user may create multiple investment plans over time. 
+
+Generated Tables:
+- fact_investment_position
+- fact_user_event
+- fact_transaction
+
+### review_current_investment
+Trigger:
+- User must be logged into the application.
+- User must have completed identity verification (KYC).
+- User account must be activated through successful wallet funding.
+- User must have at least one active savings or investment position.
+
+Business Rule:
+- Only users with active investment positions can trigger this event
+- Users may review their portfolio multiple times throughout the lifecycle of an investment position.
+- Reviewing an investment does not alter balances, returns, tenure, or investment status.
+- This event represents ongoing customer engagement with FinFlow products.
+- Multiple review events may be generated by the same user over time.
+
+Generated Tables:
+- fact_user_event
+
+### request_early_withdrawal
+Trigger:
+- User must be logged into the application.
+- User must have completed identity verification (KYC).
+- User account must be activated through successful wallet funding.
+- User must have at least one active savings or investment position.
+- The selected plan must permit early withdrawal.
+
+Business Rule:
+- Only active investment positions that allow early withdrawal can trigger this event
+- The investment position must not have reached its maturity date.
+- An early withdrawal penalty may be applied based on the selected plan.
+- The investment position transitions from Active to Terminated status.
+- Investment proceeds remain within the investment position until they are transferred back to the user's wallet.
+- This event represents a potential churn-risk signal and reduced product retention.
+- A user may perform multiple early withdrawals over time across different investment positions.
+
+Generated Tables:
+- fact_user_event
+
+### investment_vests
+Trigger:
+- User must have at least one active savings or investment position.
+- The investment position must have reached its maturity date.
+- This is a system generated event, it does not require any user login
+
+Business Rule:
+- This event is automatically generated when an investment reaches the end of its tenure.
+- No user action is required to trigger this event.
+- Only active investment positions can vest.
+- Vested investments become eligible for proceeds transfer back to the user's wallet.
+- This event represents successful completion of an investment lifecycle.
+
+Generated Tables:
+- fact_user_event
+
+### investment_proceeds_wallet_transfer
+Trigger:
+- An investment position has either matured or been terminated through an approved early withdrawal.
+
+Business Rule:
+- Principal and accrued returns are transferred from the investment position to the user's wallet.
+- Applicable early withdrawal penalties are deducted prior to transfer.
+- A transaction record is created to capture the transfer of funds.
+- The transfer amount must be greater than zero.
+- This event restores liquidity to the user's wallet.
+
+Generated Tables:
+- fact_user_event
+- fact_transaction
+
+### wallet_withdrawal
+Trigger:
+- User must be logged into the application.
+- User account must be activated through successful wallet funding.
+- User wallet balance must be sufficient to support the withdrawal amount.
+
+Business Rule:
+- Funds are transferred from the user's wallet to an external bank account.
+- Withdrawal amount must not exceed the available wallet balance.
+- A transaction record is created to capture the movement of funds.
+- Users may perform multiple wallet withdrawals over time.
+- This event represents customer liquidity activity.
+
+Generated Tables:
+- fact_user_event
+- fact_transaction
+
+### assets_sale
+Trigger:
+- User must be logged into the application.
+- User must have at least one active investment position.
+- The investment position must contain sellable assets.
+
+Business Rule:
+- User liquidates some or all assets held within an investment position.
+- Asset sale proceeds remain within the investment position until transferred to the user's wallet.
+- Asset sales may occur multiple times throughout the lifecycle of an investment.
+- A successful asset sale may subsequently trigger an investment_proceeds_wallet_transfer event.
+- This event represents portfolio management and liquidity activity.
+
+Generated Tables:
+- fact_user_event
+
+### Transaction Generation Rules
+
+Transactions are generated only when triggered by qualifying user events.
+
+Transaction Types:
+
+- Wallet Funding
+- Wallet Withdrawal
+- Investment Funding
+- Investment Proceeds Transfer
+- Early Withdrawal Penalty
+- Asset Sale
+
+---
+
+## 4. Dimensional Modelling Framework
+
+### 4.1 Warehouse Architecture
+
+The analytics warehouse follows a Medallion Architecture:
+
+Bronze → Raw Source Data
+Silver → Cleansed & Validated Data
+Gold → Analytics & Reporting Layer
+
+### 4.2 Star Schema Design
+
+The Gold layer follows Kimball dimensional modelling principles.
+
+fact_user_event
+ ├── dim_user
+ ├── dim_date
+ └── dim_event_type
+
+fact_transaction
+ ├── dim_user
+ ├── dim_wallet
+ └── dim_date
+
+fact_investment_position
+ ├── dim_user
+ ├── dim_plan
+ ├── dim_product
+ └── dim_date
+
+ ### 4.3 Fact Grain Table
+
+ ### fact_user_event
+
+Grain:
+One record per user event occurrence.
+
+### fact_transaction
+
+Grain:
+One record per financial transaction.
+
+### fact_investment_position
+
+Grain:
+One record per investment position.
+
+### 4.4 Slowly Changing Dimensions
+The platform uses Type 1 dimensions.
+
+Historical tracking is handled through fact tables rather than dimensional versioning.
+
+### 4.5 Data Lineage
+
+Python
+↓
+Parquet
+↓
+S3
+↓
+Snowflake Bronze
+↓
+Snowflake Silver
+↓
+Snowflake Gold
+↓
+Power BI
+
+---
+
+## 5. Product & Funnel Analysis Framework
+
+### 5.1. Customer Lifecycle Funnel
+→ Acquisition
+→ Onboarding
+→ Activation
+→ Consideration
+→ Adoption
+→ Engagement
+→ Retention
+→ Churn
+
+The events modeled by event stage on the platform is as follows:
+
+| Stage         | Event                     |
+| ------------- | ------------------------- |
+| Acquisition   | signup_completed          |
+| Onboarding    | kyc_completed             |
+| Activation    | wallet_funded             |
+| Consideration | review_plan_options       |
+| Consideration | plan_selected             |
+| Adoption      | savings_plan_created      |
+| Adoption      | investment_plan_created   |
+| Engagement    | app_login                 |
+| Engagement    | review_current_investment |
+| Retention     | investment_vests          |
+| Retention     | wallet_withdrawal         |
+| Churn         | request_early_withdrawal  |
+
+### 5.2. Product Adoption Framework
+
+### Savings Adoption
+
+signup
+→ kyc_completed
+→ wallet_funded
+→ savings_plan_created
+
+### Investment Adoption
+
+signup
+→ kyc_completed
+→ wallet_funded
+→ investment_plan_created
+
+### 5.3. Retention Framework
+
+Retention is measured using:
+
+- Day 7 retention
+- Day 30 retention
+- Day 90 retention
+- Monthly active users
+
+### 5.4. Executive KPI Categories
+
+Growth KPIs
+- Signups
+- Activation Rate
+
+Engagement KPIs
+- Monthly Active Users
+- Login Frequency
+
+Product KPIs
+- Product Adoption Rate
+
+Financial KPIs
+- AUM
+- Net Deposits
+
+Retention KPIs
+- Retention Rate
+- Churn Rate
+
+
+
+---
+
+## 6. Business Metric Definitions
+
+All business metrics and KPI definitions can be found on `docs/metrics/metrics_definition.md`
+
+---
+
+## 7. Design Principles
+
+- Business definitions **precede** technical implementation
+- Fact tables strictly adhere to grain
+- Dimensions are reusable and consistent
+- Metrics are standardized across all layers
+- Simulation logic is clearly separated from business logic
 ---
 ## 8. Data Refresh and Cadence
 | Component                        | Cadence       | Description                                                                              |
@@ -184,7 +740,7 @@ All generated data is expected to be available for reporting by 09:00 GMT+1 each
 | dim_user | Incremental | Load newly generated customers and updates. |
 | dim_wallet | Incremental | Load newly created or activated wallets. |
 | fact_user_event | Incremental | Load newly generated customer events. |
-| fact_investment_position | Incremental | Load daily position snapshots and updates. |
+| fact_investment_position | Incremental | Load newly created savings and investment positions. |
 | fact_transaction | Incremental | Load newly generated financial transactions. |
 
 Historical records are preserved to support trend analysis, cohort analysis, retention reporting, and executive KPI reporting.

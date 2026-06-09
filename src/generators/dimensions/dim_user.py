@@ -3,7 +3,7 @@ import pandas as pd
 import faker as fk
 import re
 from src.config.constants import (CUSTOMER_PERSONA_MAP, EMAIL_DOMAIN, GENDER, GENDER_WEIGHTS, ACQUISITION_CHANNELS,
-                                  CHANNEL_WEIGHTS, IS_ACTIVATED_USER
+                                  CHANNEL_WEIGHTS, IS_ACTIVATED_USER, CUSTOMER_BEHAVIOUR_SEGMENT
                                   )
 from src.config.paths import (DDL_DIM_USER_PATH, USERS_PARQUET_PATH)
 from src.logic.location_distribution import get_location_distribution
@@ -93,6 +93,8 @@ def generate_users(conn, num_of_users):
     birth_date_id = [int(pd.Timestamp(date_of_birth[i]).strftime('%Y%m%d')) for i in range(num_of_users)]
     signup_date_id = [int(pd.Timestamp(signup_date[i]).strftime('%Y%m%d')) for i in range(num_of_users)]
 
+    customer_behaviour_segment = [np.random.choice(CUSTOMER_BEHAVIOUR_SEGMENT, p = CUSTOMER_PERSONA_MAP[cp]['customer_behavioural_segment'])for cp in customer_personas]
+
     df_raw = pd.DataFrame({
         'first_name': customer_first_names,
         'last_name': customer_last_names,
@@ -109,7 +111,8 @@ def generate_users(conn, num_of_users):
         'signup_date': signup_date,
         'signup_date_id': signup_date_id,
         'is_activated_user': is_activated_user,
-        'wallet_activation_timeframe': wallet_activation_timeframe
+        'wallet_activation_timeframe': wallet_activation_timeframe,
+        'customer_behaviour_segment':customer_behaviour_segment
     })
 
     df_raw = df_raw.sort_values(
@@ -145,11 +148,9 @@ def generate_users(conn, num_of_users):
     conn.register('df_raw', df_raw)
     conn.execute('''INSERT INTO dim_user SELECT * FROM df_raw''')
 
-    conn.execute(f'''COPY 
-                    (
+    conn.execute(f'''COPY (
                         SELECT user_id, first_name, last_name, country, region, city, email_address, reported_annual_income,
-    acquisition_channel, customer_persona, kyc_completed, date_of_birth, birth_date_id, signup_date, signup_date_id
-                  from dim_user  
-                 )
+                        acquisition_channel, customer_persona, kyc_completed, date_of_birth, birth_date_id, signup_date, signup_date_id
+                        from dim_user )
                  TO '{USERS_PARQUET_PATH}' (FORMAT PARQUET) ''')
 

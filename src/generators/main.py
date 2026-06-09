@@ -11,7 +11,7 @@ from src.storage.snowflake_upload import upload_from_s3_to_snowflake
 from src.run_dbt.run_dbt import run_dbt_models
 from src.generators.dimensions.dim_plan import generate_dim_plan
 from src.generators.dimensions.dim_wallet import generate_list_of_wallets
-from src.generators.facts.fact_event import generate_fact_events
+from src.generators.facts.fact_user_event import generate_fact_events
 
 load_dotenv()
 

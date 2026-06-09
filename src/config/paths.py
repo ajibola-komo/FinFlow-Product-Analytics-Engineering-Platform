@@ -31,7 +31,8 @@ DDL_DIM_DATE_PATH = DDL_DIM_DIR / "dim_date.sql"
 DDL_DIM_PLAN_PATH = DDL_DIM_DIR / "dim_plan.sql"
 
 #facts
-DDL_FACT_EVENT_PATH = DDL_FACT_DIR / "fact_event.sql"
+DDL_FACT_USER_EVENT_PATH = DDL_FACT_DIR / "fact_user_event.sql"
+DDL_FACT_INVESTMENT_POSITION_PATH = DDL_FACT_DIR / "fact_investment_position.sql"
 
 #snowflake dimesion definition
 SNOWFLAKE_DIM_EVENT_TYPE_PATH = SNOWFLAKE_DDL_DIM_DIR / "dim_event_type.sql"
@@ -42,13 +43,13 @@ SNOWFLAKE_DIM_DATE_PATH = SNOWFLAKE_DDL_DIM_DIR / "dim_date.sql"
 SNOWFLAKE_DIM_PLAN_PATH = SNOWFLAKE_DDL_DIM_DIR / "dim_plan.sql"
 
 #snowflake fact definition
-SNOWFLAKE_FACT_EVENT_PATH = SNOWFLAKE_DDL_FACT_DIR / "fact_event.sql"
+SNOWFLAKE_FACT_USER_EVENT_PATH = SNOWFLAKE_DDL_FACT_DIR / "fact_user_event.sql"
+SNOWFLAKE_FACT_INVESTMENT_POSITION_PATH = SNOWFLAKE_DDL_FACT_DIR / "fact_investment_position.sql"
 
 
 SNOWFLAKE_DDL_PATHS = [SNOWFLAKE_DIM_EVENT_TYPE_PATH, SNOWFLAKE_DIM_PRODUCT_PATH, 
-                    SNOWFLAKE_DIM_USER_PATH, SNOWFLAKE_DIM_WALLET_PATH, SNOWFLAKE_DIM_DATE_PATH, SNOWFLAKE_DIM_PLAN_PATH, SNOWFLAKE_FACT_EVENT_PATH]
-
-
+                    SNOWFLAKE_DIM_USER_PATH, SNOWFLAKE_DIM_WALLET_PATH, SNOWFLAKE_DIM_DATE_PATH, SNOWFLAKE_DIM_PLAN_PATH, 
+                    SNOWFLAKE_FACT_USER_EVENT_PATH, SNOWFLAKE_FACT_INVESTMENT_POSITION_PATH]
 
 #parquet paths
 DATES_PARQUET_PATH = PARQUET_DIR / "dim_date.parquet"
@@ -57,17 +58,21 @@ USERS_PARQUET_PATH = PARQUET_DIR / "dim_user.parquet"
 WALLETS_PARQUET_PATH = PARQUET_DIR / "dim_wallet.parquet"
 EVENT_TYPES_PARQUET_PATH = PARQUET_DIR / "dim_event_type.parquet"
 PLANS_PARQUET_PATH = PARQUET_DIR / "dim_plan.parquet"
-FACT_EVENTS_PARQUET_PATH = PARQUET_DIR / "fact_event.parquet"
+FACT_USER_EVENT_PARQUET_PATH = PARQUET_DIR / "fact_user_event.parquet"
+FACT_INVESTMENT_POSITION_PARQUET_PATH = PARQUET_DIR / "fact_investment_position.parquet"
 
 
 #s3
 S3_BUCKET_NAME = "finflow-s3-bucket"
 
-S3_LOCAL_FILE_PATHS = [DATES_PARQUET_PATH, PRODUCTS_PARQUET_PATH, USERS_PARQUET_PATH, EVENT_TYPES_PARQUET_PATH, PLANS_PARQUET_PATH, WALLETS_PARQUET_PATH
+S3_LOCAL_FILE_PATHS = [DATES_PARQUET_PATH, PRODUCTS_PARQUET_PATH, USERS_PARQUET_PATH, EVENT_TYPES_PARQUET_PATH, PLANS_PARQUET_PATH, WALLETS_PARQUET_PATH,
+                       FACT_USER_EVENT_PARQUET_PATH, FACT_INVESTMENT_POSITION_PARQUET_PATH
                        ]
 
 S3_KEYS = [
-    "dim_date.parquet", "dim_product.parquet", "dim_user.parquet", "dim_event_type.parquet", "dim_plan.parquet","dim_wallet.parquet"
+    "dim_date.parquet", "dim_product.parquet", "dim_user.parquet", "dim_event_type.parquet", "dim_plan.parquet","dim_wallet.parquet","fact_user_event.parquet",
+    "fact_investment_position.parquet"
 ]
 
-TABLE_NAMES = ["dim_date","dim_product","dim_user","dim_event_type","dim_plan","dim_wallet"]
+TABLE_NAMES = ["dim_date","dim_product","dim_user","dim_event_type","dim_plan","dim_wallet", "fact_user_event.parquet",
+    "fact_investment_position.parquet"]

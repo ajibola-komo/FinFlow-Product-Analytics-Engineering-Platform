@@ -1,0 +1,5 @@
+transaction_type_id,transaction_type_code,transaction_type_name,transaction_type_description,transaction_category,transaction_direction
+1,wallet_funding,Wallet Funding,Funds deposited into a user's wallet from an external funding source,Funding,credit
+2,wallet_withdrawal,Wallet Withdrawal,Funds transferred from a user's wallet to an external account,Withdrawal,debit
+3,investment_funding,Investment Funding,Funds transferred from a user's wallet into an investment position,Investment,debit
+4,investment_proceeds_transfer,Investment Proceeds Transfer,Funds transferred from a matured investment position into a user's wallet,Investment,credit

@@ -79,7 +79,11 @@ def generate_users(conn, num_of_users):
 
     is_activated_user = np.array(demographics['is_activated_user'])
 
+    print(is_activated_user)
+
     wallet_activation_timeframe = np.array(demographics['wallet_activation_timeframe'])
+
+    print(wallet_activation_timeframe)
 
     acquisition_channels = [np.random.choice(ACQUISITION_CHANNELS, p = CUSTOMER_PERSONA_MAP[cp]['acquisition_channels_weights']) for cp in customer_personas]
 
@@ -141,7 +145,8 @@ def generate_users(conn, num_of_users):
     'signup_date',
     'signup_date_id',
     'is_activated_user',
-    'wallet_activation_timeframe'
+    'wallet_activation_timeframe',
+    'customer_behaviour_segment'
 ]]
 
     #write the generated data to a parquet file
@@ -150,7 +155,7 @@ def generate_users(conn, num_of_users):
 
     conn.execute(f'''COPY (
                         SELECT user_id, first_name, last_name, country, region, city, email_address, reported_annual_income,
-                        acquisition_channel, customer_persona, kyc_completed, date_of_birth, birth_date_id, signup_date, signup_date_id
+                        acquisition_channel, customer_persona, kyc_completed, date_of_birth, birth_date_id, signup_date, signup_date_id, customer_behaviour_segment
                         from dim_user )
                  TO '{USERS_PARQUET_PATH}' (FORMAT PARQUET) ''')
 

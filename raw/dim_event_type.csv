@@ -7,10 +7,11 @@ event_type_id,event_type_code,event_type_display_name,event_type_description,eve
 6,plan_selected,Plan Selected,User selected an investment plan,Consideration,Consideration,FALSE,shared
 7,savings_plan_created,Savings Plan Created,User created a new savings plan,Engagement,Adoption,TRUE,savings
 8,investment_plan_created,Investment Plan Created,User created a new investment plan,Engagement,Adoption,TRUE,investment
-9,plan_funded,Plan Funded,User funded their selected plan,Activation,Adoption,TRUE,shared
-10,review_current_investment,Review Current Investment,User reviewed their current investment portfolio,Engagement,Engagement,FALSE,shared
-11,request_early_withdrawal,Request Early Withdrawal,"User requests early withdrawal, this triggers a penalty fee depending on the active plan",Churn Risk,Churn,FALSE,shared
-12,investment_vests,Investment Vests,User's investment matures,Liquidity_Action,Retention,FALSE,shared
-13,investment_proceeds_wallet_transfer,Invest Proceeds Wallet Transfer,User's investment proceeds are transferred to their wallet,Liquidity_Action,Retention,FALSE,shared
-14,wallet_withdrawal,Wallet Withdrawal,User withdrew funds from wallet,Liquidity_Action,Retention,FALSE,shared
-15,assets_sale,Assets Sale,User sold their assets,Liquidity_Action,Retention,FALSE,investment
+9,review_current_investment,Review Current Investment,User reviewed their current investment portfolio,Engagement,Engagement,FALSE,shared
+10,request_early_withdrawal,Request Early Withdrawal,"User requests early withdrawal, this triggers a penalty fee depending on the active plan",Liquidity_Action,Retention,FALSE,shared
+11,investment_vests,Investment Vests,User's investment matures,Liquidity_Action,Retention,FALSE,shared
+12,investment_proceeds_wallet_transfer,Invest Proceeds Wallet Transfer,User's investment proceeds are transferred to their wallet,Liquidity_Action,Retention,FALSE,shared
+13,wallet_withdrawal,Wallet Withdrawal,User withdrew funds from wallet,Liquidity_Action,Retention,FALSE,shared
+14,assets_sale,Assets Sale,User sold their assets,Liquidity_Action,Retention,FALSE,investment
+15,wallet_funding_failed,Wallet Funding Failed,User attempted to fund their wallet but the transaction failed,Activation,Activation,FALSE,shared
+16,withdrawal_failed,Withdrawal Failed,User attempted to withdraw funds from their wallet but the transaction failed,Liquidity_Action,Retention,FALSE,shared

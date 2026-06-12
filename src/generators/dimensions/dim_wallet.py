@@ -19,24 +19,28 @@ def generate_list_of_wallets(conn):
 
     user_ids = users_data["user_id"]
 
-    created_at = users_data["signup_date"]
+    created_at = np.array(users_data["signup_date"])
 
-    is_activated_user = np.array(users_data["is_activated_user"])
+    print(pd.isna(created_at).sum())
 
-    active_mask = is_activated_user == True
+    is_activated_user = users_data["is_activated_user"]
 
-    activation_timeframe = np.array(users_data["wallet_activation_timeframe"])
+    active_mask = np.where(is_activated_user == True)[0]
+    inactive_mask = np.where(is_activated_user == False)[0]
 
-    activated_at = np.full(
+    activation_timeframe = users_data["wallet_activation_timeframe"]
+
+    activated_at = np.empty(
         total_users,
-        pd.NaT
+        dtype=object
     )
 
 
-    activated_at[active_mask] = [ca + timedelta(minutes=(int(ro))) for ca,ro in zip(created_at[active_mask], activation_timeframe[active_mask])]
-    activated_at[~active_mask] = None
+    activated_at[active_mask] = np.array([ca + timedelta(minutes=(int(ro))) for ca,ro in zip(created_at[active_mask], activation_timeframe[active_mask])])
+    activated_at[inactive_mask] = None
 
-    activated_at_id = np.full(total_users, pd.NaT) #initialize with NaT, will fill only for activated users
+    activated_at_id = np.empty(total_users,
+        dtype=object)
 
     created_at_id = [int(pd.Timestamp(created_at[i]).strftime('%Y%m%d')) for i in range(total_users)]
     activated_at_id[active_mask] = [int(pd.Timestamp(i).strftime('%Y%m%d')) for i in activated_at[active_mask]]
@@ -57,6 +61,10 @@ def generate_list_of_wallets(conn):
     conn.execute('''INSERT into dim_wallet select * from df_raw''')
 
     conn.execute(f'''COPY dim_wallet to '{WALLETS_PARQUET_PATH}' (FORMAT PARQUET) ''')
+
+    read_parquet = conn.execute(f'''select * from read_parquet('{WALLETS_PARQUET_PATH}')''').fetchdf()
+
+    print(read_parquet.head(10))
 
     
 

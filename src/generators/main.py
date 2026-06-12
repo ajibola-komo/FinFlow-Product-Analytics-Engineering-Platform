@@ -12,6 +12,7 @@ from src.run_dbt.run_dbt import run_dbt_models
 from src.generators.dimensions.dim_plan import generate_dim_plan
 from src.generators.dimensions.dim_wallet import generate_list_of_wallets
 from src.generators.facts.fact_user_event import generate_fact_events
+from src.generators.dimensions.dim_transaction_type import generate_transaction_types
 
 load_dotenv()
 
@@ -24,6 +25,7 @@ def create():
         generate_dim_plan(conn)
         generate_users(conn,50000)
         generate_list_of_wallets(conn)
+        generate_transaction_types(conn)
         #generate_fact_events(conn,300000)
 
     

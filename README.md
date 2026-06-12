@@ -51,7 +51,21 @@ The project focuses on demonstrating modern analytics engineering and product an
 
 ---
 
-## Tech Stack
+## Business Questions Answered
+
+The platform is designed to answer questions such as:
+
+- What percentage of users successfully activate after signup?
+- Which acquisition channels generate the highest activation rates?
+- Which customer personas drive the highest AUM?
+- What percentage of users adopt savings versus investment products?
+- How does retention vary by customer segment?
+- What customer behaviours are leading indicators of churn?
+- What is the relationship between engagement and product adoption?
+
+---
+
+# Tech Stack
 
 | Layer | Tool |
 |---|---|
@@ -65,9 +79,6 @@ The project focuses on demonstrating modern analytics engineering and product an
 
 ---
 
-# Product or Platform Event Flow
-
-![Event Flow Diagram](docs/images/finflow_event_flow_diagram.png)
 
 # Architecture Overview
 
@@ -101,12 +112,20 @@ Python scripts → S3 (data lake) → Snowflake (warehouse) + dbt (transformatio
 - **Gold** — aggregated, analytics-ready data marts
 
 ![Data Warehouse Architecture](docs/images/finflow_data_warehouse_architecture.png)
+
 ---
-## Synthetic Data Generation
+
+# Product or Platform Event Flow
+
+![Event Flow Diagram](docs/images/finflow_event_flow_diagram.png)
+
+---
+
+# Synthetic Data Generation
 
 All datasets are fully synthetic, generated using custom Python modules built on Pandas and NumPy.
 
-- A 3-year baseline dataset is first generated i.e. from 3 years ago up to yesterday.
+- An initial three-year historical dataset is generated, covering customer activity from three years ago through the previous day.
 - A scheduled DAG simulates a daily batch ingestion process by generating synthetic event data for the previous day at 9 AM and and writes it as a new partition in the historical dataset.
 - The data simulates user activity within a fintech platform consisting of two core products:
     - A digital savings product
@@ -122,19 +141,21 @@ Generated datasets are exported as Parquet files for efficient storage and downs
 ---
 
 ## Data Model
-Star schema with 4 fact tables and 10 dimension tables.
+Star schema with 3 fact tables, 3 operational snapshot tables and 7 dimension tables.
+
 
 | Table | Type | Grain | Approx. rows |
 |---|---|---|---|
 | `dim_date` | dimension | One record per calendar date | ~3,650 rows |
-| `dim_event_type` | dimension | One record per distinct event type | 12 rows |
+| `dim_event_type` | dimension | One record per distinct event type | 14 rows |
 | `dim_product` | dimension | One record per distinct product offering | 2 rows |
 | `dim_plan` | dimension | One record per product plan variant | 4 rows |
-| `dim_user` | dimension | One record per registered user | ~500,000 rows |
-| `dim_wallet` | dimension | One record per user wallet account (one wallet per user) | ~500,000 rows |
-| `fact_user_event` | fact | One record per user generated event occurence | ~4,500,000 rows |
-| `fact_investment_position` | fact | One record per investment position created by a user  | ~1,100,000 rows |
-| `fact_transaction` | fact | One record per money movement transaction within the application | ~300,000 rows |
+| `dim_user` | dimension | One record per registered user | ~500K rows |
+| `dim_wallet` | dimension | One record per user wallet account (one wallet per user) | ~500K rows |
+| `dim_transaction_type` | dimension | One record per distinct transaction type | 6 rows |
+| `fact_user_event` | fact | One record per user generated event occurence | ~12M rows |
+| `fact_investment_position` | fact | One record per investment position created by a user  | ~1.1M rows |
+| `fact_transaction` | fact | One record per money movement transaction within the application | ~5M rows |
 | `wallet_current_state` | snapshot | Latest wallet state per wallet account (based on latest pipeline run) | ~2,000,000 rows |
 | `investment_position_current_state` | snapshot | Latest investment position state  | ~1,100,000 rows |
 | `user_current_state` | snapshot | Latest user lifecycle state  | ~2,000,000 rows |
@@ -147,5 +168,44 @@ The project uses Power BI as the visualisation layer since it connects directly 
 
 This simulates a real-world semantic layer where downstream BI tools consume governed, pre-aggregated datasets rather than querying raw data sources directly.
 
-**Ajibola Komolafe** — Data and Analytics Engineer
-[LinkedIn](https://www.linkedin.com/in/ajibola-k-4ba921123/) · [GitHub](https://github.com/ajibola-komo)
+## Dashboard Preview
+
+### Executive Dashboard
+
+[screenshot]
+
+### Product Analytics Dashboard
+
+[screenshot]
+
+### Retention Dashboard
+
+[screenshot]
+
+### Customer Segmentation Dashboard
+
+[screenshot]
+
+## Key Skills Demonstrated
+
+- Analytics Engineering
+- Product Analytics
+- Data Modeling
+- SQL
+- Python
+- Snowflake
+- dbt
+- Airflow
+- AWS S3
+- Power BI
+- Customer Lifecycle Analytics
+- Funnel Analysis
+- Cohort Analysis
+- Retention Analytics
+
+## Authour
+**Ajibola Komolafe** — Analytics Engineer | Data Analyst
+- [LinkedIn](https://www.linkedin.com/in/ajibola-k-4ba921123/) 
+- [GitHub](https://github.com/ajibola-komo)
+- [Kaggle](https://github.com/ajibola-komo)
+- [Power BI](https://github.com/ajibola-komo)

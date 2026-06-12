@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-from src.config.paths import (DDL_FACT_EVENT_PATH, FACT_EVENTS_PARQUET_PATH)
+from src.config.paths import (DDL_FACT_USER_EVENT_PATH, FACT_USER_EVENT_PARQUET_PATH)
 from src.config.constants import (DEFAULT_TRANSACTION_START_TIMESTAMP,DEFAULT_TRANSACTION_START_DATE, DEFAULT_TRANSACTION_END_TIMESTAMP,
                                   POST_SIGN_UP_DELAYED_LOGINS, POST_SIGN_UP_IMMEDIATE_LOGINS, POST_SIGN_UP_SAME_DAY_LOGINS,
                                   IMMEDIATE_LOGINS_TIME_FRAME, SAME_DAY_LOGINS_TIME_FRAME, DELAYED_LOGINS_TIME_FRAME, 
@@ -12,7 +12,7 @@ from datetime import timedelta
 
 def generate_fact_events(conn, num_of_events):
 
-    create_db = DDL_FACT_EVENT_PATH.read_text()
+    create_db = DDL_FACT_USER_EVENT_PATH.read_text()
 
     conn.execute(create_db)
 
@@ -248,4 +248,4 @@ def generate_fact_events(conn, num_of_events):
 
     conn.execute('''INSERT INTO fact_event SELECT * FROM df_raw''')
 
-    conn.execute(f'''COPY FACT_EVENT TO '{FACT_EVENTS_PARQUET_PATH}' (FORMAT PARQUET) ''')
+    conn.execute(f'''COPY FACT_EVENT TO '{FACT_USER_EVENT_PARQUET_PATH}' (FORMAT PARQUET) ''')

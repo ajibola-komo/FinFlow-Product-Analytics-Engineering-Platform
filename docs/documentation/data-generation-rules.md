@@ -42,11 +42,12 @@ The platform is built to achieve the following objectives:
 | Table | Type | Grain | Approx. rows |
 |---|---|---|---|
 | `dim_date` | dimension | One record per calendar date | ~3,650 rows |
-| `dim_event_type` | dimension | One record per distinct event type | 14 rows |
+| `dim_event_type` | dimension | One record per distinct event type | 17 rows |
 | `dim_product` | dimension | One record per distinct product offering | 2 rows |
 | `dim_plan` | dimension | One record per product plan variant | 4 rows |
 | `dim_user` | dimension | One record per registered user | ~500K rows |
 | `dim_wallet` | dimension | One record per user wallet account (one wallet per user) | ~500K rows |
+| `dim_transaction_type` | dimension | One record per distinct transaction type | 6 rows |
 | `fact_user_event` | fact | One record per user generated event occurence | ~12M rows |
 | `fact_investment_position` | fact | One record per investment position created by a user  | ~1.1M rows |
 | `fact_transaction` | fact | One record per money movement transaction within the application | ~5M rows |
@@ -178,6 +179,9 @@ A **User Event** denotes a captured timestamped user action within the applicati
 - investment_vests
 - investment_proceeds_wallet_transfer
 - assets_sale
+- wallet_funding_failed
+- kyc_failed
+- withdrawal_failed
 
 ### 2.4. Transactions
 
@@ -227,7 +231,6 @@ Acquisition
 → Adoption
 → Engagement
 → Retention
-→ Churn
 
 Not all users successfully progress through every stage.
 Transition probabilities are influenced by customer persona and behavioural segment.
@@ -515,6 +518,36 @@ Business Rule:
 
 Generated Tables:
 - fact_user_event
+
+### wallet_funding_failed
+Trigger:
+- User must be logged into the application.
+- User must have completed account registration.
+- User must initiate a wallet funding attempt.
+Business Rule:
+- Wallet funding transaction fails before funds are credited to the wallet.
+- Failure may occur due to insufficient funds, payment provider issues, bank declines, network issues, or fraud checks.
+- No wallet balance update occurs.
+- Multiple failed funding attempts may occur before a successful wallet funding.
+- A successful retry may subsequently trigger a `wallet_funded` event.
+- This event is used to measure funding friction and activation drop-off.
+Generated Tables:
+- fact_user_event
+
+### withdrawal_failed
+Trigger:
+- User must be logged into the application.
+- User must initiate a wallet withdrawal request.
+Business Rule:
+- Withdrawal request fails before funds are successfully transferred to the user's destination account.
+- Failure may occur due to insufficient wallet balance, invalid account details, payment processor issues, fraud controls, or compliance restrictions.
+- Wallet balance remains unchanged.
+- User may retry the withdrawal at a later time.
+- A successful retry may subsequently trigger a wallet_withdrawal event.
+- This event is used to monitor withdrawal reliability and customer experience.
+Generated Tables:
+- fact_user_event
+
 
 ### Transaction Generation Rules
 

@@ -16,7 +16,5 @@ CREATE OR REPLACE TABLE dim_user(
     signup_date_id INT,
     is_activated_user BOOLEAN,
     wallet_activation_timeframe INT,
-    customer_behaviour_segment VARCHAR(50),
-    ingested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    customer_behaviour_segment VARCHAR(50)
 )

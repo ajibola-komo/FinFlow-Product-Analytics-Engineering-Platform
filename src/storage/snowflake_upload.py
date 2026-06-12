@@ -38,9 +38,11 @@ def upload_from_s3_to_snowflake():
     cursor.execute(sql)
 
     for table_name in TABLE_NAMES:
+        
+        print(f'now trying {table_name}')
 
         cursor.execute(f"TRUNCATE TABLE {table_name}")
-
+        
         cursor.execute(f"""
         COPY INTO {table_name}
         FROM @finflow_stage
@@ -49,6 +51,8 @@ def upload_from_s3_to_snowflake():
         MATCH_BY_COLUMN_NAME = CASE_INSENSITIVE
         FORCE=TRUE;
         """)
+
+        
 
     cursor.close()
     conn.close()

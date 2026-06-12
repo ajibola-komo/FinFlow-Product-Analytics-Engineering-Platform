@@ -12,4 +12,4 @@ CREATE OR REPLACE TABLE FINFLOW.BRONZE.DIM_DATE (
     is_weekend BOOLEAN,
     is_month_start BOOLEAN,
     is_month_end BOOLEAN
-)
+);

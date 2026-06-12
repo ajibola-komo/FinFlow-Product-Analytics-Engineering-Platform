@@ -1,17 +1,38 @@
 version: 2
 
 sources:
-  - name: bronze                          # logical name used in dbt ({{ source('bronze', 'table') }})
-    database: FINFLOW                    # Snowflake database
-    schema: BRONZE                        # Snowflake schema
+  - name: bronze
+    database: FINFLOW
+    schema: BRONZE
     description: "Raw ingested data from S3 via Snowflake external stage"
 
     tables:
       - name: dim_user
-        description: "Conformed users dimension including demographics, acquisition channel, loyalty status, and marketing consent"
+        description: "Conformed user dimension containing demographics, acquisition channels, customer personas, and lifecycle attributes."
+
       - name: dim_product
-        description: "Product dimension table containing table details"
+        description: "Product dimension containing savings and investment product definitions."
+
       - name: dim_date
-        description: "Date dimension table containing date-related attributes."
+        description: "Date dimension containing calendar and time-based attributes."
+
       - name: dim_event_type
-        description: "Event dimension table containing event types information."
+        description: "Event type dimension containing platform event definitions."
+
+      - name: dim_wallet
+        description: "Wallet dimension containing wallet account details and associated user information."
+
+      - name: dim_plan
+        description: "Plan dimension containing savings and investment plan definitions."
+
+      - name: dim_transaction_type
+        description: "Transaction type dimension containing classifications of money movement transactions."
+
+      - name: fact_user_event
+        description: "Fact table capturing all user-generated platform events."
+
+      - name: fact_investment_position
+        description: "Fact table capturing savings and investment positions created by users."
+
+      - name: fact_transaction
+        description: "Fact table capturing all financial transactions and money movement activities."

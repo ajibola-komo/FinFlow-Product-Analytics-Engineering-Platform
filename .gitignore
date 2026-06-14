@@ -9,6 +9,7 @@ venv/
 .tmp/
 .vscode/
 .venv/
+credentials/
 
 # dbt
 target/
@@ -26,3 +27,4 @@ parquet/
 
 #tableau
 Tableau/
+

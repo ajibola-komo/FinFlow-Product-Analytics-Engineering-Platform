@@ -1,6 +1,6 @@
 CREATE OR REPLACE TABLE dim_plan (
-    plan_id INTEGER PRIMARY KEY,
-    product_id INTEGER,
+    plan_id INT,
+    product_id INT,
     plan_name VARCHAR(50),
     plan_display_name VARCHAR(50),
     plan_category VARCHAR(50),

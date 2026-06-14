@@ -1,6 +1,6 @@
 import boto3
 from src.config.paths import (
-   S3_BUCKET_NAME, S3_KEYS, S3_LOCAL_FILE_PATHS
+   S3_BUCKET_NAME, S3_KEYS, LOCAL_FILE_PATHS
 )
 from botocore.exceptions import ClientError
 
@@ -8,7 +8,7 @@ from botocore.exceptions import ClientError
 def upload_parquet_files():
     s3 = boto3.client("s3")
 
-    for fp, key in zip(S3_LOCAL_FILE_PATHS, S3_KEYS):
+    for fp, key in zip(LOCAL_FILE_PATHS, S3_KEYS):
         try:
             s3.delete_object(Bucket=S3_BUCKET_NAME, Key=key)
         except ClientError as e:

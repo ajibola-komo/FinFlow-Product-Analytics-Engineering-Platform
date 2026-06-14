@@ -71,8 +71,8 @@ The platform is designed to answer questions such as:
 |---|---|
 | Data generation | Python (Faker, NumPy, Pandas) |
 | Workflow Orchestration| Airflow |
-| Compute & Infrastructre| AWS EC2 (Linux), Git-based deployment |
-| Storage | AWS S3 |
+| Compute & Infrastructre| Google Compute Engine (GCE,Linux), Git-based deployment |
+| Storage | Google Cloud Storage |
 | Warehouse | Snowflake / DuckDB |
 | Transformation | dbt |
 | Visualization | Power BI |

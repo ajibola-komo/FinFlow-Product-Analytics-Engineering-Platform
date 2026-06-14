@@ -1,5 +1,5 @@
 CREATE OR REPLACE TABLE FINFLOW.BRONZE.DIM_DATE (
-    date_id INT PRIMARY KEY,
+    date_id BIGINT,
     full_date DATE,
     year INT,
     quarter INT,

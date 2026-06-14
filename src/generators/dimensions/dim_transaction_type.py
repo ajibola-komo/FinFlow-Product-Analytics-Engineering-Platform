@@ -19,14 +19,6 @@ def generate_transaction_types(conn):
         FROM read_csv_auto('{RAW_DIM_TRANSACTION_TYPE_PATH}')
     ''')
 
-    print(
-    conn.execute(
-        f"""
-        SELECT *
-        FROM '{TRANSACTION_TYPE_PARQUET_PATH}'
-        """
-    ).fetchdf()
-)
 
     conn.execute(f'''
             COPY dim_transaction_type to '{TRANSACTION_TYPE_PARQUET_PATH}' (FORMAT PARQUET, OVERWRITE_OR_IGNORE TRUE)

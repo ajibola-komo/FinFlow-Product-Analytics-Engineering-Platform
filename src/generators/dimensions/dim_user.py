@@ -89,6 +89,7 @@ def generate_users(conn, num_of_users):
 
     kyc_completed = np.full(num_of_users, False) #initialize with False, will update to True for users who completed KYC
     active_mask = is_activated_user == True
+    inactive_mask = is_activated_user == False
     kyc_completed[active_mask] = True #assuming all activated users completed KYC, this will set kyc_completed to True for those users
     kyc_completed[~active_mask] = np.random.choice([True, False], size=(~active_mask).sum(), p=[0.3, 0.7])
     
@@ -98,6 +99,11 @@ def generate_users(conn, num_of_users):
     signup_date_id = [int(pd.Timestamp(signup_date[i]).strftime('%Y%m%d')) for i in range(num_of_users)]
 
     customer_behaviour_segment = [np.random.choice(CUSTOMER_BEHAVIOUR_SEGMENT, p = CUSTOMER_PERSONA_MAP[cp]['customer_behavioural_segment'])for cp in customer_personas]
+
+    is_immediate_login = np.empty(num_of_users, dtype=bool)
+
+    is_immediate_login[active_mask] = np.random.choice([True, False], size=active_mask.sum(), p=[1, 0])
+    is_immediate_login[inactive_mask] = np.random.choice([True, False], size=(~active_mask).sum(), p=[0.7, 0.3])
 
     df_raw = pd.DataFrame({
         'first_name': customer_first_names,
@@ -116,7 +122,8 @@ def generate_users(conn, num_of_users):
         'signup_date_id': signup_date_id,
         'is_activated_user': is_activated_user,
         'wallet_activation_timeframe': wallet_activation_timeframe,
-        'customer_behaviour_segment':customer_behaviour_segment
+        'customer_behaviour_segment':customer_behaviour_segment,
+        'is_immediate_login': is_immediate_login
     })
 
     df_raw = df_raw.sort_values(
@@ -146,7 +153,8 @@ def generate_users(conn, num_of_users):
     'signup_date_id',
     'is_activated_user',
     'wallet_activation_timeframe',
-    'customer_behaviour_segment'
+    'customer_behaviour_segment',
+    'is_immediate_login'
 ]]
 
     #write the generated data to a parquet file

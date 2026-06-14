@@ -13,6 +13,8 @@ from src.generators.dimensions.dim_plan import generate_dim_plan
 from src.generators.dimensions.dim_wallet import generate_list_of_wallets
 from src.generators.facts.fact_user_event import generate_fact_events
 from src.generators.dimensions.dim_transaction_type import generate_transaction_types
+from src.storage.gcs_upload import upload_to_gcs
+from src.storage.gcs_to_snowflake_upload import upload_from_gcs_to_snowflake
 
 load_dotenv()
 
@@ -29,8 +31,10 @@ def create():
         #generate_fact_events(conn,300000)
 
     
-    upload_parquet_files()
-    upload_from_s3_to_snowflake()
+    #upload_parquet_files()
+    #upload_from_s3_to_snowflake()
+    upload_to_gcs()
+    upload_from_gcs_to_snowflake()
     run_dbt_models()
 
 

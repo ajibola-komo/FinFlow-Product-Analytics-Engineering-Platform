@@ -135,7 +135,7 @@ The dataset is low-medium frequency but behaviour rich.
 
 Generated datasets are exported as Parquet files for efficient storage and downstream ingestion into S3 and Snowflake.
 
-> The full data dictionary covering all fact & dimension tables, column definitions, data types, and grain is available in `docs/data_dictionary/`.
+> The full data generation rules documentation covering the end-to-end data generation guidleine is available in [Data Generation Rules](https://github.com/ajibola-komo/FinFlow-Product-Analytics-Engineering-Platform/blob/main/docs/documentation/data-generation/data-generation-rules.md).
 
 
 ---
@@ -159,6 +159,8 @@ Star schema with 3 fact tables, 3 operational snapshot tables and 7 dimension ta
 | `wallet_current_state` | snapshot | Latest wallet state per wallet account (based on latest pipeline run) | ~2,000,000 rows |
 | `investment_position_current_state` | snapshot | Latest investment position state  | ~1,100,000 rows |
 | `user_current_state` | snapshot | Latest user lifecycle state  | ~2,000,000 rows |
+
+> The full data dictionary covering all fact & dimension tables, column definitions, data types, and grain is available in [Source Data Dictionary](https://github.com/ajibola-komo/FinFlow-Product-Analytics-Engineering-Platform/blob/main/docs/documentation/data-generation/01-Finflow%20End-To-End%20Analytics%20-%20Source%20Data%20Dictionary.pdf)
 
 ---
 

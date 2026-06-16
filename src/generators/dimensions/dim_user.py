@@ -3,7 +3,8 @@ import pandas as pd
 import faker as fk
 import re
 from src.config.constants import (CUSTOMER_PERSONA_MAP, EMAIL_DOMAIN, GENDER, GENDER_WEIGHTS, ACQUISITION_CHANNELS,
-                                  CHANNEL_WEIGHTS, IS_ACTIVATED_USER, CUSTOMER_BEHAVIOUR_SEGMENT
+                                  CHANNEL_WEIGHTS, IS_ACTIVATED_USER, CUSTOMER_BEHAVIOUR_SEGMENT, 
+                                  CUSTOMER_BEHAVIOUR_SEGMENT_MAP, DEVICE_TYPES
                                   )
 from src.config.paths import (DDL_DIM_USER_PATH, USERS_PARQUET_PATH)
 from src.logic.location_distribution import get_location_distribution
@@ -99,6 +100,7 @@ def generate_users(conn, num_of_users):
     signup_date_id = [int(pd.Timestamp(signup_date[i]).strftime('%Y%m%d')) for i in range(num_of_users)]
 
     customer_behaviour_segment = [np.random.choice(CUSTOMER_BEHAVIOUR_SEGMENT, p = CUSTOMER_PERSONA_MAP[cp]['customer_behavioural_segment'])for cp in customer_personas]
+    device_types = [np.random.choice(DEVICE_TYPES, p = CUSTOMER_BEHAVIOUR_SEGMENT_MAP[bh]["device_type"]) for bh in customer_behaviour_segment]
 
     is_immediate_login = np.empty(num_of_users, dtype=bool)
 
@@ -114,6 +116,7 @@ def generate_users(conn, num_of_users):
         'email_address': email_ids,
         'reported_annual_income':reported_annual_incomes,
         'acquisition_channel':acquisition_channels,
+        'device_type':device_types,
         'customer_persona':customer_personas,
         'kyc_completed': kyc_completed,
         'date_of_birth': date_of_birth,
@@ -145,6 +148,7 @@ def generate_users(conn, num_of_users):
     'email_address',
     'reported_annual_income',
     'acquisition_channel',
+    'device_type',
     'customer_persona',
     'kyc_completed',
     'date_of_birth',
@@ -163,7 +167,7 @@ def generate_users(conn, num_of_users):
 
     conn.execute(f'''COPY (
                         SELECT user_id, first_name, last_name, country, region, city, email_address, reported_annual_income,
-                        acquisition_channel, customer_persona, kyc_completed, date_of_birth, birth_date_id, signup_date, signup_date_id, customer_behaviour_segment
+                        acquisition_channel, device_type, customer_persona, kyc_completed, date_of_birth, birth_date_id, signup_date, signup_date_id, customer_behaviour_segment
                         from dim_user )
                  TO '{USERS_PARQUET_PATH}' (FORMAT PARQUET) ''')
 

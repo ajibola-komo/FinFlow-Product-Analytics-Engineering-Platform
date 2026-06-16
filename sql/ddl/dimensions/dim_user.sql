@@ -8,6 +8,7 @@ CREATE OR REPLACE TABLE dim_user(
     email_address VARCHAR(255),
     reported_annual_income DECIMAL(18,2),
     acquisition_channel VARCHAR(20),
+    device_type VARCHAR(20),
     customer_persona VARCHAR(20),
     kyc_completed BOOLEAN,
     date_of_birth DATE,

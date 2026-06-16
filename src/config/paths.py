@@ -75,6 +75,8 @@ S3_BUCKET_NAME = "finflow-s3-bucket"
 LOCAL_FILE_PATHS = [DATES_PARQUET_PATH, PRODUCTS_PARQUET_PATH, USERS_PARQUET_PATH, EVENT_TYPES_PARQUET_PATH, PLANS_PARQUET_PATH, WALLETS_PARQUET_PATH, TRANSACTION_TYPE_PARQUET_PATH      
                        ]
 
+
+
 S3_KEYS = [
     "dim_date.parquet", "dim_product.parquet", "dim_user.parquet", "dim_event_type.parquet","dim_plan.parquet","dim_wallet.parquet",  "dim_transaction_type.parquet"
 ]

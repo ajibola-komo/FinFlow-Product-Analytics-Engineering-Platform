@@ -1,12 +1,9 @@
 import numpy as np
 import pandas as pd
 from src.config.paths import (DDL_FACT_USER_EVENT_PATH, FACT_USER_EVENT_PARQUET_PATH)
-from src.config.constants import (DEFAULT_TRANSACTION_START_TIMESTAMP,DEFAULT_TRANSACTION_START_DATE, DEFAULT_TRANSACTION_END_TIMESTAMP,
-                                  POST_SIGN_UP_DELAYED_LOGINS, POST_SIGN_UP_IMMEDIATE_LOGINS, POST_SIGN_UP_SAME_DAY_LOGINS,
-                                  IMMEDIATE_LOGINS_TIME_FRAME, SAME_DAY_LOGINS_TIME_FRAME, DELAYED_LOGINS_TIME_FRAME, 
-                                  UNACTIVATED_USERS_TIME_FRAME, WALLET_ACTIVATION_SUBSET, IMMEDIATE_WALLET_ACTIVATION_TIME_FRAME, 
-                                  DELAYED_WALLET_ACTIVATION_TIME_FRAME, IMMEDIATE_ACTIVATION_SUBSET, DELAYED_WALLET_ACTIVATION_LOGIN_TIME_FRAME,
-                                  KYC_ACTIVATION_TIMEFRAME
+from src.config.constants import (DEFAULT_TRANSACTION_START_TIMESTAMP,DEFAULT_TRANSACTION_START_DATE,
+                                  IMMEDIATE_LOGINS_TIME_FRAME, KYC_ACTIVATION_TIMEFRAME, USERS_MAKES_FIRST_INVESTMENT_AFTER_FUNDING,
+                                  CUSTOMER_BEHAVIOUR_SEGMENT_MAP, FIRST_INVESTMENT_TYPE
                                   )
 from datetime import timedelta
 
@@ -17,11 +14,22 @@ def generate_fact_events(conn, num_of_events):
 
     conn.execute(create_db)
 
-    #populate all possible signups within the project uration
-    users_data = conn.execute(f'''SELECT user_id, signup_date, kyc_completed, is_activated_user, wallet_activation_timeframe, customer_behaviour_segment FROM dim_user
+    #populate all possible signups within the project duration
+    users_data = conn.execute(f'''SELECT user_id, signup_date, kyc_completed, is_activated_user, wallet_activation_timeframe, customer_behaviour_segment, device_type FROM dim_user
      where signup_date >= '{DEFAULT_TRANSACTION_START_DATE}' order by signup_date''').df()
     
     user_wallet_data = conn.execute(f'''SELECT user_id, wallet_id, wallet_activated_at from dim_wallet''').df()
+
+    plans_data = conn.execute('''
+        SELECT * FROM dim_plan
+    ''').df()
+
+    device_type_map = dict(
+        zip(
+            users_data["user_id"],
+            users_data["device_type"]
+        )
+    )
 
     event_type_lookup = conn.execute(
     '''
@@ -52,6 +60,11 @@ def generate_fact_events(conn, num_of_events):
         user_wallet_data["wallet_id"]
     ))
 
+    plan_id_map = dict(zip(
+        plans_data["plan_category"],
+        plans_data["plan_id"]
+    ))
+
     #event_id (PK), user_id, event_type_id, wallet_id, plan_id,event_time ,event_date_id,device_type,is_money_movement_activity
     #transaction_type_id, transaction_id, investment_id
 
@@ -66,6 +79,8 @@ def generate_fact_events(conn, num_of_events):
     plan_ids = np.empty(num_of_events, dtype=object)
 
     device_types = np.empty(num_of_events, dtype=object)
+
+    amount_invested = np.empty(num_of_events,dtype = object)
 
     is_money_movement_activities = np.empty(num_of_events, dtype=bool)
 
@@ -146,6 +161,21 @@ def generate_fact_events(conn, num_of_events):
     
     wallet_activated_users = kyc_completed_users[~pd.isna(kyc_completed_users["wallet_activation_timeframe"])].copy()
 
+    segment_customers = dict(zip(
+        users_data["user_id"],
+        users_data["customer_behaviour_segment"]
+    ))
+
+    wallet_activated_users["customer_behaviour_segment"] = wallet_activated_users["user_id"].map(segment_customers)
+
+    wallet_activated_users["amount_invested"] = np.array([
+        np.random.randint(CUSTOMER_BEHAVIOUR_SEGMENT_MAP[bh]["average_investment_amount"][0],
+            CUSTOMER_BEHAVIOUR_SEGMENT_MAP[bh]["average_investment_amount"][1]
+            
+        )
+        for bh in wallet_activated_users["customer_behaviour_segment"]
+    ])
+
     total_wallet_activated_users = len(wallet_activated_users)
 
     start_wallet_activations = end_kyc_activation_completion
@@ -158,21 +188,20 @@ def generate_fact_events(conn, num_of_events):
     wallet_ids[start_wallet_activations:end_wallet_activations] = [wallet_id_map.get(uid) for uid in wallet_activated_users["user_id"]]
     transaction_type_ids[start_wallet_activations:end_wallet_activations] = transaction_type_map.get("wallet_funding")
     transaction_ids[start_wallet_activations:end_wallet_activations] = np.arange(1, total_wallet_activated_users + 1)
+    amount_invested[start_wallet_activations:end_wallet_activations] = wallet_activated_users["amount_invested"]
     last_transaction_id = transaction_ids[start_wallet_activations:end_wallet_activations].max()
 
     wallet_activated_users_df = pd.DataFrame(
         {
             "user_id": user_ids[start_wallet_activations:end_wallet_activations],
-            "last_login_time": event_time[start_wallet_activations:end_wallet_activations]
+            "last_login_time": event_time[start_wallet_activations:end_wallet_activations],
+            "current_wallet_balance": amount_invested[start_wallet_activations:end_wallet_activations]
         }
     )
 
     #let's create the initial investment -- login, review_plan_options then drop off for some users, and for others, they will make an investment after reviewing the plan options. We will create a new dataframe to hold the users who made an investment and their corresponding investment details.
 
-    segment_customers = dict(zip(
-        users_data["user_id"],
-        users_data["customer_behaviour_segment"]
-    ))
+    
 
     wallet_activated_users_df = pd.DataFrame({
         "user_id": wallet_activated_users_df["user_id"],
@@ -201,7 +230,43 @@ def generate_fact_events(conn, num_of_events):
     event_time[start_position:end_position] = [last_login + timedelta(minutes=np.random.randint(2, 5)) for last_login in login_time_for_review_plan_options]
     event_type_ids[start_position:end_position] = event_type_map.get("review_plan_options")
 
-    customer_subset_2 = wallet_activated_users_df.sample(frac = 0.65, random_state=1)
+    customer_behaviour_segment_wallet_activated_users = wallet_activated_users_df['customer_behaviour_segment']
+
+    probability_of_making_first_investment = [
+    np.random.choice(
+        USERS_MAKES_FIRST_INVESTMENT_AFTER_FUNDING,
+        p=[
+            1 - CUSTOMER_BEHAVIOUR_SEGMENT_MAP[cp]['wallet_to_investment_conversion_probability'],
+            CUSTOMER_BEHAVIOUR_SEGMENT_MAP[cp]['wallet_to_investment_conversion_probability']
+        ]
+    )
+    for cp in customer_behaviour_segment_wallet_activated_users
+]
+
+    mins_to_first_investment = [
+    np.random.randint(
+        CUSTOMER_BEHAVIOUR_SEGMENT_MAP[cp]['days_to_first_investment'][0],
+        CUSTOMER_BEHAVIOUR_SEGMENT_MAP[cp]['days_to_first_investment'][1] + 1
+    )
+    for cp in customer_behaviour_segment_wallet_activated_users
+]
+
+    first_investment_type = [np.random.choice(
+        FIRST_INVESTMENT_TYPE,
+        p=[
+            1 - CUSTOMER_BEHAVIOUR_SEGMENT_MAP[cp]['first_investment_type_probability'],
+            CUSTOMER_BEHAVIOUR_SEGMENT_MAP[cp]['first_investment_type_probability']
+        ]
+    )
+    for cp in customer_behaviour_segment_wallet_activated_users]
+
+    wallet_activated_users_df['makes_first_investment'] = probability_of_making_first_investment
+
+    wallet_activated_users_df['mins_to_first_investment'] = mins_to_first_investment
+
+    wallet_activated_users_df['first_investment_type'] = first_investment_type
+
+    customer_subset_2 = wallet_activated_users_df[wallet_activated_users_df['makes_first_investment'] == True]
 
     total_customer_subset_2 = len(customer_subset_2)
 
@@ -209,7 +274,7 @@ def generate_fact_events(conn, num_of_events):
     end_position = start_position + total_customer_subset_2
 
     user_ids[start_position:end_position] = customer_subset_2["user_id"]
-    event_time[start_position:end_position] = [last_login + timedelta(minutes=np.random.randint(600, 1440)) for last_login in customer_subset_2["last_login_time"]]
+    event_time[start_position:end_position] = [last_login + timedelta(minutes=np.random.randint(0, mtft)) for last_login,mtft in zip(customer_subset_2["last_login_time"],customer_subset_2["mins_to_first_investment"])]
     event_type_ids[start_position:end_position] = event_type_map.get("app_login")
 
     login_time_for_review_plan_options_2 = event_time[start_position:end_position]
@@ -231,7 +296,110 @@ def generate_fact_events(conn, num_of_events):
     event_type_ids[start_position:end_position] = event_type_map.get("plan_selected")
 
 
+    last_plan_selected_time = event_time[start_position:end_position]
+
+    start_position = end_position
+    end_position = start_position + total_customer_subset_2
+
+    user_ids[start_position:end_position] = customer_subset_2["user_id"]
+    event_time[start_position:end_position] = [last_review + timedelta(minutes=np.random.randint(3,5)) for last_review in last_plan_selected_time]
     
+    investment_type_event_type = [
+    "savings_plan_created"
+    if inv == "Savings"
+    else "investment_plan_created"
+    for inv in customer_subset_2["first_investment_type"]
+    ]
+    
+    event_type_ids[start_position:end_position] = [event_type_map.get(inv) for inv in investment_type_event_type]
+    is_money_movement_activities[start_position:end_position] = True
+    transaction_ids[start_position:end_position] = np.arange(last_transaction_id + 1, last_transaction_id +  len(customer_subset_2) + 1)
+    transaction_type_ids[start_position:end_position] = transaction_type_map.get("investment_funding")
+
+    select_plan_ids = np.empty(len(customer_subset_2),dtype=object)
+
+    savings_plans = conn.execute('''SELECT * FROM dim_plan WHERE plan_category = 'Savings' ''').df()
+    investment_plans = conn.execute('''SELECT * FROM dim_plan WHERE plan_category = 'Investments' ''').df()
+
+    savings_mask = np.where(customer_subset_2["first_investment_type"] == 'Savings')[0]
+    investments_mask = np.where(customer_subset_2["first_investment_type"] == 'Investments')[0]
+
+    select_plan_ids[savings_mask] = [np.random.choice(savings_plans["plan_id"], p = savings_plans["plan_weight"])
+                                     for _ in range(len(savings_mask))]
+    select_plan_ids[investments_mask] = [np.random.choice(investment_plans["plan_id"], p = investment_plans["plan_weight"])
+                                         for _ in range(len(investments_mask))]
+
+    plan_ids[start_position:end_position] = select_plan_ids
+    wallet_ids[start_position:end_position] = [wallet_id_map.get(uid) for uid in customer_subset_2["user_id"]]
+    amount_invested[start_position:end_position] = customer_subset_2["amount_invested"] - 5
+
+    last_transaction_id = transaction_ids[start_position:end_position].max()
+
+    customers_who_have_invested_df = pd.DataFrame({
+        "user_id": user_ids[start_position:end_position],
+        "last_login_time":event_time[start_position:end_position],
+        "customer_behaviour_segment":customer_subset_2["customer_behaviour_segment"]
+    })
+
+    avg_number_of_logins_per_month = np.array([
+    np.random.randint(
+        CUSTOMER_BEHAVIOUR_SEGMENT_MAP[bh]["monthly_logins"][0],
+        CUSTOMER_BEHAVIOUR_SEGMENT_MAP[bh]["monthly_logins"][1] + 1
+    )
+    for bh in customers_who_have_invested_df["customer_behaviour_segment"]
+])
+    
+
+    customers_who_have_invested_df["monthly_logins"] = avg_number_of_logins_per_month
+
+    monthly_portfolio_reviews = np.array([
+        np.random.randint(
+           CUSTOMER_BEHAVIOUR_SEGMENT_MAP[bh]["monthly_portfolio_reviews"][0],
+        CUSTOMER_BEHAVIOUR_SEGMENT_MAP[bh]["monthly_portfolio_reviews"][1] + 1
+    )
+    for bh in customers_who_have_invested_df["customer_behaviour_segment"]
+    ])
+
+    
+    customers_who_have_invested_df["monthly_portfolio_reviews"] = monthly_portfolio_reviews
+
+    monthly_wallet_fundings = np.array([
+        np.random.randint(
+           CUSTOMER_BEHAVIOUR_SEGMENT_MAP[bh]["monthly_wallet_fundings"][0],
+        CUSTOMER_BEHAVIOUR_SEGMENT_MAP[bh]["monthly_wallet_fundings"][1] + 1
+    )
+    for bh in customers_who_have_invested_df["customer_behaviour_segment"]
+    ])
+
+    
+    customers_who_have_invested_df["monthly_wallet_fundings"] = monthly_wallet_fundings
+
+    customers_who_have_invested_df["monthly_plan_fundings"] = np.maximum(monthly_wallet_fundings - 2, 0)
+
+    customers_who_have_invested_df["investment_low_bound"] = np.array([
+        CUSTOMER_BEHAVIOUR_SEGMENT_MAP[bh]["average_investment_amount"][0]
+        for bh in customers_who_have_invested_df["customer_behaviour_segment"]
+    ])
+
+    customers_who_have_invested_df["investment_high_bound"] = np.array([
+        CUSTOMER_BEHAVIOUR_SEGMENT_MAP[bh]["average_investment_amount"][1]
+        for bh in customers_who_have_invested_df["customer_behaviour_segment"]
+    ])
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     
 
     event_date_ids = np.array([

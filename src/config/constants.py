@@ -86,6 +86,8 @@ CUSTOMER_BEHAVIOUR_SEGMENT = [
     'Low_Engagement_Low_Balance'
 ]
 
+DEVICE_TYPES = ["ios","android"]
+
 CUSTOMER_PERSONA_MAP = {
     'Starter Investor':{
         'age_range':[18,31],
@@ -93,7 +95,7 @@ CUSTOMER_PERSONA_MAP = {
         'wallet_activation_weight':[0.25,0.75], #25% activate wallet immediately, 75% delay activation
         'mins_to_first_funding':[25920,36000] ,#between 18 and 25 days
         'acquisition_channels_weights': [0.15,0.4,0.2,0.05,0.1,0.1], #higher weight on paid social and referral program
-        'customer_behavioural_segment':[0.02,0.55, 0.03, 0.2,0, 0.2]
+        'customer_behavioural_segment':[0.02,0.55, 0.03, 0.2,0, 0.2],
     },
     'Goal-Oriented Saver':{
         'age_range':[25,56],
@@ -164,82 +166,101 @@ CUSTOMER_BEHAVIOUR_SEGMENT_MAP = {
 
     'High_Engagement_High_Balance':{
         'monthly_logins':[20,40],
-        'monthly_wallet_fundings':[2,5],
-        'monthly_plan_fundings':[1,3],
-        'investment_position_creation':[0,2],
+        'monthly_portfolio_reviews':[12,15],
+        'average_investment_amount':[5000,50000],
+        'monthly_investment_position_creation':[0,2],
+        'monthly_savings_position_creation':[0,1],
         'retention_probability':0.95,
         'early_withdrawal_probability':0.05,
         'avg_wallet_balance_multiplier':2.5,
         'wallet_to_investment_conversion_probability':[0.95,0.05], #95% chance they make an investment after funding their wallet, 5% chance they don't make an investment
         'days_to_first_investment':[1440,14400], #between 1 and 10 days after wallet funding
-        'first_investment_type_probability':[0.7,0.3] #70% chance their first investment is a savings product, 30% chance it's an investment product
+        'first_investment_type_probability':[0.7,0.3], #70% chance their first investment is a savings product, 30% chance it's an investment product
+        'device_type':[0.65,0.35]
     },
 
     'High_Engagement_Low_Balance':{
         'monthly_logins':[15,30],
+        'monthly_portfolio_reviews':[10,12],
         'monthly_wallet_fundings':[1,4],
-        'monthly_plan_fundings':[0,2],
-        'investment_position_creation':[0,1],
+        'average_investment_amount':[250,5000],
+        'monthly_investment_position_creation':[0,2],
+        'monthly_savings_position_creation':[0,1],
         'retention_probability':0.85,
         'early_withdrawal_probability':0.15,
         'avg_wallet_balance_multiplier':0.5,
         'wallet_to_investment_conversion_probability':[0.85,0.15], #85% chance they make an investment after funding their wallet, 15% chance they don't make an investment
         'days_to_first_investment':[4320,14400], #between 3 and 10 days after wallet funding
-        'first_investment_type_probability':[0.6,0.4] #60% chance their first investment is a savings product, 40% chance it's an investment product
+        'first_investment_type_probability':[0.6,0.4], #60% chance their first investment is a savings product, 40% chance it's an investment product
+        'device_type':[0.3,0.7]
     },
 
     'Moderate_Engagement_High_Balance':{
         'monthly_logins':[8,15],
+        'monthly_portfolio_reviews':[4,8],
         'monthly_wallet_fundings':[1,3],
-        'monthly_plan_fundings':[0,2],
-        'investment_position_creation':[0,1],
+        'average_investment_amount':[2500,25000],
+        'monthly_investment_position_creation':[0,1],
+        'monthly_savings_position_creation':[0,1],
         'retention_probability':0.92,
         'early_withdrawal_probability':0.08,
         'avg_wallet_balance_multiplier':2.0,
         'wallet_to_investment_conversion_probability':[0.9,0.1], #90% chance they make an investment after funding their wallet, 10% chance they don't make an investment
         'days_to_first_investment':[10080,30240], #between 7 and 21 days after wallet funding
-        'first_investment_type_probability':[0.5,0.5] #50% chance their first investment is a savings product, 50% chance it's an investment product
+        'first_investment_type_probability':[0.5,0.5], #50% chance their first investment is a savings product, 50% chance it's an investment product
+        'device_type':[0.6,0.4]
     },
 
     'Moderate_Engagement_Low_Balance':{
         'monthly_logins':[4,10],
+        'monthly_portfolio_reviews':[2,6],
         'monthly_wallet_fundings':[0,2],
-        'monthly_plan_fundings':[0,1],
-        'investment_position_creation':[0,1],
+        'average_investment_amount':[100,2500],
+        'monthly_investment_position_creation':[0,1],
+        'monthly_savings_position_creation':[0,1],
         'retention_probability':0.75,
         'early_withdrawal_probability':0.20,
         'avg_wallet_balance_multiplier':0.7,
         'wallet_to_investment_conversion_probability':[0.75,0.25], #75% chance they make an investment after funding their wallet, 25% chance they don't make an investment
         'days_to_first_investment':[10080,20160], #between 7 and 14 days after wallet funding
-        'first_investment_type_probability':[0.4,0.6] #40% chance their first investment is a savings product, 60% chance it's an investment product
+        'first_investment_type_probability':[0.6,0.4], #40% chance their first investment is a savings product, 60% chance it's an investment product
+        'device_type':[0.25,0.75]
     },
 
     'Low_Engagement_High_Balance':{
         'monthly_logins':[1,4],
+        'monthly_portfolio_reviews':[0,3],
         'monthly_wallet_fundings':[0,1],
-        'monthly_plan_fundings':[0,1],
-        'investment_position_creation':[0,1],
+        'average_investment_amount':[10000,100000],
+        'monthly_investment_position_creation':[0,1],
+        'monthly_savings_position_creation':[0,1],
         'retention_probability':0.90,
         'early_withdrawal_probability':0.10,
         'avg_wallet_balance_multiplier':3.0,
         'wallet_to_investment_conversion_probability':[0.9,0.1], #90% chance they make an investment after funding their wallet, 10% chance they don't make an investment
         'days_to_first_investment':[20160,43200], #between 14 and 30 days after wallet funding
-        'first_investment_type_probability':[0.3,0.7] #30% chance their first investment is a savings product, 70% chance it's an investment product
+        'first_investment_type_probability':[0.3,0.7], #30% chance their first investment is a savings product, 70% chance it's an investment product
+        'device_type':[0.55,0.45]
     },
 
     'Low_Engagement_Low_Balance':{
         'monthly_logins':[0,2],
+        'monthly_portfolio_reviews':[0,1],
         'monthly_wallet_fundings':[0,1],
-        'monthly_plan_fundings':[0,0],
-        'investment_position_creation':[0,0],
+        'average_investment_amount':[50,1000],
+        'monthly_investment_position_creation':[0,2],
+        'monthly_savings_position_creation':[0,1],
         'retention_probability':0.50,
         'early_withdrawal_probability':0.30,
         'avg_wallet_balance_multiplier':0.3,
         'wallet_to_investment_conversion_probability':[0.5,0.5], #50% chance they make an investment after funding their wallet, 50% chance they don't make an investment
         'days_to_first_investment':[43200,64800], #between 14 and 45 days after wallet funding
-        'first_investment_type_probability':[0.2,0.8] #20% chance their first investment is a savings product, 80% chance it's an investment product
+        'first_investment_type_probability':[0.8,0.2], #20% chance their first investment is a savings product, 80% chance it's an investment product
+        'device_type':[0.2,0.8]
     }
 }
+
+USERS_MAKES_FIRST_INVESTMENT_AFTER_FUNDING = [True,False]
 
 
 

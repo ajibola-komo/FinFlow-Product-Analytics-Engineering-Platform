@@ -4,7 +4,7 @@ CREATE OR REPLACE TABLE dim_plan (
     plan_name VARCHAR(50),
     plan_display_name VARCHAR(50),
     plan_category VARCHAR(50),
-    plan_weight decimal(2,3),
+    plan_weight decimal(5,2),
     interest_rate_min DECIMAL(5,2),
     interest_rate_max DECIMAL(5,2),
     tenure_days INT,

@@ -166,8 +166,8 @@ CUSTOMER_BEHAVIOUR_SEGMENT_MAP = {
 
     'High_Engagement_High_Balance':{
         'monthly_logins':[20,40],
-        'monthly_portfolio_reviews':[12,15],
-        'average_investment_amount':[5000,50000],
+        'monthly_wallet_fundings':[2,5],
+        'average_investment_amount': [5000,50000],
         'monthly_investment_position_creation':[0,2],
         'monthly_savings_position_creation':[0,1],
         'retention_probability':0.95,
@@ -181,7 +181,6 @@ CUSTOMER_BEHAVIOUR_SEGMENT_MAP = {
 
     'High_Engagement_Low_Balance':{
         'monthly_logins':[15,30],
-        'monthly_portfolio_reviews':[10,12],
         'monthly_wallet_fundings':[1,4],
         'average_investment_amount':[250,5000],
         'monthly_investment_position_creation':[0,2],
@@ -197,7 +196,6 @@ CUSTOMER_BEHAVIOUR_SEGMENT_MAP = {
 
     'Moderate_Engagement_High_Balance':{
         'monthly_logins':[8,15],
-        'monthly_portfolio_reviews':[4,8],
         'monthly_wallet_fundings':[1,3],
         'average_investment_amount':[2500,25000],
         'monthly_investment_position_creation':[0,1],
@@ -213,7 +211,6 @@ CUSTOMER_BEHAVIOUR_SEGMENT_MAP = {
 
     'Moderate_Engagement_Low_Balance':{
         'monthly_logins':[4,10],
-        'monthly_portfolio_reviews':[2,6],
         'monthly_wallet_fundings':[0,2],
         'average_investment_amount':[100,2500],
         'monthly_investment_position_creation':[0,1],
@@ -228,8 +225,7 @@ CUSTOMER_BEHAVIOUR_SEGMENT_MAP = {
     },
 
     'Low_Engagement_High_Balance':{
-        'monthly_logins':[1,4],
-        'monthly_portfolio_reviews':[0,3],
+        'monthly_logins':[1,3],
         'monthly_wallet_fundings':[0,1],
         'average_investment_amount':[10000,100000],
         'monthly_investment_position_creation':[0,1],
@@ -245,10 +241,9 @@ CUSTOMER_BEHAVIOUR_SEGMENT_MAP = {
 
     'Low_Engagement_Low_Balance':{
         'monthly_logins':[0,2],
-        'monthly_portfolio_reviews':[0,1],
         'monthly_wallet_fundings':[0,1],
         'average_investment_amount':[50,1000],
-        'monthly_investment_position_creation':[0,2],
+        'monthly_investment_position_creation':[0,1],
         'monthly_savings_position_creation':[0,1],
         'retention_probability':0.50,
         'early_withdrawal_probability':0.30,

@@ -15,7 +15,5 @@ CREATE OR REPLACE TABLE dim_user(
     birth_date_id INT,
     signup_date TIMESTAMP,
     signup_date_id INT,
-    is_activated_user BOOLEAN,
-    wallet_activation_timeframe INT,
     customer_behaviour_segment VARCHAR(50)
 )

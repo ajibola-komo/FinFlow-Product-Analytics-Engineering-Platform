@@ -144,7 +144,7 @@ POST_SIGN_UP_IMMEDIATE_LOGINS = 0.45
 POST_SIGN_UP_SAME_DAY_LOGINS = 0.25
 POST_SIGN_UP_DELAYED_LOGINS = 0.3
 
-KYC_ACTIVATION_TIMEFRAME = [60, 168]  # minutes - between 1 hour and 7 days
+KYC_ACTIVATION_TIMEFRAME = [1440, 10080]  # minutes - between 1 and 7 days
 
 IMMEDIATE_LOGINS_TIME_FRAME = [60,300] #seconds
 SAME_DAY_LOGINS_TIME_FRAME = [18000,86400] #seconds
@@ -174,7 +174,7 @@ CUSTOMER_BEHAVIOUR_SEGMENT_MAP = {
         'early_withdrawal_probability':0.05,
         'avg_wallet_balance_multiplier':2.5,
         'wallet_to_investment_conversion_probability':[0.95,0.05], #95% chance they make an investment after funding their wallet, 5% chance they don't make an investment
-        'days_to_first_investment':[1440,14400], #between 1 and 10 days after wallet funding
+        'mins_to_first_investment':[1440,14400], #between 1 and 10 days after wallet funding
         'first_investment_type_probability':[0.7,0.3], #70% chance their first investment is a savings product, 30% chance it's an investment product
         'device_type':[0.65,0.35]
     },
@@ -189,7 +189,7 @@ CUSTOMER_BEHAVIOUR_SEGMENT_MAP = {
         'early_withdrawal_probability':0.15,
         'avg_wallet_balance_multiplier':0.5,
         'wallet_to_investment_conversion_probability':[0.85,0.15], #85% chance they make an investment after funding their wallet, 15% chance they don't make an investment
-        'days_to_first_investment':[4320,14400], #between 3 and 10 days after wallet funding
+        'mins_to_first_investment':[4320,14400], #between 3 and 10 days after wallet funding
         'first_investment_type_probability':[0.6,0.4], #60% chance their first investment is a savings product, 40% chance it's an investment product
         'device_type':[0.3,0.7]
     },
@@ -204,7 +204,7 @@ CUSTOMER_BEHAVIOUR_SEGMENT_MAP = {
         'early_withdrawal_probability':0.08,
         'avg_wallet_balance_multiplier':2.0,
         'wallet_to_investment_conversion_probability':[0.9,0.1], #90% chance they make an investment after funding their wallet, 10% chance they don't make an investment
-        'days_to_first_investment':[10080,30240], #between 7 and 21 days after wallet funding
+        'mins_to_first_investment':[10080,30240], #between 7 and 21 days after wallet funding
         'first_investment_type_probability':[0.5,0.5], #50% chance their first investment is a savings product, 50% chance it's an investment product
         'device_type':[0.6,0.4]
     },
@@ -219,7 +219,7 @@ CUSTOMER_BEHAVIOUR_SEGMENT_MAP = {
         'early_withdrawal_probability':0.20,
         'avg_wallet_balance_multiplier':0.7,
         'wallet_to_investment_conversion_probability':[0.75,0.25], #75% chance they make an investment after funding their wallet, 25% chance they don't make an investment
-        'days_to_first_investment':[10080,20160], #between 7 and 14 days after wallet funding
+        'mins_to_first_investment':[10080,20160], #between 7 and 14 days after wallet funding
         'first_investment_type_probability':[0.6,0.4], #40% chance their first investment is a savings product, 60% chance it's an investment product
         'device_type':[0.25,0.75]
     },
@@ -234,7 +234,7 @@ CUSTOMER_BEHAVIOUR_SEGMENT_MAP = {
         'early_withdrawal_probability':0.10,
         'avg_wallet_balance_multiplier':3.0,
         'wallet_to_investment_conversion_probability':[0.9,0.1], #90% chance they make an investment after funding their wallet, 10% chance they don't make an investment
-        'days_to_first_investment':[20160,43200], #between 14 and 30 days after wallet funding
+        'mins_to_first_investment':[20160,43200], #between 14 and 30 days after wallet funding
         'first_investment_type_probability':[0.3,0.7], #30% chance their first investment is a savings product, 70% chance it's an investment product
         'device_type':[0.55,0.45]
     },
@@ -249,7 +249,7 @@ CUSTOMER_BEHAVIOUR_SEGMENT_MAP = {
         'early_withdrawal_probability':0.30,
         'avg_wallet_balance_multiplier':0.3,
         'wallet_to_investment_conversion_probability':[0.5,0.5], #50% chance they make an investment after funding their wallet, 50% chance they don't make an investment
-        'days_to_first_investment':[43200,64800], #between 14 and 45 days after wallet funding
+        'mins_to_first_investment':[43200,64800], #between 14 and 45 days after wallet funding
         'first_investment_type_probability':[0.8,0.2], #20% chance their first investment is a savings product, 80% chance it's an investment product
         'device_type':[0.2,0.8]
     }
@@ -257,6 +257,25 @@ CUSTOMER_BEHAVIOUR_SEGMENT_MAP = {
 
 USERS_MAKES_FIRST_INVESTMENT_AFTER_FUNDING = [True,False]
 
+EARLY_WITHDRAWAL_BEHAVIOUR = {
+    "flex_save": {
+        "left": 1,
+        "mode": 15,
+        "right": 30
+    },
+    "fixed_save": {
+        "left": 1,
+        "mode": 30,
+        "right": 60
+    },
+    "treasury_bills": {
+        "left": 1,
+        "mode": 45,
+        "right": 90
+    }
+}
+
+INVESTMENT_WITHDRAWAL_PROCESSING_TIME = 1440
 
 
 

@@ -21,53 +21,21 @@ def generate_fact_events(conn, num_of_events):
     
     user_wallet_data = conn.execute(f'''SELECT user_id, wallet_id, wallet_activated_at from dim_wallet''').df()
 
-    plans_data = conn.execute('''
-        SELECT * FROM dim_plan
-    ''').df()
+    plans_data = conn.execute('''SELECT * FROM dim_plan''').df()
 
-    device_type_map = dict(
-        zip(
-            users_data["user_id"],
-            users_data["device_type"]
-        )
-    )
+    device_type_map = dict(zip(users_data["user_id"],users_data["device_type"]))
 
-    event_type_lookup = conn.execute(
-    '''
-    SELECT event_type_code, event_type_id
-    FROM dim_event_type
-    '''
-).df()
+    event_type_lookup = conn.execute('''SELECT event_type_code, event_type_id FROM dim_event_type''').df()
     
-    transaction_type_lookup = conn.execute(
-        '''
-            SELECT transaction_type_code, transaction_type_id
-            FROM dim_transaction_type
-        '''
-    ).df()
+    transaction_type_lookup = conn.execute('''SELECT transaction_type_code, transaction_type_id FROM dim_transaction_type''').df()
     
-    event_type_map = dict(zip(
-    event_type_lookup["event_type_code"],
-    event_type_lookup["event_type_id"]
-))
+    event_type_map = dict(zip(event_type_lookup["event_type_code"],event_type_lookup["event_type_id"]))
     
-    transaction_type_map = dict(zip(
-    transaction_type_lookup["transaction_type_code"],
-    transaction_type_lookup["transaction_type_id"]
-    ))
+    transaction_type_map = dict(zip(transaction_type_lookup["transaction_type_code"],transaction_type_lookup["transaction_type_id"]))
     
-    wallet_id_map = dict(zip(
-        user_wallet_data["user_id"],
-        user_wallet_data["wallet_id"]
-    ))
+    wallet_id_map = dict(zip(user_wallet_data["user_id"],user_wallet_data["wallet_id"]))
 
-    plan_id_map = dict(zip(
-        plans_data["plan_id"],
-        plans_data["tenure_days"]
-    ))
-
-    #event_id (PK), user_id, event_type_id, wallet_id, plan_id,event_time ,event_date_id,device_type,is_money_movement_activity
-    #transaction_type_id, transaction_id, investment_id
+    plan_id_map = dict(zip(plans_data["plan_id"],plans_data["tenure_days"]))
 
     event_time = np.empty(num_of_events, dtype=object)
 
@@ -104,7 +72,7 @@ def generate_fact_events(conn, num_of_events):
 
     #new user logins
     new_users_logins = conn.execute(f'''SELECT user_id, signup_date, kyc_completed, is_activated_user, customer_behaviour_segment FROM dim_user
-     where signup_date >= '{DEFAULT_TRANSACTION_START_DATE}' AND is_immediate_login = True order by signup_date''').df()
+    where signup_date >= '{DEFAULT_TRANSACTION_START_DATE}' AND is_immediate_login = True order by signup_date''').df()
     
     immediate_login_timeframe = np.random.randint(IMMEDIATE_LOGINS_TIME_FRAME[0],IMMEDIATE_LOGINS_TIME_FRAME[1], size=len(new_users_logins))
     
@@ -753,8 +721,6 @@ def generate_fact_events(conn, num_of_events):
 
     device_types[start_position:end_position] = [device_type_map.get(uid)for uid in new_investment_events_df["user_id"]]
 
-    #plan_ids[start_position:end_position] = (new_investment_events_df["plan_id"].values) #??
-
 
     start_position = end_position
     end_position = start_position + len(new_investment_creation_df)
@@ -1012,10 +978,10 @@ def generate_fact_events(conn, num_of_events):
     investment_ids[start_position:end_position] = saleable_investments_df_subset["investment_id"].values
     is_money_movement_activities[start_position:end_position] = True
     transaction_ids[start_position:end_position] = np.arange(last_transaction_id + 1, last_transaction_id + 1 + len(saleable_investments_df_subset))
-    transaction_type_ids[start_position:end_position] = [transaction_type_map.get("investment_proceeds_transfer")]
+    transaction_type_ids[start_position:end_position] = [transaction_type_map.get("investment_proceeds_transfer") for _ in range(len(saleable_investments_df_subset))]
     wallet_ids[start_position:end_position] = [wallet_id_map.get(uid) for uid in saleable_investments_df_subset["user_id"].values]
     amount_invested[start_position:end_position] = saleable_investments_df_subset["amount_invested"].values
-    saleable_investments_df_subset["investment_status"] = "Redeemed"
+    last_transaction_id = transaction_ids[start_position:end_position].max()
 
     event_date_ids = np.array([
     int(pd.Timestamp(ts).strftime('%Y%m%d'))

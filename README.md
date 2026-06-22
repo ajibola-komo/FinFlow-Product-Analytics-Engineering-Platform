@@ -198,7 +198,7 @@ This simulates a real-world semantic layer where downstream BI tools consume gov
 - Snowflake
 - dbt
 - Airflow
-- AWS S3
+- Google Cloud Storage
 - Power BI
 - Customer Lifecycle Analytics
 - Funnel Analysis

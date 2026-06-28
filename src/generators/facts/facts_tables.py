@@ -74,8 +74,6 @@ def generate_fact_events(conn, num_of_events):
 
     wallet_balance_by_user_df["current_balance"] = 0.0
 
-
-
     # new user signups
     total_signups = len(users_data)
 
@@ -920,7 +918,6 @@ def generate_fact_events(conn, num_of_events):
     transaction_amounts[start_position:end_position] = vestable_investments_df.loc[early_withdrawal_mask,"amount_invested"]
     transaction_statuses[start_position:end_position] = ["success" for _ in range(len(vestable_investments_df.loc[early_withdrawal_mask,"amount_invested"]))]
 
-
     #model investment vests transactions for matured investments
     start_position = end_position
     end_position = start_position + len(vested_invested_mask)
@@ -1033,7 +1030,6 @@ def generate_fact_events(conn, num_of_events):
     transaction_amounts[start_position:end_position] = saleable_investments_df_subset["amount_invested"].values
     transaction_statuses[start_position:end_position] = ["success" for _ in range(len(saleable_investments_df_subset))]
 
-
     saleable_investments_df.loc[
     saleable_investments_df_subset.index,
     "investment_status"] = "Redeemed"
@@ -1054,7 +1050,7 @@ def generate_fact_events(conn, num_of_events):
     left=1,
     mode=14,
     right=90,
-    size=len(redemption_investments_df)
+    size=len(redeemed_investments_events_df)
 ).astype(int)
     
     random_offset = np.random.randint(2,15, size=len(remaining_investments_df))
@@ -1067,10 +1063,11 @@ def generate_fact_events(conn, num_of_events):
     size=len(remaining_investments_df)
 ).astype(int)
     
-    remaining_investments_df["days_until_wallet_withdrawal"] = remaining_investments_df["redemption_date"] + remaining_investments_df["days_until_first_withdrawal_trial"] + pd.to_timedelta(random_offset,unit="D")
-    remaining_investments_df["withdrawal_login_time"] = remaining_investments_df["redemption_date"] + remaining_investments_df["days_until_wallet_withdrawal"] - pd.to_timedelta(5,unit="m")
-    remaining_investments_df["withdrawal_trial_login_time"] = remaining_investments_df["redemption_date"] + remaining_investments_df["days_until_first_withdrawal_trial"] - pd.to_timedelta(5,unit="m")
-
+    remaining_investments_df["final_withdrawal_date"] = remaining_investments_df["redemption_date"] + pd.to_timedelta(remaining_investments_df["days_until_first_withdrawal_trial"], unit="D") + pd.to_timedelta(random_offset,unit="D")
+    remaining_investments_df["withdrawal_login_time"] = remaining_investments_df["final_withdrawal_date"] - pd.to_timedelta(5,unit="m")
+    remaining_investments_df["final_withdrawal_trial_date"] = remaining_investments_df["redemption_date"] + pd.to_timedelta(remaining_investments_df["days_until_first_withdrawal_trial"], unit="D")
+    remaining_investments_df["withdrawal_trial_login_time"] = remaining_investments_df["final_withdrawal_trial_date"] - pd.to_timedelta(5,unit="m")
+    
 
     #let's model the wallet withdrawals
     start_position = end_position
@@ -1087,6 +1084,7 @@ def generate_fact_events(conn, num_of_events):
     event_type_ids[start_position:end_position] = [event_type_map.get("wallet_withdrawal") for _ in range(len(redeemed_investments_events_df))]
     transaction_statuses[start_position:end_position] = ["success" for _ in range(len(redeemed_investments_events_df))]
     transaction_amounts[start_position:end_position] = redeemed_investments_events_df["amount_invested"]
+    device_types[start_position:end_position] = [device_type_map.get(uid) for uid in redeemed_investments_events_df["user_id"].values]
 
     #let's model withdrawal failures and withdrawal successes after
     start_position = end_position
@@ -1102,7 +1100,7 @@ def generate_fact_events(conn, num_of_events):
     end_position = start_position + len(remaining_investments_df)
 
     user_ids[start_position:end_position] = remaining_investments_df["user_id"].values
-    event_time[start_position:end_position] = remaining_investments_df["days_until_first_withdrawal_trial"]
+    event_time[start_position:end_position] = remaining_investments_df["final_withdrawal_trial_date"]
     event_type_ids[start_position:end_position] = [event_type_map.get("withdrawal_failed") for _ in range(len(remaining_investments_df))]
     device_types[start_position:end_position] = [device_type_map.get(uid) for uid in remaining_investments_df["user_id"].values]
     is_money_movement_activities[start_position:end_position] = [True for _ in range(len(remaining_investments_df))]
@@ -1125,7 +1123,7 @@ def generate_fact_events(conn, num_of_events):
     end_position = start_position + len(remaining_investments_df)
 
     user_ids[start_position:end_position] = remaining_investments_df["user_id"].values
-    event_time[start_position:end_position] = remaining_investments_df["redemption_date"]
+    event_time[start_position:end_position] = remaining_investments_df["final_withdrawal_date"]
     event_type_ids[start_position:end_position] = [event_type_map.get("wallet_withdrawal") for _ in range(len(remaining_investments_df))]
     device_types[start_position:end_position] = [device_type_map.get(uid) for uid in remaining_investments_df["user_id"].values]
     is_money_movement_activities[start_position:end_position] = [True for _ in range(len(remaining_investments_df))]
@@ -1136,20 +1134,83 @@ def generate_fact_events(conn, num_of_events):
     last_transaction_id = transaction_ids[start_position:end_position].max()
 
 
+
     event_date_ids = np.array([
     int(pd.Timestamp(ts).strftime('%Y%m%d'))
     for ts in event_time
     ], dtype=np.int32)
-    
+
+    #invesment df
+    main_df = pd.DataFrame({
+        "user_id":user_ids,
+        "event_type_id":event_type_ids,
+        "wallet_id":wallet_ids,
+        "plan_id":plan_ids,
+        "event_time":event_time,
+        "event_date_id":event_date_ids,
+        "device_type":device_types,
+        "is_money_movement_activity":is_money_movement_activities,
+        "transaction_type_id":transaction_type_ids,
+        "transaction_id":transaction_ids,
+        "investment_id":investment_ids,
+        "transaction_status":transaction_statuses,
+        "transaction_amount":transaction_amounts
+    })
+
+    transactions_df = main_df[main_df["transaction_id"].notna()].copy()
+
+    transaction_events_df = pd.DataFrame({
+        "transaction_id":transactions_df["transaction_id"],
+        "wallet_id":transactions_df["wallet_id"],
+        "transaction_type_id":transactions_df["transaction_type_id"],
+        "transaction_amount":transactions_df["transaction_amount"],
+        "transaction_status": transactions_df["transaction_status"],
+        "transaction_timestamp":transactions_df["event_time"],
+        "transaction_date_id":transactions_df["event_date_id"]
+    })
+
+    conn.register("tr_events",transaction_events_df)
+
+    conn.execute('''INSERT INTO fact_transaction SELECT * FROM tr_events''')
+
+    conn.execute(f'''
+                    COPY fact_transaction TO '{FACT_TRANSACTION_PARQUET_PATH}' (FORMAT PARQUET)
+    ''')
+
+    investment_positions_df = pd.DataFrame({
+        "investment_id":all_investments_df["investment_id"],
+        "user_id":all_investments_df["user_id"],
+        "wallet_id":all_investments_df["wallet_id"],
+        "plan_id":all_investments_df["plan_id"],
+        "amount_invested":all_investments_df["amount_invested"],
+        "investment_start_date":all_investments_df["investment_start_date"],
+        "investment_start_date_id": np.array([int(pd.Timestamp(ts).strftime('%Y%m%d')) for ts in all_investments_df["investment_start_date"]
+    ], dtype=np.int32),
+        "investment_maturity_date":all_investments_df["investment_maturity_date"],
+        "investment_maturity_date_id":np.array([int(pd.Timestamp(ts).strftime('%Y%m%d')) for ts in all_investments_df["investment_maturity_date"]
+    ], dtype=np.int32),
+    "investment_status":all_investments_df["investment_status"]
+    })
+
+    conn.register("investment_df",investment_positions_df)
+
+    conn.execute('''INSERT INTO FACT_INVESTMENT_POSITION SELECT * FROM INVESTMENT_DF''')
+
+    conn.execute(f'''COPY FACT_INVESTMENT_POSITION TO '{FACT_INVESTMENT_POSITION_PARQUET_PATH}' (FORMAT PARQUET) ''')
 
     df_raw = pd.DataFrame({
         "user_id":user_ids,
         "event_type_id":event_type_ids,
         "investment_id":investment_ids,
         "wallet_id":wallet_ids,
+        "plan_id":plan_ids,
         "event_time":event_time,
         "event_date_id":event_date_ids,
-        "transaction_id":transaction_ids
+        "device_type":device_types,
+        "is_money_movement_activity":is_money_movement_activities,
+        "transaction_type_id":transaction_type_ids,
+        "transaction_id":transaction_ids,
+        "investment_id":investment_ids
     })
 
     df_raw = df_raw.sort_values(
@@ -1165,14 +1226,18 @@ def generate_fact_events(conn, num_of_events):
         "event_id",
         "user_id",
         "event_type_id",
-        "investment_id",
         "wallet_id",
+        "plan_id",
         "event_time",
-        "event_date_id"
+        "event_date_id",
+        "device_type",
+        "is_money_movement_activity",
+        "transaction_id",
+        "investment_id"
     ]]
 
     conn.register("df_raw",df_raw)
 
-    conn.execute('''INSERT INTO fact_event SELECT * FROM df_raw''')
+    conn.execute('''INSERT INTO fact_user_event SELECT * FROM df_raw''')
 
-    conn.execute(f'''COPY FACT_EVENT TO '{FACT_USER_EVENT_PARQUET_PATH}' (FORMAT PARQUET) ''')
+    conn.execute(f'''COPY FACT_USER_EVENT TO '{FACT_USER_EVENT_PARQUET_PATH}' (FORMAT PARQUET) ''')

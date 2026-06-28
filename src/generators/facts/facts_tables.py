@@ -9,7 +9,7 @@ from src.config.constants import (DEFAULT_TRANSACTION_START_DATE,IMMEDIATE_LOGIN
 from datetime import timedelta
 
 
-def generate_fact_events(conn, num_of_events):
+def generate_facts(conn, num_of_events):
 
     create_fact_user_table = DDL_FACT_USER_EVENT_PATH.read_text()
     create_fact_investment_table = DDL_FACT_INVESTMENT_POSITION_PATH.read_text()
@@ -18,8 +18,6 @@ def generate_fact_events(conn, num_of_events):
     conn.execute(create_fact_user_table)
     conn.execute(create_fact_investment_table)
     conn.execute(create_fact_transaction_table)
-
-    events = []
 
     #populate all possible signups within the project duration
     users_data = conn.execute(f'''SELECT user_id, signup_date, kyc_completed, is_activated_user, wallet_activation_timeframe, customer_behaviour_segment, device_type FROM dim_user
@@ -1121,6 +1119,7 @@ def generate_fact_events(conn, num_of_events):
 
     start_position = end_position
     end_position = start_position + len(remaining_investments_df)
+    last_position = end_position
 
     user_ids[start_position:end_position] = remaining_investments_df["user_id"].values
     event_time[start_position:end_position] = remaining_investments_df["final_withdrawal_date"]
@@ -1133,29 +1132,30 @@ def generate_fact_events(conn, num_of_events):
     transaction_ids[start_position:end_position] = np.arange(last_transaction_id + 1, len(remaining_investments_df) + last_transaction_id + 1)
     last_transaction_id = transaction_ids[start_position:end_position].max()
 
-
-
-    event_date_ids = np.array([
-    int(pd.Timestamp(ts).strftime('%Y%m%d'))
-    for ts in event_time
-    ], dtype=np.int32)
+    total_events = end_position
+    
 
     #invesment df
     main_df = pd.DataFrame({
-        "user_id":user_ids,
-        "event_type_id":event_type_ids,
-        "wallet_id":wallet_ids,
-        "plan_id":plan_ids,
-        "event_time":event_time,
-        "event_date_id":event_date_ids,
-        "device_type":device_types,
-        "is_money_movement_activity":is_money_movement_activities,
-        "transaction_type_id":transaction_type_ids,
-        "transaction_id":transaction_ids,
-        "investment_id":investment_ids,
-        "transaction_status":transaction_statuses,
-        "transaction_amount":transaction_amounts
+        "user_id":user_ids[:total_events],
+        "event_type_id":event_type_ids[:total_events],
+        "wallet_id":wallet_ids[:total_events],
+        "plan_id":plan_ids[:total_events],
+        "event_time":event_time[:total_events],
+        "event_date_id":event_date_ids[:total_events],
+        "device_type":device_types[:total_events],
+        "is_money_movement_activity":is_money_movement_activities[:total_events],
+        "transaction_type_id":transaction_type_ids[:total_events],
+        "transaction_id":transaction_ids[:total_events],
+        "investment_id":investment_ids[:total_events],
+        "transaction_status":transaction_statuses[:total_events],
+        "transaction_amount":transaction_amounts[:total_events]
     })
+
+    main_df["event_date_id"] = np.array([
+    int(pd.Timestamp(ts).strftime('%Y%m%d'))
+    for ts in main_df["event_time"]
+    ], dtype=np.int32)
 
     transactions_df = main_df[main_df["transaction_id"].notna()].copy()
 

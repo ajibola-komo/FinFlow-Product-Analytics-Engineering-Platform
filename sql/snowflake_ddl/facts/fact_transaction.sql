@@ -1,4 +1,4 @@
-CREATE OR REPLACE TABLE  FACT_TRANSACTION( 
+CREATE OR REPLACE TABLE FACT_TRANSACTION ( 
     transaction_id INT primary key,
     wallet_id BIGINT NOT NULL,
     transaction_type_id INT NOT NULL,

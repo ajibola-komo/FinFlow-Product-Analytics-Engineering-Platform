@@ -11,7 +11,7 @@ from src.storage.snowflake_upload import upload_from_s3_to_snowflake
 from src.run_dbt.run_dbt import run_dbt_models
 from src.generators.dimensions.dim_plan import generate_dim_plan
 from src.generators.dimensions.dim_wallet import generate_list_of_wallets
-from generators.facts.facts_tables import generate_fact_events
+from src.generators.facts.facts_tables import generate_facts
 from src.generators.dimensions.dim_transaction_type import generate_transaction_types
 from src.storage.gcs_upload import upload_to_gcs
 from src.storage.gcs_to_snowflake_upload import upload_from_gcs_to_snowflake
@@ -28,7 +28,7 @@ def create():
         generate_users(conn,50000)
         generate_list_of_wallets(conn)
         generate_transaction_types(conn)
-        #generate_fact_events(conn,300000)
+        generate_facts(conn,5000000)
 
     
     #upload_parquet_files()

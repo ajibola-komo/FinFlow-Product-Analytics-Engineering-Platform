@@ -72,19 +72,22 @@ FACT_TRANSACTION_PARQUET_PATH = PARQUET_DIR / "fact_transaction.parquet"
 #s3
 S3_BUCKET_NAME = "finflow-s3-bucket"
 
-LOCAL_FILE_PATHS = [DATES_PARQUET_PATH, PRODUCTS_PARQUET_PATH, USERS_PARQUET_PATH, EVENT_TYPES_PARQUET_PATH, PLANS_PARQUET_PATH, WALLETS_PARQUET_PATH, TRANSACTION_TYPE_PARQUET_PATH      
+LOCAL_FILE_PATHS = [DATES_PARQUET_PATH, PRODUCTS_PARQUET_PATH, USERS_PARQUET_PATH, EVENT_TYPES_PARQUET_PATH, PLANS_PARQUET_PATH, WALLETS_PARQUET_PATH, TRANSACTION_TYPE_PARQUET_PATH,
+                    FACT_TRANSACTION_PARQUET_PATH, FACT_INVESTMENT_POSITION_PARQUET_PATH, FACT_USER_EVENT_PARQUET_PATH 
                        ]
 
 
 
 S3_KEYS = [
-    "dim_date.parquet", "dim_product.parquet", "dim_user.parquet", "dim_event_type.parquet","dim_plan.parquet","dim_wallet.parquet",  "dim_transaction_type.parquet"
+    "dim_date.parquet", "dim_product.parquet", "dim_user.parquet", "dim_event_type.parquet","dim_plan.parquet","dim_wallet.parquet",  "dim_transaction_type.parquet",
+    "fact_transaction.parquet","fact_investment_position.parquet","fact_user_event.parquet"
 ]
 
-TABLE_NAMES = ["dim_date","dim_product","dim_user","dim_event_type","dim_plan","dim_wallet","dim_transaction_type"]
+TABLE_NAMES = ["dim_date","dim_product","dim_user","dim_event_type","dim_plan","dim_wallet","dim_transaction_type","fact_transaction","fact_investment_position","fact_user_event"]
 
 GCS_FILE_NAMES = [
-    "dim_date.parquet", "dim_product.parquet", "dim_user.parquet", "dim_event_type.parquet","dim_plan.parquet","dim_wallet.parquet",  "dim_transaction_type.parquet"
+    "dim_date.parquet", "dim_product.parquet", "dim_user.parquet", "dim_event_type.parquet","dim_plan.parquet","dim_wallet.parquet",  "dim_transaction_type.parquet",
+    "fact_transaction.parquet","fact_investment_position.parquet","fact_user_event.parquet"
 ]
 
 # "fact_user_event.parquet", "fact_investment_position.parquet","fact_transaction.parquet"

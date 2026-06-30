@@ -36,7 +36,7 @@ def generate_list_of_wallets(conn):
     )
 
 
-    activated_at[active_mask] = np.array([ca + timedelta(minutes=(int(ro))) for ca,ro in zip(created_at[active_mask], activation_timeframe[active_mask])])
+    activated_at[active_mask] = np.array([ca + pd.to_timedelta(int(ro),unit="m") for ca,ro in zip(created_at[active_mask], activation_timeframe[active_mask])])
     activated_at[inactive_mask] = None
 
     activated_at_id = np.empty(total_users,

@@ -1,8 +1,10 @@
 from datetime import date, datetime, time, timedelta, timezone
+import pandas as pd
+
 
 TIMEZONE = "UTC"
 
-TODAY = date.today()
+TODAY = pd.Timestamp.today()
 
 # Signup range
 DEFAULT_SIGNUP_START_DATE = date(2016, 1, 1)
@@ -176,7 +178,8 @@ CUSTOMER_BEHAVIOUR_SEGMENT_MAP = {
         'wallet_to_investment_conversion_probability':[0.95,0.05], #95% chance they make an investment after funding their wallet, 5% chance they don't make an investment
         'mins_to_first_investment':[1440,14400], #between 1 and 10 days after wallet funding
         'first_investment_type_probability':[0.7,0.3], #70% chance their first investment is a savings product, 30% chance it's an investment product
-        'device_type':[0.65,0.35]
+        'device_type':[0.65,0.35],
+        'investment_type_probability':[0.2,0.8]
     },
 
     'High_Engagement_Low_Balance':{
@@ -191,7 +194,8 @@ CUSTOMER_BEHAVIOUR_SEGMENT_MAP = {
         'wallet_to_investment_conversion_probability':[0.85,0.15], #85% chance they make an investment after funding their wallet, 15% chance they don't make an investment
         'mins_to_first_investment':[4320,14400], #between 3 and 10 days after wallet funding
         'first_investment_type_probability':[0.6,0.4], #60% chance their first investment is a savings product, 40% chance it's an investment product
-        'device_type':[0.3,0.7]
+        'device_type':[0.3,0.7],
+        'investment_type_probability':[0.2,0.8]
     },
 
     'Moderate_Engagement_High_Balance':{
@@ -206,7 +210,8 @@ CUSTOMER_BEHAVIOUR_SEGMENT_MAP = {
         'wallet_to_investment_conversion_probability':[0.9,0.1], #90% chance they make an investment after funding their wallet, 10% chance they don't make an investment
         'mins_to_first_investment':[10080,30240], #between 7 and 21 days after wallet funding
         'first_investment_type_probability':[0.5,0.5], #50% chance their first investment is a savings product, 50% chance it's an investment product
-        'device_type':[0.6,0.4]
+        'device_type':[0.6,0.4],
+        'investment_type_probability':[0.5,0.5]
     },
 
     'Moderate_Engagement_Low_Balance':{
@@ -221,7 +226,8 @@ CUSTOMER_BEHAVIOUR_SEGMENT_MAP = {
         'wallet_to_investment_conversion_probability':[0.75,0.25], #75% chance they make an investment after funding their wallet, 25% chance they don't make an investment
         'mins_to_first_investment':[10080,20160], #between 7 and 14 days after wallet funding
         'first_investment_type_probability':[0.6,0.4], #40% chance their first investment is a savings product, 60% chance it's an investment product
-        'device_type':[0.25,0.75]
+        'device_type':[0.25,0.75],
+        'investment_type_probability':[0.5,0.5]
     },
 
     'Low_Engagement_High_Balance':{
@@ -236,7 +242,8 @@ CUSTOMER_BEHAVIOUR_SEGMENT_MAP = {
         'wallet_to_investment_conversion_probability':[0.9,0.1], #90% chance they make an investment after funding their wallet, 10% chance they don't make an investment
         'mins_to_first_investment':[20160,43200], #between 14 and 30 days after wallet funding
         'first_investment_type_probability':[0.3,0.7], #30% chance their first investment is a savings product, 70% chance it's an investment product
-        'device_type':[0.55,0.45]
+        'device_type':[0.55,0.45],
+        'investment_type_probability':[0.5,0.5]
     },
 
     'Low_Engagement_Low_Balance':{
@@ -251,7 +258,8 @@ CUSTOMER_BEHAVIOUR_SEGMENT_MAP = {
         'wallet_to_investment_conversion_probability':[0.5,0.5], #50% chance they make an investment after funding their wallet, 50% chance they don't make an investment
         'mins_to_first_investment':[43200,64800], #between 14 and 45 days after wallet funding
         'first_investment_type_probability':[0.8,0.2], #20% chance their first investment is a savings product, 80% chance it's an investment product
-        'device_type':[0.2,0.8]
+        'device_type':[0.2,0.8],
+        'investment_type_probability':[0.5,0.5]
     }
 }
 
@@ -276,6 +284,9 @@ EARLY_WITHDRAWAL_BEHAVIOUR = {
 }
 
 INVESTMENT_WITHDRAWAL_PROCESSING_TIME = 1440
+
+MUTUAL_FUNDS_CUTOFF_DATE = TODAY - pd.to_timedelta(90,unit="D")
+
 
 
 

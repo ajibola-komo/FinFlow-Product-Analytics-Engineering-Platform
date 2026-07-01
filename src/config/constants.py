@@ -162,7 +162,7 @@ DELAYED_WALLET_ACTIVATION_TIME_FRAME = [600,3600] #seconds - between 10 minutes 
 #fact investment position
 INVESTMENT_RISK_PROFILE = ['Low','Medium','High']
 
-FIRST_INVESTMENT_TYPE = ['Savings','Investment']
+FIRST_INVESTMENT_TYPE = ['Savings','Investments']
 
 CUSTOMER_BEHAVIOUR_SEGMENT_MAP = {
 

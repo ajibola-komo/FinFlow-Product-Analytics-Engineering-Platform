@@ -8,5 +8,8 @@ CREATE OR REPLACE TABLE FACT_INVESTMENT_POSITION(
     investment_start_date_id int,
     investment_maturity_date timestamp,
     investment_maturity_date_id int,
-    investment_status varchar(20)
+    investment_status varchar(20),
+    is_withdrawn_early boolean,
+    early_withdrawal_date timestamp,
+    early_withdrawal_date_id int
 );

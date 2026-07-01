@@ -65,6 +65,9 @@ def generate_facts(conn, num_of_events):
 
     transaction_amounts = np.zeros(num_of_events, dtype=np.float64)
     transaction_statuses = np.empty(num_of_events, dtype = object)
+    is_withdrawn_early = np.full(num_of_events,False,dtype=bool)
+    withdrawal_date = np.empty(num_of_events,dtype=object)
+    withdrawal_date_id = np.empty(num_of_events,dtype=object)
     
     wallet_balance_by_user_df = user_wallet_data[
     ["user_id", "wallet_id"]].copy()
@@ -219,12 +222,7 @@ def generate_facts(conn, num_of_events):
     customer_behaviour_segment_wallet_activated_users = wallet_activated_users_df['customer_behaviour_segment']
 
     probability_of_making_first_investment = [
-    np.random.choice(
-        USERS_MAKES_FIRST_INVESTMENT_AFTER_FUNDING,
-        p=CUSTOMER_BEHAVIOUR_SEGMENT_MAP[cp][
-            'wallet_to_investment_conversion_probability'
-        ]
-    )
+    np.random.choice(USERS_MAKES_FIRST_INVESTMENT_AFTER_FUNDING,p=CUSTOMER_BEHAVIOUR_SEGMENT_MAP[cp]['wallet_to_investment_conversion_probability'])
     for cp in customer_behaviour_segment_wallet_activated_users
 ]
 
@@ -300,6 +298,8 @@ def generate_facts(conn, num_of_events):
     else "investment_plan_created"
     for inv in customer_subset_2["first_investment_type"]
     ]
+
+    print("Absent invesment type selections",pd.isna(investment_type_event_type).sum())
     
     event_type_ids[start_position:end_position] = [event_type_map.get(inv) for inv in investment_type_event_type]
     is_money_movement_activities[start_position:end_position] = True
@@ -308,23 +308,26 @@ def generate_facts(conn, num_of_events):
     investment_ids[start_position:end_position] = np.arange(1000, 1000 + len(customer_subset_2))
     last_investment_id = investment_ids[start_position:end_position].max()
 
-    select_plan_ids = np.empty(len(customer_subset_2),dtype=object)
+    customer_subset_2['select_plan_ids'] = np.empty(len(customer_subset_2),dtype=object)
 
     savings_plans = conn.execute('''SELECT * FROM dim_plan WHERE plan_category = 'Savings' ''').df()
+    print("Savings Plans: ",savings_plans["plan_id"])
     investment_plans = conn.execute('''SELECT * FROM dim_plan WHERE plan_category = 'Investments' ''').df()
+    print("Investement Plans: ",investment_plans["plan_id"])
 
-    savings_mask = np.where(customer_subset_2["first_investment_type"] == 'Savings')[0]
-    investments_mask = np.where(customer_subset_2["first_investment_type"] == 'Investments')[0]
+    savings_mask = customer_subset_2["first_investment_type"] == 'Savings'
+    investments_mask = customer_subset_2["first_investment_type"] == 'Investments'
+    print("First Investment Type Unique Values", customer_subset_2["first_investment_type"].unique())
 
-    select_plan_ids[savings_mask] = [np.random.choice(savings_plans["plan_id"], 
+    customer_subset_2.loc[savings_mask,'select_plan_ids'] = [np.random.choice(savings_plans["plan_id"], 
                                             p = savings_plans["plan_weight"] / savings_plans["plan_weight"].sum())
-                                     for _ in range(len(savings_mask))]
-    select_plan_ids[investments_mask] = [np.random.choice(investment_plans["plan_id"], 
+                                     for _ in range(savings_mask.sum())]
+    customer_subset_2.loc[investments_mask,'select_plan_ids'] = [np.random.choice(investment_plans["plan_id"], 
                                         p = investment_plans["plan_weight"] / investment_plans["plan_weight"].sum())
-                                         for _ in range(len(investments_mask))]
+                                         for _ in range(investments_mask.sum())]
 
-    plan_ids[start_position:end_position] = select_plan_ids
-    print(select_plan_ids)
+    plan_ids[start_position:end_position] = customer_subset_2['select_plan_ids']
+    print(customer_subset_2['select_plan_ids'])
     wallet_ids[start_position:end_position] = [wallet_id_map.get(uid) for uid in customer_subset_2["user_id"]]
     investment_pct = np.random.uniform(
     0.5,
@@ -831,18 +834,17 @@ def generate_facts(conn, num_of_events):
     print("Total Active Investments:", len(active_investments_df))
     print(active_investments_df.head())
 
-    
     vestable_investments_df["requests_early_withdrawal"] = [
         np.random.random()
     <= CUSTOMER_BEHAVIOUR_SEGMENT_MAP[segment]["early_withdrawal_probability"]
-    for segment in vestable_investments_df["customer_behaviour_segment"]
-    ]
+    for segment in vestable_investments_df["customer_behaviour_segment"]]
 
     early_withdrawal_mask = vestable_investments_df["requests_early_withdrawal"] == True
     vested_invested_mask = vestable_investments_df["requests_early_withdrawal"] == False
 
     vestable_investments_df.loc[early_withdrawal_mask,"investment_status"] = "Withdrawn Early"
     vestable_investments_df.loc[vested_invested_mask,"investment_status"] = np.random.choice(["Matured","Redeemed"], p = [0.25,0.75], size = vested_invested_mask.sum())
+
 
     #let's create the simulate early investment events
     
@@ -871,8 +873,7 @@ def generate_facts(conn, num_of_events):
     minutes_before_request = np.random.randint(
     1,
     31,
-    size=early_withdrawal_mask.sum()
-)
+    size=early_withdrawal_mask.sum())
 
     vestable_investments_df.loc[early_withdrawal_mask,"withdrawal_request_login_time"] = (vestable_investments_df.loc[
         early_withdrawal_mask,
@@ -916,6 +917,22 @@ def generate_facts(conn, num_of_events):
     investment_ids[start_position:end_position] = vestable_investments_df.loc[early_withdrawal_mask,"investment_id"]
     transaction_amounts[start_position:end_position] = vestable_investments_df.loc[early_withdrawal_mask,"amount_invested"]
     transaction_statuses[start_position:end_position] = ["success" for _ in range(len(vestable_investments_df.loc[early_withdrawal_mask,"amount_invested"]))]
+    is_withdrawn_early[start_position:end_position] = True
+    withdrawal_date[start_position:end_position] = event_time[start_position:end_position]
+    early_withdrawal_investment_ids = investment_ids[start_position:end_position]
+    early_withdrawal_dates = event_time[start_position:end_position]
+
+    vestable_investments_df["is_withdrawn_early"] = np.full(len(vestable_investments_df),False,dtype=bool)
+    vestable_investments_df["early_withdrawal_date"] = np.empty(len(vestable_investments_df),dtype=object)
+    saleable_investments_df["is_withdrawn_early"] = np.full(len(saleable_investments_df),False,dtype=bool)
+    saleable_investments_df["early_withdrawal_date"] = np.empty(len(saleable_investments_df),dtype=object)
+    active_investments_df["is_withdrawn_early"] = np.full(len(active_investments_df),False,dtype=bool)
+    active_investments_df["early_withdrawal_date"] = np.empty(len(active_investments_df),dtype=object)
+
+
+    vestable_investments_df.loc[vestable_investments_df["investment_id"].isin(early_withdrawal_investment_ids),"is_withdrawn_early"] = True
+    vestable_investments_df.loc[vestable_investments_df["investment_id"].isin(early_withdrawal_investment_ids),"early_withdrawal_date"] = early_withdrawal_dates
+
 
     #model investment vests transactions for matured investments
     start_position = end_position
@@ -949,7 +966,7 @@ def generate_facts(conn, num_of_events):
 
     # now let's model asset sales
     eligible_saleable_investments = saleable_investments_df[(pd.Timestamp.today() - saleable_investments_df["investment_start_date"]) > pd.Timedelta(days=200)]
-    saleable_investments_df_subset = eligible_saleable_investments.sample(frac=0.3).copy()
+    saleable_investments_df_subset = eligible_saleable_investments.sample(frac=0.45).copy()
     saleable_investments_df_subset["days_held"] = (pd.Timestamp.today() - saleable_investments_df_subset["investment_start_date"]).dt.days
 
     saleable_investments_df_subset["days_held_before_sale"] = [
@@ -983,6 +1000,8 @@ def generate_facts(conn, num_of_events):
     +
     pd.to_timedelta(24,unit="h")
     )
+
+    saleable_investments_df_subset["investment_status"] = "Redeemed"
 
     #let's model the login first
     start_position = end_position
@@ -1029,15 +1048,30 @@ def generate_facts(conn, num_of_events):
     transaction_amounts[start_position:end_position] = saleable_investments_df_subset["amount_invested"].values
     transaction_statuses[start_position:end_position] = ["success" for _ in range(len(saleable_investments_df_subset))]
 
+
+    redeemed_ids = saleable_investments_df_subset["investment_id"]
+
     saleable_investments_df.loc[
-    saleable_investments_df_subset.index,
+    saleable_investments_df["investment_id"].isin(redeemed_ids),
     "investment_status"] = "Redeemed"
 
-    saleable_investments_df.loc[
-    saleable_investments_df_subset.index,
-    "investment_maturity_date"] = saleable_investments_df_subset["investment_maturity_date"]
+
+
+    saleable_updates = (
+    saleable_investments_df_subset[
+        ["investment_id", "investment_maturity_date"]
+    ]
+    .set_index("investment_id")
+)
+
+    saleable_investments_df["investment_maturity_date"] = (
+    saleable_investments_df["investment_id"]
+    .map(saleable_updates["investment_maturity_date"])
+    .fillna(saleable_investments_df["investment_maturity_date"])
+)
 
     all_investments_df = pd.concat([active_investments_df, vestable_investments_df, saleable_investments_df], ignore_index = True)
+
     redeemed_mask = all_investments_df["investment_status"] == "Redeemed"
 
     redemption_investments_df = all_investments_df.loc[redeemed_mask].copy()
@@ -1121,7 +1155,6 @@ def generate_facts(conn, num_of_events):
 
     start_position = end_position
     end_position = start_position + len(remaining_investments_df)
-    last_position = end_position
 
     user_ids[start_position:end_position] = remaining_investments_df["user_id"].values
     event_time[start_position:end_position] = remaining_investments_df["final_withdrawal_date"]
@@ -1151,7 +1184,9 @@ def generate_facts(conn, num_of_events):
         "transaction_id":transaction_ids[:total_events],
         "investment_id":investment_ids[:total_events],
         "transaction_status":transaction_statuses[:total_events],
-        "transaction_amount":transaction_amounts[:total_events]
+        "transaction_amount":transaction_amounts[:total_events],
+        "is_withdrawn_early":is_withdrawn_early[:total_events],
+        "early_withdrawal_date":withdrawal_date[:total_events]
     })
 
     main_df["event_date_id"] = np.array([
@@ -1189,7 +1224,7 @@ def generate_facts(conn, num_of_events):
     money_mov_mask = main_df["transaction_id"].notna()
 
     main_df.loc[money_mov_mask,"transaction_id"] = np.arange(968, money_mov_mask.sum() + 968)
-
+    
     transactions_df = main_df[main_df["transaction_id"].notna()].copy()
 
     transaction_events_df = pd.DataFrame({
@@ -1215,6 +1250,11 @@ def generate_facts(conn, num_of_events):
     all_investments_df.loc[investment_maturity_mask,"investment_maturity_date_id"] = np.array([int(pd.Timestamp(ts).strftime('%Y%m%d')) for ts in all_investments_df.loc[investment_maturity_mask,"investment_maturity_date"]
     ], dtype=np.int32)
 
+    early_withdrawals = all_investments_df["is_withdrawn_early"] == True
+    all_investments_df["early_withdrawal_date_id"] = np.empty(len(all_investments_df),dtype=object)
+
+    all_investments_df.loc[early_withdrawals,"early_withdrawal_date_id"] = np.array([int(pd.Timestamp(ts).strftime('%Y%m%d')) for ts in all_investments_df.loc[early_withdrawals,"early_withdrawal_date"]],dtype=np.int32)
+
     investment_positions_df = pd.DataFrame({
         "investment_id":all_investments_df["investment_id"],
         "user_id":all_investments_df["user_id"],
@@ -1226,7 +1266,10 @@ def generate_facts(conn, num_of_events):
     ], dtype=np.int32),
         "investment_maturity_date":all_investments_df["investment_maturity_date"],
         "investment_maturity_date_id":all_investments_df["investment_maturity_date_id"],
-    "investment_status":all_investments_df["investment_status"]
+    "investment_status":all_investments_df["investment_status"],
+    "is_withdrawn_early":all_investments_df["is_withdrawn_early"],
+    "early_withdrawal_date":all_investments_df["early_withdrawal_date"],
+    "early_withdrawal_date_id":all_investments_df["early_withdrawal_date_id"]
     })
 
     conn.register("investment_df",investment_positions_df)

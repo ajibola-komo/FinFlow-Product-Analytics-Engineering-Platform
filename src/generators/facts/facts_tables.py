@@ -4,9 +4,10 @@ from src.config.paths import (DDL_FACT_USER_EVENT_PATH, FACT_USER_EVENT_PARQUET_
                               FACT_INVESTMENT_POSITION_PARQUET_PATH, DDL_FACT_INVESTMENT_POSITION_PATH, DDL_FACT_TRANSACTION_PATH, FACT_TRANSACTION_PARQUET_PATH)
 from src.config.constants import (DEFAULT_TRANSACTION_START_DATE,IMMEDIATE_LOGINS_TIME_FRAME, KYC_ACTIVATION_TIMEFRAME, USERS_MAKES_FIRST_INVESTMENT_AFTER_FUNDING,
                                   CUSTOMER_BEHAVIOUR_SEGMENT_MAP, FIRST_INVESTMENT_TYPE, EARLY_WITHDRAWAL_BEHAVIOUR, INVESTMENT_WITHDRAWAL_PROCESSING_TIME,
-                                  MUTUAL_FUNDS_CUTOFF_DATE
+                                  MUTUAL_FUNDS_CUTOFF_DATE, TODAY
                                   )
 from datetime import timedelta
+from dateutil.relativedelta import relativedelta
 
 
 def generate_facts(conn, num_of_events):
@@ -448,45 +449,55 @@ def generate_facts(conn, num_of_events):
 
     for _, customer in active_users_sample.iterrows():
 
-        monthly_logins = customer["monthly_logins"]
-        monthly_reviews = customer["monthly_portfolio_reviews"]
 
     # simulate one month after investment creation
-        month_start = customer["last_login_time"]
+        simulation_start = customer["last_login_time"]
 
-    # Login events
-        login_times = sorted([
-        month_start + timedelta(
-            days=np.random.randint(0, 30),
-            hours=np.random.randint(0, 24),
-            minutes=np.random.randint(0, 60)
+        month_end = TODAY
+
+        delta = relativedelta(month_end, simulation_start)
+
+        months = max(1,delta.years * 12 + delta.months)
+
+        monthly_logins = np.random.randint(
+            CUSTOMER_BEHAVIOUR_SEGMENT_MAP[customer["customer_behaviour_segment"]]["monthly_logins"][0],
+            CUSTOMER_BEHAVIOUR_SEGMENT_MAP[customer["customer_behaviour_segment"]]["monthly_logins"][1] + 1
+        ,size=months)
+
+
+        for idx in range(months):
+
+            current_month_start = (simulation_start+ relativedelta(months=idx))
+
+            current_month_end = (current_month_start+ relativedelta(months=1))
+
+            days_in_month = (current_month_end- current_month_start).days
+
+            
+            monthly_reviews = np.random.randint(
+            max(1, int(monthly_logins[idx] * 0.15)),
+            max(2, int(monthly_logins[idx] * 0.4)) + 1
         )
-        for _ in range(monthly_logins)
-    ])
+    # Login events
+            login_times = sorted([current_month_start + timedelta(days=np.random.randint(0, days_in_month),hours=np.random.randint(0, 24),minutes=np.random.randint(0, 60))
+                for _ in range(monthly_logins[idx])])
 
-        for login_time in login_times:
-            engagement_events.append({
-            "user_id": customer["user_id"],
-            "event_time": login_time,
-            "event_type": "app_login"
-        })
+            for login_time in login_times:
+                engagement_events.append({"user_id": customer["user_id"],"event_time": login_time,"event_type": "app_login"})
 
     # Portfolio reviews must happen after a login
-        if len(login_times) > 0:
+            if len(login_times) > 0:
 
-            review_login_times = np.random.choice(
-            login_times,
-            size=min(monthly_reviews, len(login_times)),
-            replace=False
-        )
+                review_login_times = np.random.choice(
+                login_times,
+                size=min(monthly_reviews, len(login_times)),
+                replace=False)
 
-            for login_time in review_login_times:
+                for login_time in review_login_times:
 
-                review_time = login_time + timedelta(
-                minutes=np.random.randint(1, 30)
-            )
+                    review_time = login_time + timedelta(minutes=np.random.randint(1, 30))
 
-                engagement_events.append({
+                    engagement_events.append({
                 "user_id": customer["user_id"],
                 "event_time": review_time,
                 "event_type": "review_current_investment"
@@ -511,51 +522,56 @@ def generate_facts(conn, num_of_events):
 
     for _, customer in low_activity_users_sample.iterrows():
 
-        monthly_logins = customer["monthly_logins"]
-        monthly_reviews = customer["monthly_portfolio_reviews"]
-
     # simulate one month after investment creation
-        month_start = customer["last_login_time"]
+        simulation_start = customer["last_login_time"]
+
+        delta = relativedelta(TODAY, simulation_start)
+
+        months = max(1,delta.years * 12 + delta.months)
+
+        for idx in range(months):
+
+            month_start = (simulation_start + relativedelta(months=idx))
+
+            month_end = (month_start + relativedelta(months=1))
+
+            days_in_month = (month_end - month_start).days
+
+            monthly_logins = np.random.randint(CUSTOMER_BEHAVIOUR_SEGMENT_MAP[customer["customer_behaviour_segment"]]["monthly_logins"][0],CUSTOMER_BEHAVIOUR_SEGMENT_MAP[customer["customer_behaviour_segment"]]["monthly_logins"][1] + 1)
+            monthly_reviews = np.random.randint(max(1, int(monthly_logins * 0.3)),max(2, int(monthly_logins * 0.7)) + 1)
 
     # Login events
-        login_times = sorted([
-        month_start + timedelta(
-            days=np.random.randint(0, 30),
+            login_times = sorted([
+            month_start + timedelta(
+            days=np.random.randint(0, days_in_month),
             hours=np.random.randint(0, 24),
             minutes=np.random.randint(0, 60)
-        )
-        for _ in range(monthly_logins)
-    ])
+            )for _ in range(monthly_logins)
+        ])
 
-        for login_time in login_times:
-            low_engagement_events.append({
-            "user_id": customer["user_id"],
-            "event_time": login_time,
-            "event_type": "app_login"
-        })
-
-    # Portfolio reviews must happen after a login
-        if len(login_times) > 0:
-
-            review_login_times = np.random.choice(
-            login_times,
-            size=min(monthly_reviews, len(login_times)),
-            replace=False
-        )
-
-            for login_time in review_login_times:
-
-                review_time = login_time + timedelta(
-                minutes=np.random.randint(1, 30)
-            )
-
+            for login_time in login_times:
                 low_engagement_events.append({
                 "user_id": customer["user_id"],
-                "event_time": review_time,
-                "event_type": "review_current_investment"
-            })
+                "event_time": login_time,
+                "event_type": "app_login"})
+
+    # Portfolio reviews must happen after a login
+            if len(login_times) > 0:
+
+                review_login_times = np.random.choice(login_times,size=min(monthly_reviews, len(login_times)),replace=False)
+
+                for login_time in review_login_times:
+
+                    review_time = login_time + timedelta(minutes=np.random.randint(1, 30))
+
+                    low_engagement_events.append({
+                    "user_id": customer["user_id"],
+                    "event_time": review_time,
+                    "event_type": "review_current_investment"})
 
     low_engagement_events_df = pd.DataFrame(low_engagement_events)
+
+    print("Low Engagement Events:", len(low_engagement_events_df))
 
     
     start_position = end_position
@@ -579,6 +595,8 @@ def generate_facts(conn, num_of_events):
     new_investment_creation = []
 
     for _, customer in customers_who_have_invested_df.iterrows():
+
+        
 
         num_wallet_fundings = customer["monthly_wallet_fundings"]
 

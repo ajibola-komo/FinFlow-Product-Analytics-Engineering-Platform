@@ -28,7 +28,7 @@ def create():
         generate_users(conn,50000)
         generate_list_of_wallets(conn)
         generate_transaction_types(conn)
-        generate_facts(conn,5000000)
+        generate_facts(conn,30000000)
 
     
     #upload_parquet_files()

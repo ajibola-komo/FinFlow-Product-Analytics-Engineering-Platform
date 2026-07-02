@@ -593,36 +593,66 @@ def generate_facts(conn, num_of_events):
     wallet_funding_events = []
     new_investment_events = []
     new_investment_creation = []
+    wallet_funding_df = pd.DataFrame(wallet_funding_events)
 
     for _, customer in customers_who_have_invested_df.iterrows():
 
-        
+        simulation_start = customer["last_login_time"]
 
-        num_wallet_fundings = customer["monthly_wallet_fundings"]
+        simulation_end = TODAY
 
-        for _ in range(num_wallet_fundings):
+        delta = relativedelta(simulation_end, simulation_start)
 
-            funding_time = customer["last_login_time"] + timedelta(
-            days=np.random.randint(1, 31),
-            hours=np.random.randint(0, 24),
-            minutes=np.random.randint(0, 60)
-        )
+        months = max(1, delta.years * 12 + delta.months)
 
-            funding_amount = np.random.uniform(
-            customer["investment_low_bound"],
-            customer["investment_high_bound"]
-        )
+        investment_low_bound = CUSTOMER_BEHAVIOUR_SEGMENT_MAP[customer["customer_behaviour_segment"]]["average_investment_amount"][0]
+        investment_high_bound = CUSTOMER_BEHAVIOUR_SEGMENT_MAP[customer["customer_behaviour_segment"]]["average_investment_amount"][1]
+
+        for idx in range(months):
+            
+            
+            month_start = (simulation_start + relativedelta(months=idx))
+
+            month_end = (month_start + relativedelta(months=1))
+
+            days_in_month = (month_end - month_start).days
+
+            num_wallet_fundings = np.random.randint(CUSTOMER_BEHAVIOUR_SEGMENT_MAP[customer["customer_behaviour_segment"]]["monthly_wallet_fundings"][0],CUSTOMER_BEHAVIOUR_SEGMENT_MAP[customer["customer_behaviour_segment"]]["monthly_wallet_fundings"][1] + 1)
+
+            savings_position_creation = np.random.randint(CUSTOMER_BEHAVIOUR_SEGMENT_MAP[customer["customer_behaviour_segment"]]["monthly_savings_position_creation"][0], CUSTOMER_BEHAVIOUR_SEGMENT_MAP[customer["customer_behaviour_segment"]]["monthly_savings_position_creation"][1] + 1)
+
+            investment_position_creation = np.random.randint(CUSTOMER_BEHAVIOUR_SEGMENT_MAP[customer["customer_behaviour_segment"]]["monthly_investment_position_creation"][0], CUSTOMER_BEHAVIOUR_SEGMENT_MAP[customer["customer_behaviour_segment"]]["monthly_investment_position_creation"][1] + 1)
+
+
+            for _ in range(num_wallet_fundings):
+
+                funding_time = month_start + timedelta(
+                days=np.random.randint(1, days_in_month + 1),
+                hours=np.random.randint(0, 24),
+                minutes=np.random.randint(0, 60))
+
+                funding_amount = np.random.uniform(
+                investment_low_bound,
+                investment_high_bound
+                )
 
         # Wallet funding event
-            wallet_funding_events.append({
-            "user_id": customer["user_id"],
-            "event_time": funding_time,
-            "event_type": "wallet_funded",
-            "amount": funding_amount
-        })
+                wallet_funding_events.append({
+                "user_id": customer["user_id"],
+                "event_time": funding_time,
+                "event_type": "wallet_funded",
+                "amount": funding_amount
+                })
 
         # Decide whether funding converts into an investment
             segment = customer["customer_behaviour_segment"]
+
+            wallet_funding_df = pd.DataFrame(wallet_funding_events)
+
+            user_mask = (wallet_funding_df["user_id"] == customer["user_id"] &
+    (wallet_funding_df["event_time"] >= month_start) &
+    (wallet_funding_df["event_time"] < month_end))
+            funding_events = wallet_funding_df.loc[user_mask]
 
             makes_investment = np.random.choice([True, False], p=CUSTOMER_BEHAVIOUR_SEGMENT_MAP[segment]["wallet_to_investment_conversion_probability"])
 
@@ -630,50 +660,48 @@ def generate_facts(conn, num_of_events):
                 continue
 
         # Review plans
-            review_time = funding_time + timedelta(minutes=np.random.randint(5, 60))
+            for _,funding_event in funding_events.iterrows():
+
+                funding_time = funding_event["event_time"]
+                review_time = funding_time + timedelta(minutes=np.random.randint(5, 60))
 
         # Plan selected
-            selection_time = review_time + timedelta(minutes=np.random.randint(1, 30))
+                selection_time = review_time + timedelta(minutes=np.random.randint(1, 30))
             
-            total_positions = (customer["monthly_savings_position_creation"] + customer["monthly_investment_position_creation"])
+                total_positions = (savings_position_creation + investment_position_creation)
 
-            if total_positions == 0:
-                continue
+                if total_positions == 0:
+                    continue
 
         # Savings or Investment
-            investment_type = np.random.choice(
+                investment_type = np.random.choice(
             ["Savings", "Investment"],
             p=[
-                customer["monthly_savings_position_creation"] /
+                savings_position_creation /
                 total_positions,
 
-                customer["monthly_investment_position_creation"]
+                investment_position_creation
                 /total_positions
             ]
         )
 
-            creation_time = selection_time + timedelta(
-            minutes=np.random.randint(1, 15)
-        )
+                creation_time = selection_time + timedelta(minutes=np.random.randint(1, 15))
 
-            if investment_type == "Savings":
+                if investment_type == "Savings":
 
-                plan_id = np.random.choice(
-                savings_plans["plan_id"],
-                p=savings_plans["plan_weight"] / savings_plans["plan_weight"].sum()
-            )
+                    plan_id = np.random.choice(
+                    savings_plans["plan_id"],
+                    p=savings_plans["plan_weight"] / savings_plans["plan_weight"].sum())
 
-                event_type = "savings_plan_created"
-            else:
+                    event_type = "savings_plan_created"
+                else:
 
-                plan_id = np.random.choice(
-                investment_plans["plan_id"],
-                p=investment_plans["plan_weight"] / investment_plans["plan_weight"].sum()
-            )
+                    plan_id = np.random.choice(
+                    investment_plans["plan_id"],
+                    p=investment_plans["plan_weight"] / investment_plans["plan_weight"].sum())
+                    event_type = "investment_plan_created"
 
-                event_type = "investment_plan_created"
-
-            new_investment_events.extend([
+                new_investment_events.extend([
             {
                 "user_id": customer["user_id"],
                 "event_time": review_time,
@@ -687,12 +715,12 @@ def generate_facts(conn, num_of_events):
             ])
 
 
-            new_investment_creation.extend([{
+                new_investment_creation.extend([{
                 "user_id": customer["user_id"],
                 "event_time": creation_time,
                 "event_type": event_type,
                 "plan_id": plan_id,
-                "amount_invested": funding_amount
+                "amount_invested": funding_event["amount"] * 0.95
             }
         ])
 

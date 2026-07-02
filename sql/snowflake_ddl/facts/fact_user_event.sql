@@ -5,7 +5,7 @@ CREATE OR REPLACE TABLE FACT_USER_EVENT (
     wallet_id bigint,
     plan_id int,
     event_time timestamp not null,
-    event_date_id int not null,
+    event_date_id bigint not null,
     device_type varchar(50),
     is_money_movement_activity boolean,
     transaction_type_id int,

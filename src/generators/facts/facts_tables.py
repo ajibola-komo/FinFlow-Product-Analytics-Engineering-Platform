@@ -605,6 +605,8 @@ def generate_facts(conn, num_of_events):
 
         months = max(1, delta.years * 12 + delta.months)
 
+        print("currently running customer: ",customer["user_id"])
+
         investment_low_bound = CUSTOMER_BEHAVIOUR_SEGMENT_MAP[customer["customer_behaviour_segment"]]["average_investment_amount"][0]
         investment_high_bound = CUSTOMER_BEHAVIOUR_SEGMENT_MAP[customer["customer_behaviour_segment"]]["average_investment_amount"][1]
 
@@ -647,9 +649,12 @@ def generate_facts(conn, num_of_events):
         # Decide whether funding converts into an investment
             segment = customer["customer_behaviour_segment"]
 
+            if len(wallet_funding_events) == 0:
+                continue
+
             wallet_funding_df = pd.DataFrame(wallet_funding_events)
 
-            user_mask = (wallet_funding_df["user_id"] == customer["user_id"] &
+            user_mask = ((wallet_funding_df["user_id"] == customer["user_id"]) &
     (wallet_funding_df["event_time"] >= month_start) &
     (wallet_funding_df["event_time"] < month_end))
             funding_events = wallet_funding_df.loc[user_mask]

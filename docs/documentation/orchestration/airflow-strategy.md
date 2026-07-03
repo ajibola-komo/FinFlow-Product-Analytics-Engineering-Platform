@@ -17,3 +17,13 @@
 9. [Scalability Considerations](#9-scalability-considerations)
 10. [Document Ownership](#9-document-ownership)
 11. [Conclusion](#10-conclusion)
+
+---
+
+## 1. Executive Summary
+### The Purpose of Airflow in this Project
+
+One of the core features of the FinFlow Product Analytics Engineering Project is incremental modelling and loading. 
+
+---
+

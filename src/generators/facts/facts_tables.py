@@ -593,7 +593,6 @@ def generate_facts(conn, num_of_events):
     wallet_funding_events = []
     new_investment_events = []
     new_investment_creation = []
-    wallet_funding_df = pd.DataFrame(wallet_funding_events)
 
     for _, customer in customers_who_have_invested_df.iterrows():
 
@@ -605,7 +604,7 @@ def generate_facts(conn, num_of_events):
 
         months = max(1, delta.years * 12 + delta.months)
 
-        print("currently running customer: ",customer["user_id"])
+        #print("currently running customer: ",customer["user_id"])
 
         investment_low_bound = CUSTOMER_BEHAVIOUR_SEGMENT_MAP[customer["customer_behaviour_segment"]]["average_investment_amount"][0]
         investment_high_bound = CUSTOMER_BEHAVIOUR_SEGMENT_MAP[customer["customer_behaviour_segment"]]["average_investment_amount"][1]
@@ -619,13 +618,18 @@ def generate_facts(conn, num_of_events):
 
             days_in_month = (month_end - month_start).days
 
+
+            #number of wallet fundings for this month alone
             num_wallet_fundings = np.random.randint(CUSTOMER_BEHAVIOUR_SEGMENT_MAP[customer["customer_behaviour_segment"]]["monthly_wallet_fundings"][0],CUSTOMER_BEHAVIOUR_SEGMENT_MAP[customer["customer_behaviour_segment"]]["monthly_wallet_fundings"][1] + 1)
 
+            #how many savings and investment positions will be created this month
             savings_position_creation = np.random.randint(CUSTOMER_BEHAVIOUR_SEGMENT_MAP[customer["customer_behaviour_segment"]]["monthly_savings_position_creation"][0], CUSTOMER_BEHAVIOUR_SEGMENT_MAP[customer["customer_behaviour_segment"]]["monthly_savings_position_creation"][1] + 1)
 
             investment_position_creation = np.random.randint(CUSTOMER_BEHAVIOUR_SEGMENT_MAP[customer["customer_behaviour_segment"]]["monthly_investment_position_creation"][0], CUSTOMER_BEHAVIOUR_SEGMENT_MAP[customer["customer_behaviour_segment"]]["monthly_investment_position_creation"][1] + 1)
 
-
+            #now we calculate the number of wallet fundings for this month alone, and for each funding, 
+            # we will create a wallet funding event and decide whether it converts into an investment or not. 
+            # If it does, we will create a review plan options event, a plan selected event, and a plan created event.
             for _ in range(num_wallet_fundings):
 
                 funding_time = month_start + timedelta(
@@ -647,27 +651,14 @@ def generate_facts(conn, num_of_events):
                 })
 
         # Decide whether funding converts into an investment
-            segment = customer["customer_behaviour_segment"]
+                segment = customer["customer_behaviour_segment"]
 
-            if len(wallet_funding_events) == 0:
-                continue
+                makes_investment = np.random.choice([True, False], p=CUSTOMER_BEHAVIOUR_SEGMENT_MAP[segment]["wallet_to_investment_conversion_probability"])
 
-            wallet_funding_df = pd.DataFrame(wallet_funding_events)
-
-            user_mask = ((wallet_funding_df["user_id"] == customer["user_id"]) &
-    (wallet_funding_df["event_time"] >= month_start) &
-    (wallet_funding_df["event_time"] < month_end))
-            funding_events = wallet_funding_df.loc[user_mask]
-
-            makes_investment = np.random.choice([True, False], p=CUSTOMER_BEHAVIOUR_SEGMENT_MAP[segment]["wallet_to_investment_conversion_probability"])
-
-            if not makes_investment:
-                continue
+                if not makes_investment:
+                    continue
 
         # Review plans
-            for _,funding_event in funding_events.iterrows():
-
-                funding_time = funding_event["event_time"]
                 review_time = funding_time + timedelta(minutes=np.random.randint(5, 60))
 
         # Plan selected
@@ -679,16 +670,10 @@ def generate_facts(conn, num_of_events):
                     continue
 
         # Savings or Investment
-                investment_type = np.random.choice(
-            ["Savings", "Investment"],
-            p=[
-                savings_position_creation /
-                total_positions,
-
+                investment_type = np.random.choice(["Savings", "Investment"],p=[savings_position_creation /total_positions,
                 investment_position_creation
                 /total_positions
-            ]
-        )
+            ])
 
                 creation_time = selection_time + timedelta(minutes=np.random.randint(1, 15))
 
@@ -725,7 +710,7 @@ def generate_facts(conn, num_of_events):
                 "event_time": creation_time,
                 "event_type": event_type,
                 "plan_id": plan_id,
-                "amount_invested": funding_event["amount"] * 0.95
+                "amount_invested": funding_amount * 0.95
             }
         ])
 
@@ -738,14 +723,6 @@ def generate_facts(conn, num_of_events):
 
     new_investment_creation_df.sort_values(by="event_time",inplace=True)
     wallet_funding_events_df.sort_values(by="event_time",inplace=True)
-
-    for index, row in wallet_funding_events_df.iterrows():
-        mask = wallet_activated_users_df["user_id"] == row["user_id"]
-        wallet_activated_users_df.loc[mask,"current_wallet_balance"] = wallet_activated_users_df.loc[mask,"current_wallet_balance"] + row["amount"]
-    
-    for index, row in new_investment_creation_df.iterrows():
-        mask = wallet_activated_users_df["user_id"] == row["user_id"]
-        wallet_activated_users_df.loc[mask,"current_wallet_balance"] = wallet_activated_users_df.loc[mask,"current_wallet_balance"] - row["amount_invested"]
 
 
     #get app logins first

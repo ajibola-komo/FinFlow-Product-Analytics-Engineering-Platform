@@ -9,6 +9,7 @@ venv/
 .tmp/
 .vscode/
 .venv/
+.python-version
 credentials/
 
 # dbt

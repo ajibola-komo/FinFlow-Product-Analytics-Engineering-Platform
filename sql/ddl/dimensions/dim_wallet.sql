@@ -1,9 +1,9 @@
 CREATE OR REPLACE TABLE dim_wallet(
-    wallet_id BIGINT,
-    user_id BIGINT,
-    wallet_currency varchar(50),
-    wallet_created_at TIMESTAMP,
+    wallet_id BIGINT PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    wallet_currency varchar(50) NOT NULL,
+    wallet_created_at TIMESTAMP NOT NULL,
     wallet_activated_at TIMESTAMP,
-    wallet_created_date_id INT,
+    wallet_created_date_id INT NOT NULL,
     wallet_activated_date_id INT
 );

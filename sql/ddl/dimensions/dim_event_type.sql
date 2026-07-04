@@ -1,5 +1,5 @@
 CREATE OR REPLACE TABLE dim_event_type (
-    event_type_id INT,
+    event_type_id INT PRIMARY KEY,
     event_type_code VARCHAR(100),
     event_type_display_name VARCHAR(150),
     event_type_description VARCHAR(255),

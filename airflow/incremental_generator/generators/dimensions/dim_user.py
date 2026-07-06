@@ -2,21 +2,16 @@ import numpy as np
 import pandas as pd
 import faker as fk
 import re
-from src.config.constants import (CUSTOMER_PERSONA_MAP, EMAIL_DOMAIN, GENDER, GENDER_WEIGHTS, ACQUISITION_CHANNELS,
-                                  CHANNEL_WEIGHTS, IS_ACTIVATED_USER, CUSTOMER_BEHAVIOUR_SEGMENT, 
-                                  CUSTOMER_BEHAVIOUR_SEGMENT_MAP, DEVICE_TYPES
-                                  )
-from src.config.paths import (DDL_DIM_USER_PATH, USERS_PARQUET_PATH)
-from src.logic.location_distribution import get_location_distribution
-from src.logic.persona_age_income_distribution import get_age_persona_income_distribution
-from src.logic.signup_distribution import get_signup_distribution
+from incremental_generator.config.constants import (CUSTOMER_PERSONA_MAP, EMAIL_DOMAIN, GENDER, GENDER_WEIGHTS, 
+                                  ACQUISITION_CHANNELS, CUSTOMER_BEHAVIOUR_SEGMENT, CUSTOMER_BEHAVIOUR_SEGMENT_MAP, 
+                                  DEVICE_TYPES, CURRENT_DATE)
+from incremental_generator.config.paths import (CURRENT_USERS_PARQUET_PATH)
+from incremental_generator.logic.location_distribution import get_location_distribution
+from incremental_generator.logic.persona_age_income_distribution import get_age_persona_income_distribution
+from incremental_generator.logic.signup_distribution import get_signup_distribution
 
 
 def generate_users(conn, num_of_users):
-    #read the DDL SQL file and execute it to create the dim_user table
-    create_db = DDL_DIM_USER_PATH.read_text()
-
-    conn.execute(create_db)
 
     #generate fake user data using faker library
     fake_gb = fk.Faker('en_GB')
@@ -107,6 +102,10 @@ def generate_users(conn, num_of_users):
     is_immediate_login[active_mask] = np.random.choice([True, False], size=active_mask.sum(), p=[1, 0])
     is_immediate_login[inactive_mask] = np.random.choice([True, False], size=(~active_mask).sum(), p=[0.7, 0.3])
 
+    supposed_activation_dates = np.empty(num_of_users,dtype=object)
+
+    supposed_activation_dates[active_mask] = signup_date[active_mask] + pd.to_timedelta(wallet_activation_timeframe[active_mask],unit="m")
+
     df_raw = pd.DataFrame({
         'first_name': customer_first_names,
         'last_name': customer_last_names,
@@ -126,7 +125,8 @@ def generate_users(conn, num_of_users):
         'is_activated_user': is_activated_user,
         'wallet_activation_timeframe': wallet_activation_timeframe,
         'customer_behaviour_segment':customer_behaviour_segment,
-        'is_immediate_login': is_immediate_login
+        'is_immediate_login': is_immediate_login,
+        "supposed_activation_date":supposed_activation_dates
     })
 
     df_raw = df_raw.sort_values(
@@ -158,7 +158,8 @@ def generate_users(conn, num_of_users):
     'is_activated_user',
     'wallet_activation_timeframe',
     'customer_behaviour_segment',
-    'is_immediate_login'
+    'is_immediate_login',
+    'supposed_activation_date'
 ]]
 
     #write the generated data to a parquet file
@@ -170,5 +171,5 @@ def generate_users(conn, num_of_users):
                         acquisition_channel, device_type, customer_persona, kyc_completed, date_of_birth, birth_date_id, signup_date, signup_date_id, 
                         customer_behaviour_segment
                         from dim_user )
-                 TO '{USERS_PARQUET_PATH}' (FORMAT PARQUET) ''')
+                 TO '{CURRENT_USERS_PARQUET_PATH}' (FORMAT PARQUET) ''')
 

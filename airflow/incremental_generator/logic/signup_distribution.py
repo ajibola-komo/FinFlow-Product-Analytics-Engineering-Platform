@@ -1,6 +1,6 @@
 import pandas as pd
 import numpy as np
-from src.config.constants import (DEFAULT_SIGNUP_START_DATE, DEFAULT_SIGNUP_END_DATE, DEFAULT_SIGNUP_START_TIMESTAMP, DEFAULT_SIGNUP_END_TIMESTAMP)
+from incremental_generator.config.constants import (GENERATION_START_TIMESTAMP, GENERATION_END_TIMESTAMP)
 from datetime import timedelta
 
 def get_signup_distribution(birth_dates_array):
@@ -9,8 +9,8 @@ def get_signup_distribution(birth_dates_array):
 
     for i in range(len(birth_dates_array)):
         birth_date = pd.Timestamp(birth_dates_array[i]).tz_localize(None)
-        min_signup_date = max(birth_date + users_18, pd.Timestamp(DEFAULT_SIGNUP_START_TIMESTAMP).tz_localize(None))
-        max_signup_date = pd.Timestamp(DEFAULT_SIGNUP_END_TIMESTAMP).tz_localize(None)
+        min_signup_date = max(birth_date + users_18, pd.Timestamp(GENERATION_START_TIMESTAMP).tz_localize(None))
+        max_signup_date = pd.Timestamp(GENERATION_END_TIMESTAMP).tz_localize(None)
 
         if min_signup_date > max_signup_date:
             signup_dates[i] = np.datetime64('NaT')

@@ -1,4 +1,5 @@
 from pathlib import Path
+from incremental_generator.config.constants import CURRENT_DATE
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
@@ -7,6 +8,7 @@ RAW_DIR = PROJECT_ROOT / "raw"
 
 EXPORT_DIR = DATA_DIR / "exports"
 PARQUET_DIR = EXPORT_DIR / "parquet"
+CURRENT_PARTITION = PARQUET_DIR / ("load_date_" + CURRENT_DATE.strftime("%Y-%m-%d"))
 
 RAW_DIM_EVENT_TYPE_PATH = RAW_DIR / "dim_event_type.csv"
 RAW_DIM_PRODUCT_PATH = RAW_DIR / "dim_product.csv"
@@ -67,6 +69,14 @@ PLANS_PARQUET_PATH = PARQUET_DIR / "dim_plan.parquet"
 FACT_USER_EVENT_PARQUET_PATH = PARQUET_DIR / "fact_user_event.parquet"
 FACT_INVESTMENT_POSITION_PARQUET_PATH = PARQUET_DIR / "fact_investment_position.parquet"
 FACT_TRANSACTION_PARQUET_PATH = PARQUET_DIR / "fact_transaction.parquet"
+
+#incremental Loads
+CURRENT_DATES_PARQUET_PATH = CURRENT_PARTITION / "dim_date.parquet"
+CURRENT_USERS_PARQUET_PATH = CURRENT_PARTITION / "dim_user.parquet"
+CURRENT_WALLETS_PARQUET_PATH = CURRENT_PARTITION / "dim_wallet.parquet"
+CURRENT_FACT_USER_EVENT_PARQUET_PATH = CURRENT_PARTITION / "fact_user_event.parquet"
+CURRENT_FACT_INVESTMENT_POSITION_PARQUET_PATH = CURRENT_PARTITION / "fact_investment_position.parquet"
+CURRENT_FACT_TRANSACTION_PARQUET_PATH = CURRENT_PARTITION / "fact_transaction.parquet"
 
 
 #s3

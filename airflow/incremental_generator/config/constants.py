@@ -6,9 +6,11 @@ TIMEZONE = "UTC"
 
 TODAY = pd.Timestamp.today()
 
+CURRENT_DATE = TODAY.date()
+
 # Signup range
 DEFAULT_SIGNUP_START_DATE = date(2016, 1, 1)
-DEFAULT_SIGNUP_END_DATE = TODAY - timedelta(days=1)
+DEFAULT_SIGNUP_END_DATE = TODAY - timedelta(days=2)
 
 DEFAULT_SIGNUP_START_TIMESTAMP = datetime.combine(DEFAULT_SIGNUP_START_DATE, time.min, tzinfo=timezone.utc)
 DEFAULT_SIGNUP_END_TIMESTAMP = datetime.combine(DEFAULT_SIGNUP_END_DATE, time.max, tzinfo=timezone.utc)
@@ -22,6 +24,11 @@ DEFAULT_TRANSACTION_END_DATE = TODAY - timedelta(days=1)
 
 DEFAULT_TRANSACTION_START_TIMESTAMP = datetime.combine(DEFAULT_TRANSACTION_START_DATE, time.min, tzinfo=timezone.utc)
 DEFAULT_TRANSACTION_END_TIMESTAMP = datetime.combine(DEFAULT_TRANSACTION_END_DATE, time.max, tzinfo=timezone.utc)
+
+# Airflow Orchestration Dates
+GENERATION_START_DATE = TODAY - timedelta(days=1)
+GENERATION_START_TIMESTAMP = datetime.combine(GENERATION_START_DATE, time.min, tzinfo=timezone.utc)
+GENERATION_END_TIMESTAMP = datetime.combine(GENERATION_START_DATE, time.max, tzinfo=timezone.utc)
 
 
 #dim_user constants

@@ -1,4 +1,4 @@
-from src.config.constants import (LOCATION_MAP, COUNTRIES_WEIGHTS)
+from incremental_generator.config.constants import (LOCATION_MAP, COUNTRIES_WEIGHTS)
 import numpy as np
 
 def get_location_distribution(num_of_users):

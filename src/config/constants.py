@@ -6,6 +6,8 @@ TIMEZONE = "UTC"
 
 TODAY = pd.Timestamp.today()
 
+CURRENT_DATE = TODAY.date()
+
 # Signup range
 DEFAULT_SIGNUP_START_DATE = date(2016, 1, 1)
 DEFAULT_SIGNUP_END_DATE = TODAY - timedelta(days=1)

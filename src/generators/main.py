@@ -15,20 +15,22 @@ from src.generators.facts.facts_tables import generate_facts
 from src.generators.dimensions.dim_transaction_type import generate_transaction_types
 from src.storage.gcs_upload import upload_to_gcs
 from src.storage.gcs_to_snowflake_upload import upload_from_gcs_to_snowflake
+from src.config.paths import DB_DIR, FINFLOW_DB_PATH
 
 load_dotenv()
 
 def create():
     create_snowflake_bronze_tables()
-    with db.connect() as conn:
+    DB_DIR.mkdir(parents=True, exist_ok=True)
+    with db.connect(FINFLOW_DB_PATH) as conn:
         generate_dates(conn)
         generate_products(conn)
         generate_event_types(conn)
         generate_dim_plan(conn)
-        generate_users(conn,5000)
+        generate_users(conn,500000)
         generate_list_of_wallets(conn)
         generate_transaction_types(conn)
-        generate_facts(conn,10000000)
+        generate_facts(conn,60000000)
 
     
     #upload_parquet_files()

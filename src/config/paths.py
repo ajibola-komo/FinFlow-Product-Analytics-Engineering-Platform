@@ -7,6 +7,8 @@ RAW_DIR = PROJECT_ROOT / "raw"
 
 EXPORT_DIR = DATA_DIR / "exports"
 PARQUET_DIR = EXPORT_DIR / "parquet"
+DB_DIR = PROJECT_ROOT / "db"
+FINFLOW_DB_PATH = DB_DIR / "finflow.db"
 
 RAW_DIM_EVENT_TYPE_PATH = RAW_DIR / "dim_event_type.csv"
 RAW_DIM_PRODUCT_PATH = RAW_DIR / "dim_product.csv"

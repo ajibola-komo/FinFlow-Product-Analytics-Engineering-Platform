@@ -107,6 +107,12 @@ def generate_users(conn, num_of_users):
     is_immediate_login[active_mask] = np.random.choice([True, False], size=active_mask.sum(), p=[1, 0])
     is_immediate_login[inactive_mask] = np.random.choice([True, False], size=(~active_mask).sum(), p=[0.7, 0.3])
 
+    supposed_activation_dates = np.empty(num_of_users,dtype=object)
+
+    signup_date = pd.to_datetime(signup_date)
+
+    supposed_activation_dates[active_mask] = signup_date[active_mask] + pd.to_timedelta(wallet_activation_timeframe[active_mask],unit="m")
+
     df_raw = pd.DataFrame({
         'first_name': customer_first_names,
         'last_name': customer_last_names,
@@ -126,7 +132,8 @@ def generate_users(conn, num_of_users):
         'is_activated_user': is_activated_user,
         'wallet_activation_timeframe': wallet_activation_timeframe,
         'customer_behaviour_segment':customer_behaviour_segment,
-        'is_immediate_login': is_immediate_login
+        'is_immediate_login': is_immediate_login,
+        "supposed_activation_date":supposed_activation_dates
     })
 
     df_raw = df_raw.sort_values(
@@ -158,7 +165,8 @@ def generate_users(conn, num_of_users):
     'is_activated_user',
     'wallet_activation_timeframe',
     'customer_behaviour_segment',
-    'is_immediate_login'
+    'is_immediate_login',
+    'supposed_activation_date'
 ]]
 
     #write the generated data to a parquet file

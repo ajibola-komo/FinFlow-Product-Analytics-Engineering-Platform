@@ -1,5 +1,5 @@
 CREATE TABLE IF NOT EXISTS dim_date (
-    date_id     INT,
+    date_id     INT PRIMARY KEY,
     date        DATE,
     year        INT,
     quarter     INT,

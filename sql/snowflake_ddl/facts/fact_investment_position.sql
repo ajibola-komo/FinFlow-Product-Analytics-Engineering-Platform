@@ -1,5 +1,5 @@
 CREATE OR REPLACE TABLE FACT_INVESTMENT_POSITION(
-    investment_id int primary key,
+    investment_id bigint primary key,
     user_id bigint,
     wallet_id bigint,
     plan_id int,

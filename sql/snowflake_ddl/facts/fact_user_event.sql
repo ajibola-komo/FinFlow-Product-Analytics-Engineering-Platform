@@ -9,7 +9,7 @@ CREATE OR REPLACE TABLE FACT_USER_EVENT (
     device_type varchar(50),
     is_money_movement_activity boolean,
     transaction_type_id int,
-    transaction_id int, -- degenerate key
-    investment_id int --degenerate key
+    transaction_id bigint, -- degenerate key
+    investment_id bigint --degenerate key
     
 );

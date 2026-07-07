@@ -1,5 +1,5 @@
 CREATE OR REPLACE TABLE FACT_TRANSACTION ( 
-    transaction_id INT primary key,
+    transaction_id BIGINT primary key,
     wallet_id BIGINT NOT NULL,
     transaction_type_id INT NOT NULL,
     transaction_amount DECIMAL(18,2) NOT NULL,

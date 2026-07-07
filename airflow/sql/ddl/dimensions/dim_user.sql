@@ -1,0 +1,23 @@
+CREATE OR REPLACE TABLE dim_user(
+    user_id BIGINT PRIMARY KEY,
+    first_name VARCHAR(50) NOT NULL,
+    last_name VARCHAR(50) NOT NULL,
+    country VARCHAR(50) NOT NULL,
+    region VARCHAR(50) NOT NULL,
+    city VARCHAR(50) NOT NULL,
+    email_address VARCHAR(255) NOT NULL,
+    reported_annual_income DECIMAL(18,2) NOT NULL,
+    acquisition_channel VARCHAR(20) NOT NULL,
+    device_type VARCHAR(20) NOT NULL,
+    customer_persona VARCHAR(20) NOT NULL,
+    kyc_completed BOOLEAN NOT NULL,
+    date_of_birth DATE NOT NULL,
+    birth_date_id INT NOT NULL,
+    signup_date TIMESTAMP NOT NULL,
+    signup_date_id INT NOT NULL,
+    is_activated_user BOOLEAN NOT NULL,
+    wallet_activation_timeframe INT,
+    customer_behaviour_segment VARCHAR(50) NOT NULL,
+    is_immediate_login boolean NOT NULL,
+    supposed_activation_date TIMESTAMP
+)

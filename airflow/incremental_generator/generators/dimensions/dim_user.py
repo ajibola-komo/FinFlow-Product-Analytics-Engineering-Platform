@@ -5,13 +5,17 @@ import re
 from incremental_generator.config.constants import (CUSTOMER_PERSONA_MAP, EMAIL_DOMAIN, GENDER, GENDER_WEIGHTS, 
                                   ACQUISITION_CHANNELS, CUSTOMER_BEHAVIOUR_SEGMENT, CUSTOMER_BEHAVIOUR_SEGMENT_MAP, 
                                   DEVICE_TYPES, CURRENT_DATE)
-from incremental_generator.config.paths import (CURRENT_USERS_PARQUET_PATH)
+from incremental_generator.config.paths import (CURRENT_USERS_PARQUET_PATH, DDL_DIM_USER_PATH)
 from incremental_generator.logic.location_distribution import get_location_distribution
 from incremental_generator.logic.persona_age_income_distribution import get_age_persona_income_distribution
 from incremental_generator.logic.signup_distribution import get_signup_distribution
 
 
 def generate_users(conn, num_of_users):
+
+    create_db = DDL_DIM_USER_PATH.read_text()
+
+    conn.execute(create_db)
 
     #generate fake user data using faker library
     fake_gb = fk.Faker('en_GB')
@@ -75,11 +79,11 @@ def generate_users(conn, num_of_users):
 
     is_activated_user = np.array(demographics['is_activated_user'])
 
-    print(is_activated_user)
+    #print(is_activated_user)
 
     wallet_activation_timeframe = np.array(demographics['wallet_activation_timeframe'])
 
-    print(wallet_activation_timeframe)
+    #print(wallet_activation_timeframe)
 
     acquisition_channels = [np.random.choice(ACQUISITION_CHANNELS, p = CUSTOMER_PERSONA_MAP[cp]['acquisition_channels_weights']) for cp in customer_personas]
 
@@ -103,6 +107,8 @@ def generate_users(conn, num_of_users):
     is_immediate_login[inactive_mask] = np.random.choice([True, False], size=(~active_mask).sum(), p=[0.7, 0.3])
 
     supposed_activation_dates = np.empty(num_of_users,dtype=object)
+
+    signup_date = pd.to_datetime(signup_date)
 
     supposed_activation_dates[active_mask] = signup_date[active_mask] + pd.to_timedelta(wallet_activation_timeframe[active_mask],unit="m")
 

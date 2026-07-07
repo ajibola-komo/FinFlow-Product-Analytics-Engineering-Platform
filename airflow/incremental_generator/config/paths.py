@@ -1,7 +1,7 @@
 from pathlib import Path
 from incremental_generator.config.constants import CURRENT_DATE
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
 
 DATA_DIR = PROJECT_ROOT / "data"
 RAW_DIR = PROJECT_ROOT / "raw"
@@ -9,6 +9,8 @@ RAW_DIR = PROJECT_ROOT / "raw"
 EXPORT_DIR = DATA_DIR / "exports"
 PARQUET_DIR = EXPORT_DIR / "parquet"
 CURRENT_PARTITION = PARQUET_DIR / ("load_date_" + CURRENT_DATE.strftime("%Y-%m-%d"))
+DB_DIR = PROJECT_ROOT / "db"
+FINFLOW_DB_PATH = DB_DIR / "finflow.db"
 
 RAW_DIM_EVENT_TYPE_PATH = RAW_DIR / "dim_event_type.csv"
 RAW_DIM_PRODUCT_PATH = RAW_DIR / "dim_product.csv"

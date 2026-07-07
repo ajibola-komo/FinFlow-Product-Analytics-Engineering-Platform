@@ -11,10 +11,10 @@ CREATE OR REPLACE TABLE FACT_USER_EVENT (
     transaction_type_id int,
     transaction_id bigint, -- degenerate key
     investment_id bigint --degenerate key
-    foreign key (user_id) references dim_user(user_id),
-    foreign key (event_type_id) references dim_event_type(event_type_id),
-    foreign key (wallet_id) references dim_wallet(wallet_id),
-    foreign key (plan_id) references dim_plan(plan_id),
-    foreign key (event_date_id) references dim_date(date_id),
-    foreign key (transaction_type_id) references dim_transaction_type(transaction_type_id)
+    foreign key(user_id) references dim_user(user_id),
+    foreign key(event_type_id) references dim_event_type(event_type_id),
+    foreign key(wallet_id) references dim_wallet(wallet_id),
+    foreign key(plan_id) references dim_plan(plan_id),
+    foreign key(event_date_id) references dim_date(date_id),
+    foreign key(transaction_type_id) references dim_transaction_type(transaction_type_id)
 );

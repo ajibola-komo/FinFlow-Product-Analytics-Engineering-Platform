@@ -10,7 +10,7 @@ CREATE OR REPLACE TABLE FACT_USER_EVENT (
     is_money_movement_activity boolean,
     transaction_type_id int,
     transaction_id bigint, -- degenerate key
-    investment_id bigint --degenerate key
+    investment_id bigint, --degenerate key
     foreign key(user_id) references dim_user(user_id),
     foreign key(event_type_id) references dim_event_type(event_type_id),
     foreign key(wallet_id) references dim_wallet(wallet_id),

@@ -1,8 +1,8 @@
 CREATE OR REPLACE TABLE FACT_USER_EVENT (
     event_id bigint primary key,
-    user_id int not null,
+    user_id bigint not null,
     event_type_id int not null,
-    wallet_id int,
+    wallet_id bigint,
     plan_id int,
     event_time timestamp not null,
     event_date_id int not null,

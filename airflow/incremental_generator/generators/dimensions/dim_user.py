@@ -90,8 +90,8 @@ def generate_users(conn, num_of_users):
     kyc_completed = np.full(num_of_users, False) #initialize with False, will update to True for users who completed KYC
     active_mask = is_activated_user == True
     inactive_mask = is_activated_user == False
-    kyc_completed[active_mask] = True #assuming all activated users completed KYC, this will set kyc_completed to True for those users
-    kyc_completed[~active_mask] = np.random.choice([True, False], size=(~active_mask).sum(), p=[0.3, 0.7])
+    #kyc_completed[active_mask] = True #assuming all activated users completed KYC, this will set kyc_completed to True for those users
+    #kyc_completed[~active_mask] = np.random.choice([True, False], size=(~active_mask).sum(), p=[0.3, 0.7])
     
     date_of_birth = np.array(demographics['birth_date'])
     signup_date = get_signup_distribution(date_of_birth)

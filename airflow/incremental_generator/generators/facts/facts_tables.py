@@ -1,30 +1,24 @@
 import numpy as np
 import pandas as pd
-from src.config.paths import (DDL_FACT_USER_EVENT_PATH, FACT_USER_EVENT_PARQUET_PATH, 
-                              FACT_INVESTMENT_POSITION_PARQUET_PATH, DDL_FACT_INVESTMENT_POSITION_PATH, DDL_FACT_TRANSACTION_PATH, FACT_TRANSACTION_PARQUET_PATH)
-from src.config.constants import (DEFAULT_TRANSACTION_START_DATE,IMMEDIATE_LOGINS_TIME_FRAME, KYC_ACTIVATION_TIMEFRAME, USERS_MAKES_FIRST_INVESTMENT_AFTER_FUNDING,
+from incremental_generator.config.paths import (CURRENT_FACT_USER_EVENT_PARQUET_PATH, CURRENT_FACT_INVESTMENT_POSITION_PARQUET_PATH, CURRENT_FACT_TRANSACTION_PARQUET_PATH)
+from incremental_generator.config.constants import (DEFAULT_TRANSACTION_START_DATE,IMMEDIATE_LOGINS_TIME_FRAME, KYC_ACTIVATION_TIMEFRAME, USERS_MAKES_FIRST_INVESTMENT_AFTER_FUNDING,
                                   CUSTOMER_BEHAVIOUR_SEGMENT_MAP, FIRST_INVESTMENT_TYPE, EARLY_WITHDRAWAL_BEHAVIOUR, INVESTMENT_WITHDRAWAL_PROCESSING_TIME,
-                                  MUTUAL_FUNDS_CUTOFF_DATE, TODAY
-                                  )
+                                  MUTUAL_FUNDS_CUTOFF_DATE, TODAY, GENERATION_START_TIMESTAMP, GENERATION_END_TIMESTAMP)
+                                  
 from datetime import timedelta
 from dateutil.relativedelta import relativedelta
 
 
 def generate_facts(conn, num_of_events):
 
-    create_fact_user_table = DDL_FACT_USER_EVENT_PATH.read_text()
-    create_fact_investment_table = DDL_FACT_INVESTMENT_POSITION_PATH.read_text()
-    create_fact_transaction_table = DDL_FACT_TRANSACTION_PATH.read_text()
-
-    conn.execute(create_fact_user_table)
-    conn.execute(create_fact_investment_table)
-    conn.execute(create_fact_transaction_table)
-
     #populate all possible signups within the project duration
-    users_data = conn.execute(f'''SELECT user_id, signup_date, kyc_completed, is_activated_user, wallet_activation_timeframe, customer_behaviour_segment, device_type FROM dim_user
-     where signup_date >= '{DEFAULT_TRANSACTION_START_DATE}' order by signup_date''').df()
+    users_data = conn.execute(f'''SELECT user_id, signup_date, kyc_completed, is_activated_user, wallet_activation_timeframe, customer_behaviour_segment, device_type,
+                              supposed_activation_date
+                              FROM dim_user
+     where signup_date BETWEEN '{GENERATION_START_TIMESTAMP}' AND '{GENERATION_END_TIMESTAMP}' order by signup_date''').df()
     
-    user_wallet_data = conn.execute(f'''SELECT user_id, wallet_id, wallet_activated_at from dim_wallet''').df()
+    user_wallet_data = conn.execute(f'''SELECT user_id, wallet_id, wallet_activated_at from dim_wallet
+                                    where wallet_created_at BETWEEN '{GENERATION_START_TIMESTAMP}' AND '{GENERATION_END_TIMESTAMP}' ''').df()
 
     plans_data = conn.execute('''SELECT * FROM dim_plan''').df()
 
@@ -68,13 +62,7 @@ def generate_facts(conn, num_of_events):
     transaction_statuses = np.empty(num_of_events, dtype = object)
     is_withdrawn_early = np.full(num_of_events,False,dtype=bool)
     withdrawal_date = np.empty(num_of_events,dtype=object)
-    withdrawal_date_id = np.empty(num_of_events,dtype=object)
     
-    wallet_balance_by_user_df = user_wallet_data[
-    ["user_id", "wallet_id"]].copy()
-
-    wallet_balance_by_user_df["current_balance"] = 0.0
-
     # new user signups
     total_signups = len(users_data)
 
@@ -85,7 +73,7 @@ def generate_facts(conn, num_of_events):
 
     #new user logins
     new_users_logins = conn.execute(f'''SELECT user_id, signup_date, kyc_completed, is_activated_user, customer_behaviour_segment FROM dim_user
-    where signup_date >= '{DEFAULT_TRANSACTION_START_DATE}' AND is_immediate_login = True order by signup_date''').df()
+    where signup_date BETWEEN '{GENERATION_START_TIMESTAMP}' AND '{GENERATION_END_TIMESTAMP}' AND is_immediate_login = True order by signup_date''').df()
     
     immediate_login_timeframe = np.random.randint(IMMEDIATE_LOGINS_TIME_FRAME[0],IMMEDIATE_LOGINS_TIME_FRAME[1], size=len(new_users_logins))
     
@@ -1270,7 +1258,7 @@ def generate_facts(conn, num_of_events):
     conn.execute('''INSERT INTO fact_transaction SELECT * FROM tr_events''')
 
     conn.execute(f'''
-                    COPY fact_transaction TO '{FACT_TRANSACTION_PARQUET_PATH}' (FORMAT PARQUET)
+                    COPY fact_transaction TO '{CURRENT_FACT_TRANSACTION_PARQUET_PATH}' (FORMAT PARQUET)
     ''')
 
     investment_maturity_mask = all_investments_df["investment_maturity_date"].notna()
@@ -1304,7 +1292,7 @@ def generate_facts(conn, num_of_events):
 
     conn.execute('''INSERT INTO FACT_INVESTMENT_POSITION SELECT * FROM INVESTMENT_DF''')
 
-    conn.execute(f'''COPY FACT_INVESTMENT_POSITION TO '{FACT_INVESTMENT_POSITION_PARQUET_PATH}' (FORMAT PARQUET) ''')
+    conn.execute(f'''COPY FACT_INVESTMENT_POSITION TO '{CURRENT_FACT_INVESTMENT_POSITION_PARQUET_PATH}' (FORMAT PARQUET) ''')
 
     df_raw = pd.DataFrame({
         "user_id":user_ids[:total_events],
@@ -1351,4 +1339,4 @@ def generate_facts(conn, num_of_events):
 
     conn.execute('''INSERT INTO fact_user_event SELECT * FROM df_raw''')
 
-    conn.execute(f'''COPY FACT_USER_EVENT TO '{FACT_USER_EVENT_PARQUET_PATH}' (FORMAT PARQUET) ''')
+    conn.execute(f'''COPY FACT_USER_EVENT TO '{CURRENT_FACT_USER_EVENT_PARQUET_PATH}' (FORMAT PARQUET) ''')

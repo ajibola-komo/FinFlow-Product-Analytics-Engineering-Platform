@@ -87,7 +87,7 @@ def generate_users(conn, num_of_users):
 
     acquisition_channels = [np.random.choice(ACQUISITION_CHANNELS, p = CUSTOMER_PERSONA_MAP[cp]['acquisition_channels_weights']) for cp in customer_personas]
 
-    kyc_completed = np.full(num_of_users, False) #initialize with False, will update to True for users who completed KYC
+    kyc_completed = np.full(num_of_users, "Not Started") #initialize with False, will update to True for users who completed KYC
     active_mask = is_activated_user == True
     inactive_mask = is_activated_user == False
     #kyc_completed[active_mask] = True #assuming all activated users completed KYC, this will set kyc_completed to True for those users
@@ -112,6 +112,13 @@ def generate_users(conn, num_of_users):
 
     supposed_activation_dates[active_mask] = signup_date[active_mask] + pd.to_timedelta(wallet_activation_timeframe[active_mask],unit="m")
 
+    kyc_completion_timeframe = np.empty(num_of_users, dtype=object)
+    kyc_completion_dates = np.empty(num_of_users, dtype=object)
+
+    kyc_completion_timeframe[active_mask] = [np.random.randint(120,  activation_timeframe - 100) for activation_timeframe in wallet_activation_timeframe[active_mask]]
+    kyc_completion_dates[active_mask] = signup_date[active_mask] + pd.to_timedelta(kyc_completion_timeframe[active_mask],unit="m")
+    
+
     df_raw = pd.DataFrame({
         'first_name': customer_first_names,
         'last_name': customer_last_names,
@@ -132,7 +139,8 @@ def generate_users(conn, num_of_users):
         'wallet_activation_timeframe': wallet_activation_timeframe,
         'customer_behaviour_segment':customer_behaviour_segment,
         'is_immediate_login': is_immediate_login,
-        "supposed_activation_date":supposed_activation_dates
+        "supposed_activation_date":supposed_activation_dates,
+        "kyc_completion_date": kyc_completion_dates
     })
 
     df_raw = df_raw.sort_values(
@@ -165,7 +173,8 @@ def generate_users(conn, num_of_users):
     'wallet_activation_timeframe',
     'customer_behaviour_segment',
     'is_immediate_login',
-    'supposed_activation_date'
+    'supposed_activation_date',
+    'kyc_completion_date'
 ]]
 
     #write the generated data to a parquet file
@@ -176,6 +185,6 @@ def generate_users(conn, num_of_users):
                         SELECT user_id, first_name, last_name, country, region, city, email_address, reported_annual_income,
                         acquisition_channel, device_type, customer_persona, kyc_completed, date_of_birth, birth_date_id, signup_date, signup_date_id, 
                         customer_behaviour_segment
-                        from dim_user )
+                        from df_raw )
                  TO '{CURRENT_USERS_PARQUET_PATH}' (FORMAT PARQUET) ''')
 

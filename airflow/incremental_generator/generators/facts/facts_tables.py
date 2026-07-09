@@ -3,7 +3,7 @@ import pandas as pd
 from incremental_generator.config.paths import (CURRENT_FACT_USER_EVENT_PARQUET_PATH, CURRENT_FACT_INVESTMENT_POSITION_PARQUET_PATH, CURRENT_FACT_TRANSACTION_PARQUET_PATH)
 from incremental_generator.config.constants import (DEFAULT_TRANSACTION_START_DATE,IMMEDIATE_LOGINS_TIME_FRAME, KYC_ACTIVATION_TIMEFRAME, USERS_MAKES_FIRST_INVESTMENT_AFTER_FUNDING,
                                   CUSTOMER_BEHAVIOUR_SEGMENT_MAP, FIRST_INVESTMENT_TYPE, EARLY_WITHDRAWAL_BEHAVIOUR, INVESTMENT_WITHDRAWAL_PROCESSING_TIME,
-                                  MUTUAL_FUNDS_CUTOFF_DATE, TODAY, GENERATION_START_TIMESTAMP, GENERATION_END_TIMESTAMP)
+                                  MUTUAL_FUNDS_CUTOFF_DATE, TODAY, GENERATION_START_TIMESTAMP, GENERATION_END_TIMESTAMP, GENERATION_DATE)
                                   
 from datetime import timedelta
 from dateutil.relativedelta import relativedelta
@@ -13,11 +13,11 @@ def generate_facts(conn, num_of_events):
 
     #populate all possible signups within the project duration
     users_data = conn.execute(f'''SELECT user_id, signup_date, kyc_completed, is_activated_user, wallet_activation_timeframe, customer_behaviour_segment, device_type,
-                              supposed_activation_date
+                              supposed_activation_date, kyc_completion_date
                               FROM dim_user
      where signup_date BETWEEN '{GENERATION_START_TIMESTAMP}' AND '{GENERATION_END_TIMESTAMP}' order by signup_date''').df()
     
-    user_wallet_data = conn.execute(f'''SELECT user_id, wallet_id, wallet_activated_at from dim_wallet
+    user_wallet_data = conn.execute(f'''SELECT user_id, wallet_id, wallet_created_at, wallet_activated_at from dim_wallet
                                     where wallet_created_at BETWEEN '{GENERATION_START_TIMESTAMP}' AND '{GENERATION_END_TIMESTAMP}' ''').df()
 
     plans_data = conn.execute('''SELECT * FROM dim_plan''').df()
@@ -88,55 +88,38 @@ def generate_facts(conn, num_of_events):
     device_types[start_immediate_logins:end_immediate_logins] = np.array([device_type_map.get(uid) for uid in new_users_logins["user_id"]])
 
     #kyc_completed_users
-    kyc_completed_users = users_data[users_data["kyc_completed"] == True].copy()
+    sure_kyc_completed_users = conn.execute(f'''SELECT user_id, kyc_completed, device_type, kyc_completion_date from dim_user 
+                                            where kyc_completion_date = '{GENERATION_DATE}' ''').df()
 
-    signup_map = dict(zip(
-    users_data["user_id"],
-    users_data["signup_date"]
-))
-
-    last_login_map  = dict(zip(
-        user_ids[start_immediate_logins:end_immediate_logins],
-        event_time[start_immediate_logins:end_immediate_logins]
-    ))
-
-    kyc_activation_timeframe = np.empty(len(kyc_completed_users), dtype=object)
     
-    unactivated_users_with_kyc = np.where(pd.isna(kyc_completed_users["wallet_activation_timeframe"]))[0]
+    kyc_activation_time =  sure_kyc_completed_users["kyc_completion_date"]#assuming wallet activation happens after KYC completion, we can set the KYC activation timeframe to be slightly less than the wallet activation timeframe for those users
 
-    activated_users_with_kyc = np.where(~pd.isna(kyc_completed_users["wallet_activation_timeframe"]))[0]
+    kyc_logins_time = kyc_activation_time - pd.to_timedelta(10,unit="m") #assuming KYC completion happens after the last login, we can set the KYC activation timeframe to be slightly more than the last login timeframe
 
-    wallet_activation_timeframe = kyc_completed_users["wallet_activation_timeframe"].values
+    start_position = end_immediate_logins
+    end_position = start_position + len(sure_kyc_completed_users)
 
-    kyc_activation_timeframe[unactivated_users_with_kyc] = np.random.randint(KYC_ACTIVATION_TIMEFRAME[0], KYC_ACTIVATION_TIMEFRAME[1], size=len(unactivated_users_with_kyc))
-    kyc_activation_timeframe[activated_users_with_kyc] = wallet_activation_timeframe[activated_users_with_kyc] - 1000 #assuming wallet activation happens after KYC completion, we can set the KYC activation timeframe to be slightly less than the wallet activation timeframe for those users
+    user_ids[start_position:end_position] = sure_kyc_completed_users["user_id"]
+    event_time[start_position:end_position] = kyc_logins_time
+    event_type_ids[start_position:end_position] = event_type_map.get("app_login")
+    device_types[start_position:end_position] = np.array([device_type_map.get(uid) for uid in sure_kyc_completed_users["user_id"]])
 
-    kyc_logins_timeframe = kyc_activation_timeframe - 300 #assuming KYC completion happens after the last login, we can set the KYC activation timeframe to be slightly more than the last login timeframe
+    start_position = end_position
+    end_position = start_position + len(sure_kyc_completed_users)
 
-    start_kyc_activations = end_immediate_logins
-    end_kyc_activations = start_kyc_activations + len(kyc_completed_users)
+    user_ids[start_position:end_position] = sure_kyc_completed_users["user_id"]
+    event_time[start_position:end_position] = sure_kyc_completed_users["kyc_completion_date"]
+    event_type_ids[start_position:end_position] = event_type_map.get("kyc_completed")
+    device_types[start_position:end_position] = np.array([device_type_map.get(uid) for uid in sure_kyc_completed_users["user_id"]])
 
-    user_ids[start_kyc_activations:end_kyc_activations] = kyc_completed_users["user_id"]
-    event_time[start_kyc_activations:end_kyc_activations] = [last_login_map.get(uid,signup_map.get(uid)) + timedelta(minutes=int(ro)) for uid, ro in zip(kyc_completed_users["user_id"], kyc_logins_timeframe)]
-    event_type_ids[start_kyc_activations:end_kyc_activations] = event_type_map.get("app_login")
-    device_types[start_kyc_activations:end_kyc_activations] = np.array([device_type_map.get(uid) for uid in kyc_completed_users["user_id"]])
-
-    start_kyc_activation_completion = end_kyc_activations
-    end_kyc_activation_completion = start_kyc_activation_completion + len(kyc_completed_users)
-
-    user_ids[start_kyc_activation_completion:end_kyc_activation_completion] = kyc_completed_users["user_id"]
-    event_time[start_kyc_activation_completion:end_kyc_activation_completion] = [last_login_map.get(uid,signup_map.get(uid)) + timedelta(minutes=int(ro)) for uid, ro in zip(kyc_completed_users["user_id"], kyc_activation_timeframe)]
-    event_type_ids[start_kyc_activation_completion:end_kyc_activation_completion] = event_type_map.get("kyc_completed")
-    device_types[start_kyc_activation_completion:end_kyc_activation_completion] = np.array([device_type_map.get(uid) for uid in kyc_completed_users["user_id"]])
-
-    kyc_completion_time = event_time[start_kyc_activation_completion:end_kyc_activation_completion]
+    kyc_completion_time = event_time[start_position:end_position]
 
     #wallet activation
-    wallet_activated_users = kyc_completed_users[~pd.isna(kyc_completed_users["wallet_activation_timeframe"])].copy()
+    wallet_activated_users = conn.execute(f'''SELECT * FROM dim_user where supposed_activation_date = '{GENERATION_DATE}' ''').df()
 
     segment_customers = dict(zip(
-        users_data["user_id"],
-        users_data["customer_behaviour_segment"]
+        wallet_activated_users["user_id"],
+        wallet_activated_users["customer_behaviour_segment"]
     ))
 
     wallet_activated_users["customer_behaviour_segment"] = wallet_activated_users["user_id"].map(segment_customers)
@@ -150,17 +133,18 @@ def generate_facts(conn, num_of_events):
     ])
 
     total_wallet_activated_users = len(wallet_activated_users)
+    last_transaction_id = conn.execute('''SELECT max(transaction_id) from fact_transaction''').df()
 
-    start_wallet_activations = end_kyc_activation_completion
+    start_wallet_activations = end_position
     end_wallet_activations = start_wallet_activations + total_wallet_activated_users
 
     user_ids[start_wallet_activations:end_wallet_activations] = wallet_activated_users["user_id"]
-    event_time[start_wallet_activations:end_wallet_activations] = [signup_map.get(uid,None) + timedelta(minutes=int(ro)) for uid, ro in zip(wallet_activated_users["user_id"], wallet_activated_users["wallet_activation_timeframe"])]
+    event_time[start_wallet_activations:end_wallet_activations] = wallet_activated_users["supposed_activation_date"]
     event_type_ids[start_wallet_activations:end_wallet_activations] = event_type_map.get("wallet_funded")
     is_money_movement_activities[start_wallet_activations:end_wallet_activations] = True
     wallet_ids[start_wallet_activations:end_wallet_activations] = [wallet_id_map.get(uid) for uid in wallet_activated_users["user_id"]]
     transaction_type_ids[start_wallet_activations:end_wallet_activations] = [transaction_type_map.get("wallet_funding") for _ in range(len(wallet_activated_users))]
-    transaction_ids[start_wallet_activations:end_wallet_activations] = np.arange(1, total_wallet_activated_users + 1)
+    transaction_ids[start_wallet_activations:end_wallet_activations] = np.arange(last_transaction_id + 1, last_transaction_id + total_wallet_activated_users + 1)
     amount_invested[start_wallet_activations:end_wallet_activations] = wallet_activated_users["amount_invested"]
     last_transaction_id = transaction_ids[start_wallet_activations:end_wallet_activations].max()
     device_types[start_wallet_activations:end_wallet_activations] = np.array([device_type_map.get(uid) for uid in wallet_activated_users["user_id"]])

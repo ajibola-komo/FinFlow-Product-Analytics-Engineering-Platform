@@ -19,5 +19,6 @@ CREATE OR REPLACE TABLE dim_user(
     wallet_activation_timeframe INT,
     customer_behaviour_segment VARCHAR(50) NOT NULL,
     is_immediate_login boolean NOT NULL,
-    supposed_activation_date TIMESTAMP
+    supposed_activation_date TIMESTAMP,
+    kyc_completion_date TIMESTAMP
 )

@@ -1,9 +1,9 @@
 import numpy as np
 import pandas as pd
 from incremental_generator.config.paths import (CURRENT_FACT_USER_EVENT_PARQUET_PATH, CURRENT_FACT_INVESTMENT_POSITION_PARQUET_PATH, CURRENT_FACT_TRANSACTION_PARQUET_PATH)
-from incremental_generator.config.constants import (DEFAULT_TRANSACTION_START_DATE,IMMEDIATE_LOGINS_TIME_FRAME, KYC_ACTIVATION_TIMEFRAME, USERS_MAKES_FIRST_INVESTMENT_AFTER_FUNDING,
+from incremental_generator.config.constants import (IMMEDIATE_LOGINS_TIME_FRAME, KYC_ACTIVATION_TIMEFRAME, USERS_MAKES_FIRST_INVESTMENT_AFTER_FUNDING,
                                   CUSTOMER_BEHAVIOUR_SEGMENT_MAP, FIRST_INVESTMENT_TYPE, EARLY_WITHDRAWAL_BEHAVIOUR, INVESTMENT_WITHDRAWAL_PROCESSING_TIME,
-                                  MUTUAL_FUNDS_CUTOFF_DATE, TODAY, GENERATION_START_TIMESTAMP, GENERATION_END_TIMESTAMP, GENERATION_DATE)
+                                  MUTUAL_FUNDS_CUTOFF_DATE, TODAY, GENERATION_START_TIMESTAMP, GENERATION_END_TIMESTAMP, GENERATION_START_DATE)
                                   
 from datetime import timedelta
 from dateutil.relativedelta import relativedelta
@@ -12,17 +12,21 @@ from dateutil.relativedelta import relativedelta
 def generate_facts(conn, num_of_events):
 
     #populate all possible signups within the project duration
-    users_data = conn.execute(f'''SELECT user_id, signup_date, kyc_completed, is_activated_user, wallet_activation_timeframe, customer_behaviour_segment, device_type,
-                              supposed_activation_date, kyc_completion_date
+    new_signups_data = conn.execute(f'''SELECT user_id, signup_date, kyc_completed, is_activated_user, 
+                              wallet_activation_timeframe, customer_behaviour_segment, device_type, is_immediate_login
                               FROM dim_user
      where signup_date BETWEEN '{GENERATION_START_TIMESTAMP}' AND '{GENERATION_END_TIMESTAMP}' order by signup_date''').df()
     
-    user_wallet_data = conn.execute(f'''SELECT user_id, wallet_id, wallet_created_at, wallet_activated_at from dim_wallet
+    new_wallets_data = conn.execute(f'''SELECT user_id, wallet_id, wallet_created_at, wallet_activated_at from dim_wallet
                                     where wallet_created_at BETWEEN '{GENERATION_START_TIMESTAMP}' AND '{GENERATION_END_TIMESTAMP}' ''').df()
+    
+    
+    all_users_data = conn.execute('''SELECT user_id, signup_date, customer_behaviour_segment, device_type,supposed_activation_date, kyc_completion_date  FROM dim_user order by signup_date''').df()
+    all_wallets_data = conn.execute('''SELECT user_id, wallet_id, wallet_created_at, wallet_activated_at from dim_wallet order by wallet_created_at''').df()
 
     plans_data = conn.execute('''SELECT * FROM dim_plan''').df()
 
-    device_type_map = dict(zip(users_data["user_id"],users_data["device_type"]))
+    device_type_map = dict(zip(all_users_data["user_id"],all_users_data["device_type"]))
 
     event_type_lookup = conn.execute('''SELECT event_type_code, event_type_id FROM dim_event_type''').df()
     
@@ -32,7 +36,7 @@ def generate_facts(conn, num_of_events):
     
     transaction_type_map = dict(zip(transaction_type_lookup["transaction_type_code"],transaction_type_lookup["transaction_type_id"]))
     
-    wallet_id_map = dict(zip(user_wallet_data["user_id"],user_wallet_data["wallet_id"]))
+    wallet_id_map = dict(zip(all_wallets_data["user_id"],all_wallets_data["wallet_id"]))
 
     plan_id_map = dict(zip(plans_data["plan_id"],plans_data["tenure_days"]))
 
@@ -64,17 +68,20 @@ def generate_facts(conn, num_of_events):
     withdrawal_date = np.empty(num_of_events,dtype=object)
     
     # new user signups
-    total_signups = len(users_data)
+    total_signups = len(new_signups_data)
 
-    user_ids[:total_signups] = users_data["user_id"]
-    event_time[:total_signups] = users_data["signup_date"]
+    user_ids[:total_signups] = new_signups_data["user_id"]
+    event_time[:total_signups] = new_signups_data["signup_date"]
     event_type_ids[:total_signups] = event_type_map.get("signup_completed")
-    device_types[:total_signups] = np.array([device_type_map.get(uid) for uid in users_data["user_id"]])
+    device_types[:total_signups] = np.array([device_type_map.get(uid) for uid in new_signups_data["user_id"]])
 
     #new user logins
-    new_users_logins = conn.execute(f'''SELECT user_id, signup_date, kyc_completed, is_activated_user, customer_behaviour_segment FROM dim_user
+    new_users_logins = conn.execute(f'''SELECT user_id, signup_date, kyc_completed, is_activated_user, customer_behaviour_segment,
+                                    is_immediate_login
+                                     FROM dim_user
     where signup_date BETWEEN '{GENERATION_START_TIMESTAMP}' AND '{GENERATION_END_TIMESTAMP}' AND is_immediate_login = True order by signup_date''').df()
     
+    #post signup immediate logins 
     immediate_login_timeframe = np.random.randint(IMMEDIATE_LOGINS_TIME_FRAME[0],IMMEDIATE_LOGINS_TIME_FRAME[1], size=len(new_users_logins))
     
     total_new_users = len(new_users_logins)
@@ -89,7 +96,7 @@ def generate_facts(conn, num_of_events):
 
     #kyc_completed_users
     sure_kyc_completed_users = conn.execute(f'''SELECT user_id, kyc_completed, device_type, kyc_completion_date from dim_user 
-                                            where kyc_completion_date = '{GENERATION_DATE}' ''').df()
+                                            where kyc_completion_date::DATE = '{GENERATION_START_DATE}' ''').df()
 
     
     kyc_activation_time =  sure_kyc_completed_users["kyc_completion_date"]#assuming wallet activation happens after KYC completion, we can set the KYC activation timeframe to be slightly less than the wallet activation timeframe for those users
@@ -115,62 +122,53 @@ def generate_facts(conn, num_of_events):
     kyc_completion_time = event_time[start_position:end_position]
 
     #wallet activation
-    wallet_activated_users = conn.execute(f'''SELECT * FROM dim_user where supposed_activation_date = '{GENERATION_DATE}' ''').df()
+    wallet_activation_events = conn.execute(f'''SELECT * FROM dim_user where supposed_activation_date = '{GENERATION_START_DATE}' ''').df()
 
     segment_customers = dict(zip(
-        wallet_activated_users["user_id"],
-        wallet_activated_users["customer_behaviour_segment"]
+        wallet_activation_events["user_id"],
+        wallet_activation_events["customer_behaviour_segment"]
     ))
 
-    wallet_activated_users["customer_behaviour_segment"] = wallet_activated_users["user_id"].map(segment_customers)
+    wallet_activation_events["customer_behaviour_segment"] = wallet_activation_events["user_id"].map(segment_customers)
 
-    wallet_activated_users["amount_invested"] = np.array([
+    wallet_activation_events["amount_invested"] = np.array([
         np.random.randint(CUSTOMER_BEHAVIOUR_SEGMENT_MAP[bh]["average_investment_amount"][0],
             CUSTOMER_BEHAVIOUR_SEGMENT_MAP[bh]["average_investment_amount"][1]
             
         )
-        for bh in wallet_activated_users["customer_behaviour_segment"]
+        for bh in wallet_activation_events["customer_behaviour_segment"]
     ])
 
-    total_wallet_activated_users = len(wallet_activated_users)
-    last_transaction_id = conn.execute('''SELECT max(transaction_id) from fact_transaction''').df()
+    total_wallet_activated_events = len(wallet_activation_events)
+    last_transaction_id = conn.execute('''SELECT coalesce(max(transaction_id),0) from fact_transaction''').fetchone()[0]
 
     start_wallet_activations = end_position
-    end_wallet_activations = start_wallet_activations + total_wallet_activated_users
+    end_wallet_activations = start_wallet_activations + total_wallet_activated_events
 
-    user_ids[start_wallet_activations:end_wallet_activations] = wallet_activated_users["user_id"]
-    event_time[start_wallet_activations:end_wallet_activations] = wallet_activated_users["supposed_activation_date"]
+    user_ids[start_wallet_activations:end_wallet_activations] = wallet_activation_events["user_id"]
+    event_time[start_wallet_activations:end_wallet_activations] = wallet_activation_events["supposed_activation_date"]
     event_type_ids[start_wallet_activations:end_wallet_activations] = event_type_map.get("wallet_funded")
     is_money_movement_activities[start_wallet_activations:end_wallet_activations] = True
-    wallet_ids[start_wallet_activations:end_wallet_activations] = [wallet_id_map.get(uid) for uid in wallet_activated_users["user_id"]]
-    transaction_type_ids[start_wallet_activations:end_wallet_activations] = [transaction_type_map.get("wallet_funding") for _ in range(len(wallet_activated_users))]
-    transaction_ids[start_wallet_activations:end_wallet_activations] = np.arange(last_transaction_id + 1, last_transaction_id + total_wallet_activated_users + 1)
-    amount_invested[start_wallet_activations:end_wallet_activations] = wallet_activated_users["amount_invested"]
+    wallet_ids[start_wallet_activations:end_wallet_activations] = [wallet_id_map.get(uid) for uid in wallet_activation_events["user_id"]]
+    transaction_type_ids[start_wallet_activations:end_wallet_activations] = [transaction_type_map.get("wallet_funding") for _ in range(len(wallet_activation_events))]
+    transaction_ids[start_wallet_activations:end_wallet_activations] = np.arange(last_transaction_id + 1, last_transaction_id + total_wallet_activated_events + 1)
+    amount_invested[start_wallet_activations:end_wallet_activations] = wallet_activation_events["amount_invested"]
     last_transaction_id = transaction_ids[start_wallet_activations:end_wallet_activations].max()
-    device_types[start_wallet_activations:end_wallet_activations] = np.array([device_type_map.get(uid) for uid in wallet_activated_users["user_id"]])
-    transaction_statuses[start_wallet_activations:end_wallet_activations] = ["success" for _ in range(total_wallet_activated_users)]
-    transaction_amounts[start_wallet_activations:end_wallet_activations] = wallet_activated_users["amount_invested"]
+    device_types[start_wallet_activations:end_wallet_activations] = np.array([device_type_map.get(uid) for uid in wallet_activation_events["user_id"]])
+    transaction_statuses[start_wallet_activations:end_wallet_activations] = ["success"]* len(wallet_activation_events)
+    transaction_amounts[start_wallet_activations:end_wallet_activations] = wallet_activation_events["amount_invested"]
 
-    wallet_activated_users_df = pd.DataFrame(
-        {
-            "user_id": user_ids[start_wallet_activations:end_wallet_activations],
-            "last_login_time": event_time[start_wallet_activations:end_wallet_activations],
-            "current_wallet_balance": amount_invested[start_wallet_activations:end_wallet_activations]
-        }
-    )
+    conn.register('activated_users',wallet_activation_events[["user_id"]])
 
-    #let's create the initial investment -- login, review_plan_options then drop off for some users, and for others, they will make an investment after reviewing the plan options. We will create a new dataframe to hold the users who made an investment and their corresponding investment details.
+    conn.execute(f'''update dim_wallet d set wallet_activated_at = '{GENERATION_START_DATE}' from activated_users a where d.user_id = a.user_id ''')
 
-    wallet_activated_users_df = pd.DataFrame({
-        "user_id": wallet_activated_users_df["user_id"],
-        "customer_behaviour_segment": wallet_activated_users_df["user_id"].map(segment_customers),
-        "last_login_time": wallet_activated_users_df["last_login_time"],
-        "current_wallet_balance":wallet_activated_users_df["current_wallet_balance"]
-        })
+    all_users = conn.execute('''SELECT * FROM dim_user where customer_behaviour_segment not in ('Low_Engagement_Low_Balance','Low_Engagement_High_Balance') ''').df()
     
-    customer_subset_1 = wallet_activated_users_df.sample(frac = 0.55, random_state=1)
+    customer_subset_1 = all_users.sample(frac = 0.05, random_state=1)
 
     total_customer_subset_1 = len(customer_subset_1)
+
+    random_offset = np.random.randint(0,1440,size=total_customer_subset_1)
 
     #these users will just login and review plan options, but will not make an investment. We will create a new dataframe to hold the users who made an investment and their corresponding investment details.
 
@@ -178,7 +176,7 @@ def generate_facts(conn, num_of_events):
     end_position = start_position + total_customer_subset_1
 
     user_ids[start_position:end_position] = customer_subset_1["user_id"]
-    event_time[start_position:end_position] = [last_login + timedelta(minutes=np.random.randint(5, 80)) for last_login in customer_subset_1["last_login_time"]]
+    event_time[start_position:end_position] = [GENERATION_DATE + pd.to_timedelta(ro,unit="m") for ro in random_offset]
     event_type_ids[start_position:end_position] = event_type_map.get("app_login")
     device_types[start_position:end_position] = np.array([device_type_map.get(uid) for uid in customer_subset_1["user_id"]])
 

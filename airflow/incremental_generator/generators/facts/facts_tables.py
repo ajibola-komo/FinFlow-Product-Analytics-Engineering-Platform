@@ -17,10 +17,6 @@ def generate_facts(conn, num_of_events):
                               FROM dim_user
      where signup_date BETWEEN '{GENERATION_START_TIMESTAMP}' AND '{GENERATION_END_TIMESTAMP}' order by signup_date''').df()
     
-    new_wallets_data = conn.execute(f'''SELECT user_id, wallet_id, wallet_created_at, wallet_activated_at from dim_wallet
-                                    where wallet_created_at BETWEEN '{GENERATION_START_TIMESTAMP}' AND '{GENERATION_END_TIMESTAMP}' ''').df()
-    
-    
     all_users_data = conn.execute('''SELECT user_id, signup_date, customer_behaviour_segment, device_type,supposed_activation_date, kyc_completion_date  FROM dim_user order by signup_date''').df()
     all_wallets_data = conn.execute('''SELECT user_id, wallet_id, wallet_created_at, wallet_activated_at from dim_wallet order by wallet_created_at''').df()
 
@@ -161,6 +157,45 @@ def generate_facts(conn, num_of_events):
     conn.register('activated_users',wallet_activation_events[["user_id"]])
 
     conn.execute(f'''update dim_wallet d set wallet_activated_at = '{GENERATION_START_DATE}' from activated_users a where d.user_id = a.user_id ''')
+
+    #let's model investment vesting events
+    vestable_investments = conn.execute('''SELECT * from fact_investment_position where investment_maturity_date::DATE = '{GENERATION_START_DATE}' ''').df()
+
+    start_position = end_position
+    end_position = start_position + len(vestable_investments)
+
+    user_ids[start_position:end_position] = vestable_investments['user_id'].values
+    event_time[start_position:end_position] = vestable_investments['investment_maturity_date']
+    event_type_ids[start_position:end_position] = [event_type_map.get('investment_vests')] * len(vestable_investments)
+    device_types[start_position:end_position] = [device_type_map.get(uid) for uid in vestable_investments['user_id'].values]
+
+    #investment proceeds wallet transfer
+
+    start_position = end_position
+    end_position = start_position + len(vestable_investments)
+    
+    user_ids[start_position:end_position] = vestable_investments['user_id'].values
+    event_time[start_position:end_position] = vestable_investments['investment_maturity_date'] + pd.to_timedelta(3,unit='h')
+    event_type_ids[start_position:end_position] = [event_type_map.get('investment_proceeds_wallet_transfer')] * len(vestable_investments)
+    device_types[start_position:end_position] = [device_type_map.get(uid) for uid in vestable_investments['user_id'].values]
+
+    wallet_ids[start_position:end_position] = [wallet_id_map.get(uid) for uid in vestable_investments['user_id'].values]
+    is_money_movement_activities[start_position:end_position] = True
+    transaction_ids[start_position:end_position] = np.arange(last_transaction_id + 1, 1 + len(vestable_investments) +  last_transaction_id)
+    last_transaction_id = transaction_ids[start_position:end_position].max()
+    amount_invested[start_position:end_position] = vestable_investments["amount_invested"]
+    transaction_type_ids[start_position:end_position] = [transaction_type_map.get("investment_proceeds_transfer") for _ in range(len(vestable_investments))]
+    investment_ids[start_position:end_position] = vestable_investments["investment_id"]
+    transaction_amounts[start_position:end_position] = vestable_investments["amount_invested"]
+    transaction_statuses[start_position:end_position] = ["success" for _ in range(len(vestable_investments))]
+
+    conn.register("vestable_investment_ids",vestable_investments[["investment_id"]])
+
+    conn.execute('''
+        UPDATE fact_investment_position f set investment_status = 'Redeemed' from vestable_investment_ids v where f.investment_id = v.investment_id
+    ''')
+
+
 
     all_users = conn.execute('''SELECT * FROM dim_user where customer_behaviour_segment not in ('Low_Engagement_Low_Balance','Low_Engagement_High_Balance') ''').df()
     

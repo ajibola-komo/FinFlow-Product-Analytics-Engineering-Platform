@@ -147,8 +147,10 @@ def generate_users(conn, num_of_users):
     by='signup_date'
     ).reset_index(drop=True)
 
+    max_user_id = conn.execute('''SELECT MAX(user_id) FROM dim_user''').fetchone()[0]
+
     df_raw['user_id'] = np.arange(
-    1,
+    max_user_id + 1 if max_user_id is not None else 1,
     len(df_raw) + 1
     )
 

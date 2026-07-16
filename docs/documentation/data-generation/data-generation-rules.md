@@ -1,6 +1,6 @@
 # FinFlow Product Analytics Engineering Platform - Synthetic Data Generation Rules
 
-> **Last Updated:** June 2026
+> **Last Updated:** July 2026
 
 ---
 
@@ -42,15 +42,16 @@ The platform is built to achieve the following objectives:
 | Table | Type | Grain | Approx. rows |
 |---|---|---|---|
 | `dim_date` | dimension | One record per calendar date | ~3,650 rows |
-| `dim_event_type` | dimension | One record per distinct event type | 17 rows |
+| `dim_event_type` | dimension | One record per distinct event type | 16 rows |
 | `dim_product` | dimension | One record per distinct product offering | 2 rows |
 | `dim_plan` | dimension | One record per product plan variant | 4 rows |
 | `dim_user` | dimension | One record per registered user | ~500K rows |
 | `dim_wallet` | dimension | One record per user wallet account (one wallet per user) | ~500K rows |
 | `dim_transaction_type` | dimension | One record per distinct transaction type | 6 rows |
-| `fact_user_event` | fact | One record per user generated event occurence | ~12M rows |
-| `fact_investment_position` | fact | One record per investment position created by a user  | ~1.1M rows |
-| `fact_transaction` | fact | One record per money movement transaction within the application | ~5M rows |
+| `fact_user_event` | fact | One record per user generated event occurence | ~45M+ rows |
+| `fact_investment_position` | fact | One record per investment position created by a user  | ~1.3M+ rows |
+| `fact_transaction` | fact | One record per money movement transaction within the application | ~9M+ rows |
+| `fact_wallet_balance` | snapshot fact | One record per wallet account | ~500k+ rows |
 
 **Daily Incremental Loads**
 | Table | Approx. rows |
@@ -61,6 +62,7 @@ The platform is built to achieve the following objectives:
 |`fact_user_event`|4000 - 8000 |
 |`fact_investment_position`|200 - 800 |
 |`fact_transaction` |2500 - 6000 |
+|`fact_wallet_balance` |2500 - 3000 |
 
 ### Key Analytics Use Cases
 - Onboarding & Activation Analytics
@@ -77,12 +79,13 @@ The platform is built to achieve the following objectives:
 The platform is built on a modern analytics engineering stack:
 | Layer               | Technology                  |
 | ------------------- | ------------- |
-| Data Generation    | Python (Numpy, Pandas) |
-| Local Processing    | DuckDB |
-| Data Lake    | Amazon S3 |
-| Data Warehouse    | Snowflake |
-| Transformation   | dbt(core) |
-| Orchestration    | Apache Airflow |
+| Synthetic Data Generation    | Python (Numpy, Pandas) |
+| Operational Processing Layer   | DuckDB |
+| Cloud Data Lake    | Azure Blob Storage |
+| Compute & Infrastructure   | Azure Virtual Machines, Docker |
+| Cloud Data Warehouse    | Snowflake |
+| Transformation   | dbt Core |
+| Workflow Orchestration    | Apache Airflow |
 | BI & Reporting    | Power BI |
 
 ### Key Assumptions
@@ -150,8 +153,9 @@ Behavioural segments are assigned probabilistically based on the user's persona.
 
 - A **wallet** is a customer-owned account used to hold cash balances within the FinFlow platform. Wallets serve as the primary source and destination for money movement activities, including deposits, withdrawals, transfers, and investment funding transactions.
 
-Funds held within a wallet are considered **uninvested cash balances** and remain available for future transactions or investment activities. 
-- An **investment position** represents a customer's active or historical investment in a specific product, fund, or investment vehicle offered by FinFlow. Investment positions track the lifecycle of invested funds from creation through maturity, redemption, or closure.
+    Funds held within a wallet are considered **uninvested cash balances** and remain available for future transactions or investment activities.
+
+- An **investment position** represents a customer's active or historical investment in a specific product, fund, or investment vehicle offered by FinFlow. Investment positions track the lifecycle of invested funds from creation through maturity and redemption.
 
     Investment positions maintain a historical record of investment activity, including:
     - Initial investment amount
@@ -180,19 +184,16 @@ A **User Event** denotes a captured timestamped user action within the applicati
 - investment_proceeds_wallet_transfer
 - assets_sale
 - wallet_funding_failed
-- kyc_failed
 - withdrawal_failed
 
 ### 2.4. Transactions
 
-A **transaction** captures and tracks every money movement within the application. Witin the FinFlow application
+A **transaction** captures and tracks every money movement within the application. Within the FinFlow application
 context, transactions are generated for the following activities:
 - **Wallet Funding** – Transfer of funds from an external bank account or payment source into a user's FinFlow wallet.
 - **Wallet Withdrawal** – Transfer of funds from a user's FinFlow wallet to an external bank account.
 - **Investment Position Funding** – Transfer of funds from a user's wallet into a savings or investment position.
-- **Investment Proceeds Wallet Transfer** – Transfer of principal and accrued returns from a matured or terminated investment position back into the user's wallet.
-- **Early Withdrawal Penalty** – Fee charged when a user terminates an eligible investment position before its maturity date.
-- **Asset Sale Proceeds Transfer** – Transfer of proceeds generated from the sale of investment assets into the user's wallet.
+- **Investment Proceeds Wallet Transfer** – Transfer of principal and accrued returns from a matured or withdrawn_early investment position back into the user's wallet.
 
 Transactions serve as the primary source for:
 - Wallet balance calculations
@@ -202,7 +203,7 @@ Transactions serve as the primary source for:
 - Cash flow reporting
 - Customer financial behaviour analysis
 
-Each transaction records the amount, transaction type, source account, destination account, transaction timestamp, and transaction status.
+Each transaction records the amount, transaction type, source account, transaction timestamp, and transaction status.
 
 ---
 
@@ -291,6 +292,7 @@ Generated Tables:
 - dim_user
 - dim_wallet
 - fact_user_event
+- fact_wallet_balance
 
 ### app_login
 
@@ -320,6 +322,7 @@ Business Rules:
 - Wallet funding must occur before account activation.
 
 Generated Tables:
+- dim_user
 - fact_user_event
 
 
@@ -327,6 +330,7 @@ Generated Tables:
 
 Trigger:
 - User must have completed KYC
+- User must be logged into the application
 
 Business Rule:
 - User must have completed KYC verification.
@@ -339,6 +343,7 @@ Generated Tables:
 - fact_user_event
 - fact_transaction
 - dim_wallet
+- fact_wallet_balance
 
 ### review_plan_options
 
@@ -358,7 +363,7 @@ Trigger:
 - User must be logged into the application
 - User must have reviewed possible plan options
 - User must have completed identity verification (KYC)
-- User's account must be activated by completing and initial wallet funding
+- User's account must be activated by completing an initial wallet funding
 
 Business Rule:
 - User selects a specific savings or investment plan.
@@ -393,6 +398,7 @@ Generated Tables:
 - fact_investment_position
 - fact_user_event
 - fact_transaction
+- fact_wallet_balance
 
 ### investment_plan_created
 
@@ -417,6 +423,7 @@ Generated Tables:
 - fact_investment_position
 - fact_user_event
 - fact_transaction
+- fact_wallet_balance
 
 ### review_current_investment
 Trigger:
@@ -462,9 +469,9 @@ Trigger:
 - This is a system generated event, it does not require any user login
 
 Business Rule:
-- This event is automatically generated when an investment reaches the end of its tenure.
+- This event is automatically generated when an investment reaches its maturity date.
 - No user action is required to trigger this event.
-- Only active investment positions can vest.
+- Only active investment positions and plans with a pre-defined tenure period can vest.
 - Vested investments become eligible for proceeds transfer back to the user's wallet.
 - This event represents successful completion of an investment lifecycle.
 
@@ -473,18 +480,19 @@ Generated Tables:
 
 ### investment_proceeds_wallet_transfer
 Trigger:
-- An investment position has either matured or been terminated through an approved early withdrawal.
+- An investment position has either matured (vested) or been terminated (withdrwan early) through an approved early withdrawal.
 
 Business Rule:
 - Principal and accrued returns are transferred from the investment position to the user's wallet.
 - Applicable early withdrawal penalties are deducted prior to transfer.
 - A transaction record is created to capture the transfer of funds.
 - The transfer amount must be greater than zero.
-- This event restores liquidity to the user's wallet.
 
 Generated Tables:
 - fact_user_event
 - fact_transaction
+- fact_investment_position
+- fact_wallet_balance
 
 ### wallet_withdrawal
 Trigger:
@@ -524,6 +532,7 @@ Trigger:
 - User must be logged into the application.
 - User must have completed account registration.
 - User must initiate a wallet funding attempt.
+
 Business Rule:
 - Wallet funding transaction fails before funds are credited to the wallet.
 - Failure may occur due to insufficient funds, payment provider issues, bank declines, network issues, or fraud checks.
@@ -531,13 +540,16 @@ Business Rule:
 - Multiple failed funding attempts may occur before a successful wallet funding.
 - A successful retry may subsequently trigger a `wallet_funded` event.
 - This event is used to measure funding friction and activation drop-off.
+
 Generated Tables:
 - fact_user_event
+- fact_transaction
 
 ### withdrawal_failed
 Trigger:
 - User must be logged into the application.
 - User must initiate a wallet withdrawal request.
+
 Business Rule:
 - Withdrawal request fails before funds are successfully transferred to the user's destination account.
 - Failure may occur due to insufficient wallet balance, invalid account details, payment processor issues, fraud controls, or compliance restrictions.
@@ -545,8 +557,10 @@ Business Rule:
 - User may retry the withdrawal at a later time.
 - A successful retry may subsequently trigger a wallet_withdrawal event.
 - This event is used to monitor withdrawal reliability and customer experience.
+
 Generated Tables:
 - fact_user_event
+- fact_transaction
 
 
 ### Transaction Generation Rules
@@ -559,8 +573,6 @@ Transaction Types:
 - Wallet Withdrawal
 - Investment Funding
 - Investment Proceeds Transfer
-- Early Withdrawal Penalty
-- Asset Sale
 
 ---
 
@@ -594,6 +606,11 @@ fact_investment_position
  ├── dim_product
  └── dim_date
 
+ fact_wallet_balance
+    ├── dim_user
+    ├── dim_wallet
+    └── dim_date
+
  ### 4.3 Fact Grain Table
 
  ### fact_user_event
@@ -611,6 +628,11 @@ One record per financial transaction.
 Grain:
 One record per investment position.
 
+### fact_wallet_balance
+
+Grain:
+One record per user wallet account.
+
 ### 4.4 Slowly Changing Dimensions
 The platform uses Type 1 dimensions.
 
@@ -622,7 +644,7 @@ Python
 ↓
 Parquet
 ↓
-S3
+Azure Blob Storage
 ↓
 Snowflake Bronze
 ↓
@@ -704,11 +726,11 @@ Product KPIs
 Financial KPIs
 - AUM
 - Net Deposits
+- Average Wallet Balance
 
 Retention KPIs
 - Retention Rate
 - Churn Rate
-
 
 
 ---
@@ -730,7 +752,7 @@ All business metrics and KPI definitions can be found on `docs/metrics/metrics_d
 ## 8. Data Refresh and Cadence
 | Component                        | Cadence       | Description                                                                              |
 | ---------------------------------| ------------- | ----------------------------------------------------------------------------------------|
-| User Generation                  | Daily         | Generate new users, customer attributes, persona assignments, and acquisition channels. |
+| User Generation & Updates                 | Daily         | Generate new users and update kyc activation status. |
 | Wallet Updates                   | Daily         | Create new wallets and update wallet activation status based on user activity.          |
 | Events & Transaction Generation  | Daily         | Generate customer activity events, deposits, withdrawals, transfers, and investment transactions. |
 | dbt Model Refresh                | Daily         | Incremental dbt transformations and loading newly generated data                  |
@@ -741,7 +763,7 @@ All business metrics and KPI definitions can be found on `docs/metrics/metrics_d
 
 1. Generate synthetic source data using Python
 2. Validate and stage datasets in DuckDB
-3. Persist raw data to Amazon S3
+3. Persist raw data to Azure Blob Storage
 4. Load data into Snowflake
 5. Execute dbt transformations
 6. Run data quality validations
@@ -754,7 +776,7 @@ The daily refresh process follows a strict dependency chain:
 
 1. Python Data Generation
 2. DuckDB Validation & Staging
-3. Amazon S3 Load and Partitioning
+3. Azure Blob Storage Load and Partitioning
 4. Snowflake Load
 5. dbt Model Refresh
 6. Data Quality Checks
@@ -775,6 +797,7 @@ All generated data is expected to be available for reporting by 09:00 GMT+1 each
 | fact_user_event | Incremental | Load newly generated customer events. |
 | fact_investment_position | Incremental | Load newly created savings and investment positions. |
 | fact_transaction | Incremental | Load newly generated financial transactions. |
+| fact_wallet_balance | Incremental | Load wallet balance updates. |
 
 Historical records are preserved to support trend analysis, cohort analysis, retention reporting, and executive KPI reporting.
 
@@ -792,13 +815,13 @@ The following validation checks are executed prior to loading data:
 
 ---
 ## 9. Document Ownership
-This document is authored and maintained by [Ajibola Komolafe](https://www.linkedin.com/in/ajibola-k-4ba921123/) as part of a solo portfolio project. All business rules, simulation logic, and metric definitions reflect intentional design decisions made by the author.
+This document is authored and maintained by [Ajibola Komolafe](https://www.linkedin.com/in/ajibola-komo/) as part of a solo portfolio project. All business rules, simulation logic, and metric definitions reflect intentional design decisions made by the author.
 
 ---
 ## 10. Conclusion
 This framework enables:
 - End-to-end product analytics across acquisition, activation, engagement, retention, and investment behavior.
-- Scalable analytics architecture leveraging Amazon S3, Snowflake, dbt, Airflow, and Power BI.
+- Scalable analytics architecture leveraging Azure Blob Storage, Snowflake, dbt, Airflow, and Power BI.
 - A scalable analytics engineering workflow built on synthetic but business-realistic data.
 - Dimensional modeling, metric governance, and semantic reporting best practices.
 - Portfolio-ready dashboards and analytical use cases spanning product, growth, operations, and executive reporting.
@@ -806,7 +829,7 @@ This framework enables:
 ---
 
 ## Project Links
-[LinkedIn](https://www.linkedin.com/in/ajibola-k-4ba921123/) · [GitHub](https://github.com/ajibola-komo/FinFlow-Product-Analytics-Engineering-Platform) ·
+[LinkedIn](https://www.linkedin.com/in/ajibola-komo/) · [GitHub](https://github.com/ajibola-komo/FinFlow-Product-Analytics-Engineering-Platform) ·
 [Power BI](https://) · [Kaggle Dataset](https://www.kaggle.com/datasets/ajibsss/)
 
 

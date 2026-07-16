@@ -11,5 +11,4 @@ CREATE OR REPLACE TABLE FACT_USER_EVENT (
     transaction_type_id int,
     transaction_id bigint, -- degenerate key
     investment_id bigint --degenerate key
-    
 );

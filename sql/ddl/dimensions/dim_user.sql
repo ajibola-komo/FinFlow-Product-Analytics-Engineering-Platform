@@ -20,5 +20,6 @@ CREATE OR REPLACE TABLE dim_user(
     customer_behaviour_segment VARCHAR(50) NOT NULL,
     is_immediate_login boolean NOT NULL,
     supposed_activation_date TIMESTAMP,
-    kyc_completion_date TIMESTAMP
+    kyc_completion_date TIMESTAMP,
+    last_login_time timestamp
 )

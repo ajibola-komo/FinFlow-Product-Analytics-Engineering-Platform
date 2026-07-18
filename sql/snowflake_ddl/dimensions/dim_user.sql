@@ -15,5 +15,6 @@ CREATE OR REPLACE TABLE dim_user(
     birth_date_id INT NOT NULL,
     signup_date TIMESTAMP NOT NULL,
     signup_date_id INT NOT NULL,
-    customer_behaviour_segment VARCHAR(50) NOT NULL
+    customer_behaviour_segment VARCHAR(50) NOT NULL,
+    last_login_at TIMESTAMP
 )

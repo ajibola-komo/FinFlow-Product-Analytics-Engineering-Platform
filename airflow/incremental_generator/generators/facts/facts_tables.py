@@ -184,7 +184,7 @@ def generate_facts(conn, num_of_events):
     #let's model investment vesting events
     vestable_investments = conn.execute(F'''SELECT * from fact_investment_position where investment_maturity_date::DATE = '{GENERATION_START_DATE}' ''').df()
 
-    start_position = end_position
+    start_position = end_wallet_activations
     end_position = start_position + len(vestable_investments)
 
     user_ids[start_position:end_position] = vestable_investments['user_id'].values
@@ -227,7 +227,11 @@ def generate_facts(conn, num_of_events):
                              w.user_id = u.user_id left join fact_investment_position i on i.user_id = u.user_id where w.wallet_activated_at::DATE 
     between '{GENERATION_START_DATE}' - interval 7 day and '{GENERATION_START_DATE}' - interval 1 day and i.user_id is null ''').df()
     
-    customer_subset_1 = all_users.sample(frac = 0.05, random_state=1)
+    #these users will just login and review plan options, but will not make an investment. We will create a new dataframe to hold the users who made an investment and their corresponding investment details.
+    customer_subset_1 = all_users.sample(frac = 0.7, random_state=1)
+
+    #these are the users that will create an investment today
+    customer_subset_2 = all_users.drop(customer_subset_1.index)
 
     total_customer_subset_1 = len(customer_subset_1)
 
@@ -239,11 +243,20 @@ def generate_facts(conn, num_of_events):
     end_position = start_position + total_customer_subset_1
 
     user_ids[start_position:end_position] = customer_subset_1["user_id"]
-    event_time[start_position:end_position] = [GENERATION_DATE + pd.to_timedelta(ro,unit="m") for ro in random_offset]
+    event_time[start_position:end_position] = [GENERATION_START_DATE + pd.to_timedelta(ro,unit="m") for ro in random_offset]
     event_type_ids[start_position:end_position] = event_type_map.get("app_login")
     device_types[start_position:end_position] = np.array([device_type_map.get(uid) for uid in customer_subset_1["user_id"]])
 
     login_time_for_review_plan_options = event_time[start_position:end_position]
+
+    login_df = pd.DataFrame({
+        'user_id': user_ids[start_position:end_position],
+        'last_login_at': login_time_for_review_plan_options
+    })
+
+    conn.register('login_df',login_df)
+
+    conn.execute('''update dim_user d set last_login_at = l.last_login_at from login_df where d.user_id = l.user_id''')
 
     start_position = end_position
     end_position = start_position + total_customer_subset_1
@@ -253,7 +266,6 @@ def generate_facts(conn, num_of_events):
     event_type_ids[start_position:end_position] = event_type_map.get("review_plan_options")
     device_types[start_position:end_position] = np.array([device_type_map.get(uid) for uid in customer_subset_1["user_id"]])
 
-    customer_behaviour_segment_wallet_activated_users = wallet_activated_users_df['customer_behaviour_segment']
 
     probability_of_making_first_investment = [
     np.random.choice(USERS_MAKES_FIRST_INVESTMENT_AFTER_FUNDING,p=CUSTOMER_BEHAVIOUR_SEGMENT_MAP[cp]['wallet_to_investment_conversion_probability'])

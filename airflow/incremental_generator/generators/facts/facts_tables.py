@@ -7,6 +7,8 @@ from incremental_generator.config.constants import (IMMEDIATE_LOGINS_TIME_FRAME,
                                   
 from datetime import timedelta
 from dateutil.relativedelta import relativedelta
+from incremental_generator.generators.facts.helper_functions import (update_last_login_timestamp, update_kyc_completion_status, update_wallet_balance_topup,
+debit_wallet_balance, wallet_activation_funding, get_current_wallet_balance )
 
 
 def generate_facts(conn, num_of_events):
@@ -19,6 +21,8 @@ def generate_facts(conn, num_of_events):
     
     all_users_data = conn.execute('''SELECT user_id, signup_date, customer_behaviour_segment, device_type,supposed_activation_date, kyc_completion_date  FROM dim_user order by signup_date''').df()
     all_wallets_data = conn.execute('''SELECT user_id, wallet_id, wallet_created_at, wallet_activated_at from dim_wallet order by wallet_created_at''').df()
+
+    last_investment_id = conn.execute('''SELECT coalesce(max(investment_id),0) as investment_id from fact_investment_position''').fetchone()[0]
 
     plans_data = conn.execute('''SELECT * FROM dim_plan''').df()
 
@@ -76,9 +80,9 @@ def generate_facts(conn, num_of_events):
 
     #new user logins
     new_users_logins = conn.execute(f'''SELECT user_id, signup_date, kyc_completed, is_activated_user, customer_behaviour_segment,
-                                    is_immediate_login
-                                     FROM dim_user
-    where signup_date BETWEEN '{GENERATION_START_TIMESTAMP}' AND '{GENERATION_END_TIMESTAMP}' AND is_immediate_login = True order by signup_date''').df()
+                                    is_immediate_login FROM dim_user where signup_date 
+                                    BETWEEN '{GENERATION_START_TIMESTAMP}' AND '{GENERATION_END_TIMESTAMP}' AND 
+                                    is_immediate_login = True order by signup_date''').df()
     
     #post signup immediate logins 
     immediate_login_timeframe = np.random.randint(IMMEDIATE_LOGINS_TIME_FRAME[0],IMMEDIATE_LOGINS_TIME_FRAME[1], size=len(new_users_logins))
@@ -94,6 +98,8 @@ def generate_facts(conn, num_of_events):
     device_types[start_immediate_logins:end_immediate_logins] = np.array([device_type_map.get(uid) for uid in new_users_logins["user_id"]])
     event_ids[start_immediate_logins:end_immediate_logins] = np.arange(last_event_id + 1, 1 + last_event_id + total_new_users)
     last_event_id = event_ids[start_immediate_logins:end_immediate_logins].max()
+
+    update_last_login_timestamp(conn,new_users_logins["user_id"].values,event_time[start_immediate_logins:end_immediate_logins])
 
     #kyc_completed_users
     sure_kyc_completed_users = conn.execute(f'''SELECT user_id, kyc_completed, device_type, kyc_completion_date from dim_user 
@@ -114,6 +120,9 @@ def generate_facts(conn, num_of_events):
     event_ids[start_position:end_position] = np.arange(last_event_id + 1, 1 + last_event_id + len(sure_kyc_completed_users))
     last_event_id = event_ids[start_position:end_position].max()
 
+    update_last_login_timestamp(conn,sure_kyc_completed_users["user_id"],event_time[start_position:end_position])
+
+
     start_position = end_position
     end_position = start_position + len(sure_kyc_completed_users)
 
@@ -124,10 +133,10 @@ def generate_facts(conn, num_of_events):
     event_ids[start_position:end_position] = np.arange(last_event_id + 1, 1 + last_event_id + len(sure_kyc_completed_users))
     last_event_id = event_ids[start_position:end_position].max()
 
-    kyc_completion_time = event_time[start_position:end_position]
+    update_kyc_completion_status(conn,sure_kyc_completed_users["user_id"])
 
     #wallet activation
-    wallet_activation_events = conn.execute(f'''SELECT * FROM dim_user where supposed_activation_date = '{GENERATION_START_DATE}' ''').df()
+    wallet_activation_events = conn.execute(f'''SELECT * FROM dim_user where supposed_activation_date::DATE = '{GENERATION_START_DATE}' ''').df()
 
     segment_customers = dict(zip(
         wallet_activation_events["user_id"],
@@ -166,25 +175,18 @@ def generate_facts(conn, num_of_events):
     event_ids[start_wallet_activations:end_wallet_activations] = np.arange(last_event_id + 1, 1 + last_event_id + total_wallet_activated_events)
     last_event_id = event_ids[start_wallet_activations:end_wallet_activations].max()
 
-    df_current_wallet_updation = pd.DataFrame({
-        'user_id':wallet_activation_events["user_id"],
-        'transaction_amount':wallet_activation_events["transaction_amount"],
-        'updated_at':wallet_activation_events["supposed_activation_date"],
-        'transaction_ids':transaction_ids[start_wallet_activations:end_wallet_activations],
-        'event_ids': event_ids[start_wallet_activations:end_wallet_activations]
-    })
+    wallet_user_ids = wallet_activation_events["user_id"]
+    amount = wallet_activation_events["transaction_amount"]
+    updated_at = wallet_activation_events["supposed_activation_date"]
+    tran_ids = transaction_ids[start_wallet_activations:end_wallet_activations]
+    ev_ids = event_ids[start_wallet_activations:end_wallet_activations]
 
-    conn.register('wallet_updation',df_current_wallet_updation)
-
-    conn.execute(f'''update dim_wallet d set wallet_activated_at = '{GENERATION_START_DATE}' from wallet_updation a where d.user_id = a.user_id ''')
-    conn.execute(f'''update fact_wallet_balance d set d.current_balance = (d.current_balance + a.transaction_amount),
-    d.updated_at = a.updated_at, d.updated_at_id = CAST(STRFTIME(a.updated_at, '%Y%m%d') AS INTEGER), last_transaction_id = a.transaction_ids, last_event_id = a.event_ids 
-                 from wallet_updation a where d.user_id = a.user_id ''')
+    wallet_activation_funding(conn, wallet_user_ids, amount, updated_at, tran_ids, ev_ids)
 
     #let's model investment vesting events
     vestable_investments = conn.execute(F'''SELECT * from fact_investment_position where investment_maturity_date::DATE = '{GENERATION_START_DATE}' ''').df()
 
-    start_position = end_wallet_activations
+    start_position = end_position
     end_position = start_position + len(vestable_investments)
 
     user_ids[start_position:end_position] = vestable_investments['user_id'].values
@@ -222,6 +224,8 @@ def generate_facts(conn, num_of_events):
         UPDATE fact_investment_position f set investment_status = 'Redeemed' from vestable_investment_ids v where f.investment_id = v.investment_id
     ''')
 
+    conn.unregister('vestable_investment_ids')
+
     #people that create investments
     all_users = conn.execute(f'''SELECT w.user_id as user_id, u.customer_behaviour_segment, i.user_id as unused FROM dim_wallet w join dim_user u on 
                              w.user_id = u.user_id left join fact_investment_position i on i.user_id = u.user_id where w.wallet_activated_at::DATE 
@@ -239,24 +243,19 @@ def generate_facts(conn, num_of_events):
 
     #these users will just login and review plan options, but will not make an investment. We will create a new dataframe to hold the users who made an investment and their corresponding investment details.
 
-    start_position = end_wallet_activations
+    start_position = end_position
     end_position = start_position + total_customer_subset_1
 
     user_ids[start_position:end_position] = customer_subset_1["user_id"]
     event_time[start_position:end_position] = [GENERATION_START_DATE + pd.to_timedelta(ro,unit="m") for ro in random_offset]
     event_type_ids[start_position:end_position] = event_type_map.get("app_login")
     device_types[start_position:end_position] = np.array([device_type_map.get(uid) for uid in customer_subset_1["user_id"]])
+    event_ids[start_position:end_position] = np.arange(last_event_id + 1, last_event_id + 1 + total_customer_subset_1 )
+    last_event_id = event_ids[start_position:end_position].max() 
 
     login_time_for_review_plan_options = event_time[start_position:end_position]
 
-    login_df = pd.DataFrame({
-        'user_id': user_ids[start_position:end_position],
-        'last_login_at': login_time_for_review_plan_options
-    })
-
-    conn.register('login_df',login_df)
-
-    conn.execute('''update dim_user d set last_login_at = l.last_login_at from login_df where d.user_id = l.user_id''')
+    update_last_login_timestamp(conn,user_ids[start_position:end_position], login_time_for_review_plan_options)
 
     start_position = end_position
     end_position = start_position + total_customer_subset_1
@@ -265,20 +264,11 @@ def generate_facts(conn, num_of_events):
     event_time[start_position:end_position] = [last_login + timedelta(minutes=np.random.randint(2, 5)) for last_login in login_time_for_review_plan_options]
     event_type_ids[start_position:end_position] = event_type_map.get("review_plan_options")
     device_types[start_position:end_position] = np.array([device_type_map.get(uid) for uid in customer_subset_1["user_id"]])
+    event_ids[start_position:end_position] = np.arange(last_event_id + 1, last_event_id + 1 + total_customer_subset_1 )
+    last_event_id = event_ids[start_position:end_position].max()
 
 
-    probability_of_making_first_investment = [
-    np.random.choice(USERS_MAKES_FIRST_INVESTMENT_AFTER_FUNDING,p=CUSTOMER_BEHAVIOUR_SEGMENT_MAP[cp]['wallet_to_investment_conversion_probability'])
-    for cp in customer_behaviour_segment_wallet_activated_users
-]
-
-    mins_to_first_investment = [
-    np.random.randint(
-        CUSTOMER_BEHAVIOUR_SEGMENT_MAP[cp]['mins_to_first_investment'][0],
-        CUSTOMER_BEHAVIOUR_SEGMENT_MAP[cp]['mins_to_first_investment'][1] + 1
-    )
-    for cp in customer_behaviour_segment_wallet_activated_users
-]
+    total_customer_subset_2 = len(customer_subset_2) 
 
     first_investment_type = [np.random.choice(
         FIRST_INVESTMENT_TYPE,
@@ -286,29 +276,33 @@ def generate_facts(conn, num_of_events):
             'first_investment_type_probability'
         ]
     )
-    for cp in customer_behaviour_segment_wallet_activated_users]
+    for cp in customer_subset_2['customer_behaviour_segment']]
 
-    wallet_activated_users_df['makes_first_investment'] = probability_of_making_first_investment
+    uids = customer_subset_2['user_id']
 
-    wallet_activated_users_df['mins_to_first_investment'] = mins_to_first_investment
+    customer_subset_2['first_investment_type'] = first_investment_type
 
-    wallet_activated_users_df['first_investment_type'] = first_investment_type
+    balances = get_current_wallet_balance(conn,uids)
 
-    customer_subset_2 = wallet_activated_users_df[wallet_activated_users_df['makes_first_investment'] == True]
+    customer_subset_2 = customer_subset_2.merge(balances, on='user_id', how='left')
 
     customer_subset_2 = customer_subset_2.copy().reset_index(drop=True)
 
-    total_customer_subset_2 = len(customer_subset_2)
+    random_offset = np.random.randint(0,1200,size=total_customer_subset_2)
 
     start_position = end_position
     end_position = start_position + total_customer_subset_2
 
     user_ids[start_position:end_position] = customer_subset_2["user_id"]
-    event_time[start_position:end_position] = [last_login + timedelta(minutes=np.random.randint(0, mtft)) for last_login,mtft in zip(customer_subset_2["last_login_time"],customer_subset_2["mins_to_first_investment"])]
+    event_time[start_position:end_position] = [GENERATION_START_DATE + pd.to_timedelta(ro,unit="m") for ro in random_offset]
     event_type_ids[start_position:end_position] = event_type_map.get("app_login")
     device_types[start_position:end_position] = np.array([device_type_map.get(uid) for uid in customer_subset_2["user_id"]])
+    event_ids[start_position:end_position] = np.arange(last_event_id + 1, last_event_id + 1 + total_customer_subset_2 )
+    last_event_id = event_ids[start_position:end_position].max()
 
     login_time_for_review_plan_options_2 = event_time[start_position:end_position]
+
+    update_last_login_timestamp(conn, customer_subset_2["user_id"],  login_time_for_review_plan_options_2)
 
     start_position = end_position
     end_position = start_position + total_customer_subset_2
@@ -317,6 +311,8 @@ def generate_facts(conn, num_of_events):
     event_time[start_position:end_position] = [last_login + timedelta(minutes=np.random.randint(2, 5)) for last_login in login_time_for_review_plan_options_2]
     event_type_ids[start_position:end_position] = event_type_map.get("review_plan_options")
     device_types[start_position:end_position] = np.array([device_type_map.get(uid) for uid in customer_subset_2["user_id"]])
+    event_ids[start_position:end_position] = np.arange(last_event_id + 1, last_event_id + 1 + total_customer_subset_2 )
+    last_event_id = event_ids[start_position:end_position].max()
 
     last_review_time_for_investment = event_time[start_position:end_position]
 
@@ -327,6 +323,8 @@ def generate_facts(conn, num_of_events):
     event_time[start_position:end_position] = [last_review + timedelta(minutes=np.random.randint(1, 3)) for last_review in last_review_time_for_investment]
     event_type_ids[start_position:end_position] = event_type_map.get("plan_selected")
     device_types[start_position:end_position] = np.array([device_type_map.get(uid) for uid in customer_subset_2["user_id"]])
+    event_ids[start_position:end_position] = np.arange(last_event_id + 1, last_event_id + 1 + total_customer_subset_2 )
+    last_event_id = event_ids[start_position:end_position].max()
 
 
     last_plan_selected_time = event_time[start_position:end_position]
@@ -335,7 +333,7 @@ def generate_facts(conn, num_of_events):
     end_position = start_position + total_customer_subset_2
 
     user_ids[start_position:end_position] = customer_subset_2["user_id"]
-    event_time[start_position:end_position] = [last_review + timedelta(minutes=np.random.randint(3,5)) for last_review in last_plan_selected_time]
+    event_time[start_position:end_position] = [last_review + timedelta(minutes=np.random.randint(3,6)) for last_review in last_plan_selected_time]
     device_types[start_position:end_position] = np.array([device_type_map.get(uid) for uid in customer_subset_2["user_id"]])
 
     investment_type_event_type = [
@@ -351,7 +349,7 @@ def generate_facts(conn, num_of_events):
     is_money_movement_activities[start_position:end_position] = True
     transaction_ids[start_position:end_position] = np.arange(last_transaction_id + 1, last_transaction_id +  len(customer_subset_2) + 1)
     transaction_type_ids[start_position:end_position] = [transaction_type_map.get("investment_funding") for _ in range(len(customer_subset_2))]
-    investment_ids[start_position:end_position] = np.arange(1000, 1000 + len(customer_subset_2))
+    investment_ids[start_position:end_position] = np.arange(last_investment_id+1, last_investment_id+ 1 + len(customer_subset_2))
     last_investment_id = investment_ids[start_position:end_position].max()
 
     customer_subset_2['select_plan_ids'] = np.empty(len(customer_subset_2),dtype=object)
@@ -380,866 +378,20 @@ def generate_facts(conn, num_of_events):
     0.95,
     len(customer_subset_2)
 )
-    amount_invested[start_position:end_position] = (customer_subset_2["current_wallet_balance"].values * investment_pct)
+    amount_invested[start_position:end_position] = (customer_subset_2["current_balance"] * investment_pct)
 
     transaction_statuses[start_position:end_position] = ["success" for _ in range(len(customer_subset_2))]
-    transaction_amounts[start_position:end_position] = (customer_subset_2["current_wallet_balance"].values * investment_pct)
-    updated_balance = customer_subset_2["current_wallet_balance"].values - transaction_amounts[start_position:end_position]
+    transaction_amounts[start_position:end_position] = (customer_subset_2["current_balance"].values * investment_pct)
+    event_ids[start_position:end_position] = np.arange(last_event_id + 1, last_event_id + total_customer_subset_2 + 1)
 
     last_transaction_id = transaction_ids[start_position:end_position].max()
 
-    balance_map = dict(
-        zip(
-            customer_subset_2["user_id"].values,
-            updated_balance
-        )
-    )
+    debit_wallet_balance(conn,customer_subset_2['user_id'], transaction_amounts[start_position:end_position], event_time[start_position:end_position],
+                         transaction_ids[start_position:end_position], event_ids[start_position:end_position])
 
-    mask = wallet_activated_users_df["user_id"].isin(balance_map)
 
-    wallet_activated_users_df.loc[mask,"current_wallet_balance"] = wallet_activated_users_df.loc[mask,"user_id"].map(balance_map)
 
-    customers_who_have_invested_df = pd.DataFrame({
-        "user_id": user_ids[start_position:end_position],
-        "last_login_time":event_time[start_position:end_position],
-        "customer_behaviour_segment":customer_subset_2["customer_behaviour_segment"]
-    })
 
-    avg_number_of_logins_per_month = np.array([
-    np.random.randint(
-        CUSTOMER_BEHAVIOUR_SEGMENT_MAP[bh]["monthly_logins"][0],
-        CUSTOMER_BEHAVIOUR_SEGMENT_MAP[bh]["monthly_logins"][1] + 1
-    )
-    for bh in customers_who_have_invested_df["customer_behaviour_segment"]
-])
-    
-
-    customers_who_have_invested_df["monthly_logins"] = avg_number_of_logins_per_month
-
-    monthly_portfolio_reviews = np.array([
-    np.random.randint(
-        max(1, int(logins * 0.3)),
-        max(2, int(logins * 0.7))
-    )
-    for logins in avg_number_of_logins_per_month
-])
-
-    customers_who_have_invested_df["monthly_portfolio_reviews"] = monthly_portfolio_reviews
-
-    monthly_wallet_fundings = np.array([
-        np.random.randint(
-           CUSTOMER_BEHAVIOUR_SEGMENT_MAP[bh]["monthly_wallet_fundings"][0],
-        CUSTOMER_BEHAVIOUR_SEGMENT_MAP[bh]["monthly_wallet_fundings"][1] + 1
-    )
-    for bh in customers_who_have_invested_df["customer_behaviour_segment"]
-    ])
-
-    monthly_investment_position_creation = np.array([
-        np.random.randint(
-           CUSTOMER_BEHAVIOUR_SEGMENT_MAP[bh]["monthly_investment_position_creation"][0],
-        CUSTOMER_BEHAVIOUR_SEGMENT_MAP[bh]["monthly_investment_position_creation"][1] + 1
-    )
-    for bh in customers_who_have_invested_df["customer_behaviour_segment"]
-    ])
-
-    monthly_savings_position_creation = np.array([
-        np.random.randint(
-           CUSTOMER_BEHAVIOUR_SEGMENT_MAP[bh]["monthly_savings_position_creation"][0],
-        CUSTOMER_BEHAVIOUR_SEGMENT_MAP[bh]["monthly_savings_position_creation"][1] + 1
-    )
-    for bh in customers_who_have_invested_df["customer_behaviour_segment"]
-    ])
-    
-    customers_who_have_invested_df["monthly_wallet_fundings"] = monthly_wallet_fundings
-
-    customers_who_have_invested_df["monthly_plan_fundings"] = np.maximum(monthly_wallet_fundings - 2, 0)
-
-    customers_who_have_invested_df["monthly_investment_position_creation"] = monthly_investment_position_creation
-
-    customers_who_have_invested_df["monthly_savings_position_creation"] = monthly_savings_position_creation
-
-    customers_who_have_invested_df["investment_low_bound"] = np.array([
-        CUSTOMER_BEHAVIOUR_SEGMENT_MAP[bh]["average_investment_amount"][0]
-        for bh in customers_who_have_invested_df["customer_behaviour_segment"]
-    ])
-
-    customers_who_have_invested_df["investment_high_bound"] = np.array([
-        CUSTOMER_BEHAVIOUR_SEGMENT_MAP[bh]["average_investment_amount"][1]
-        for bh in customers_who_have_invested_df["customer_behaviour_segment"]
-    ])
-
-
-    active_users_subset = customers_who_have_invested_df[
-    (customers_who_have_invested_df["customer_behaviour_segment"] == "High_Engagement_High_Balance")
-    |
-    (customers_who_have_invested_df["customer_behaviour_segment"] == "High_Engagement_Low_Balance")
-    |
-    (customers_who_have_invested_df["customer_behaviour_segment"] == "Moderate_Engagement_High_Balance")
-    |
-    (customers_who_have_invested_df["customer_behaviour_segment"] == "Moderate_Engagement_Low_Balance")
-].copy()
-
-    low_activity_users_subset = customers_who_have_invested_df[
-        (customers_who_have_invested_df["customer_behaviour_segment"] == "Low_Engagement_High_Balance")
-    |
-    (customers_who_have_invested_df["customer_behaviour_segment"] == "Low_Engagement_Low_Balance")
-    ]
-
-    
-    active_users_sample = active_users_subset.sample(frac=0.9, random_state = 1)
-
-    low_activity_users_sample = low_activity_users_subset.sample(frac=0.65, random_state = 1)
-
-    engagement_events = []
-
-    for _, customer in active_users_sample.iterrows():
-
-
-    # simulate one month after investment creation
-        simulation_start = customer["last_login_time"]
-
-        month_end = TODAY
-
-        delta = relativedelta(month_end, simulation_start)
-
-        months = max(1,delta.years * 12 + delta.months)
-
-        monthly_logins = np.random.randint(
-            CUSTOMER_BEHAVIOUR_SEGMENT_MAP[customer["customer_behaviour_segment"]]["monthly_logins"][0],
-            CUSTOMER_BEHAVIOUR_SEGMENT_MAP[customer["customer_behaviour_segment"]]["monthly_logins"][1] + 1
-        ,size=months)
-
-
-        for idx in range(months):
-
-            current_month_start = (simulation_start+ relativedelta(months=idx))
-
-            current_month_end = (current_month_start+ relativedelta(months=1))
-
-            days_in_month = (current_month_end- current_month_start).days
-
-            
-            monthly_reviews = np.random.randint(
-            max(1, int(monthly_logins[idx] * 0.15)),
-            max(2, int(monthly_logins[idx] * 0.4)) + 1
-        )
-    # Login events
-            login_times = sorted([current_month_start + timedelta(days=np.random.randint(0, days_in_month),hours=np.random.randint(0, 24),minutes=np.random.randint(0, 60))
-                for _ in range(monthly_logins[idx])])
-
-            for login_time in login_times:
-                engagement_events.append({"user_id": customer["user_id"],"event_time": login_time,"event_type": "app_login"})
-
-    # Portfolio reviews must happen after a login
-            if len(login_times) > 0:
-
-                review_login_times = np.random.choice(
-                login_times,
-                size=min(monthly_reviews, len(login_times)),
-                replace=False)
-
-                for login_time in review_login_times:
-
-                    review_time = login_time + timedelta(minutes=np.random.randint(1, 30))
-
-                    engagement_events.append({
-                "user_id": customer["user_id"],
-                "event_time": review_time,
-                "event_type": "review_current_investment"
-            })
-
-    engagement_events_df = pd.DataFrame(engagement_events)
-
-    start_position = end_position
-    end_position = start_position + len(engagement_events_df)
-
-    user_ids[start_position:end_position] = (engagement_events_df["user_id"].values)
-
-    event_time[start_position:end_position] = (engagement_events_df["event_time"])
-
-    event_type_ids[start_position:end_position] = [event_type_map.get(event_type)for event_type in engagement_events_df["event_type"]]
-
-    device_types[start_position:end_position] = [device_type_map.get(uid)for uid in engagement_events_df["user_id"]]
-    
-    #portfolio reviews for low activity users
-    low_engagement_events = []
-
-
-    for _, customer in low_activity_users_sample.iterrows():
-
-    # simulate one month after investment creation
-        simulation_start = customer["last_login_time"]
-
-        delta = relativedelta(TODAY, simulation_start)
-
-        months = max(1,delta.years * 12 + delta.months)
-
-        for idx in range(months):
-
-            month_start = (simulation_start + relativedelta(months=idx))
-
-            month_end = (month_start + relativedelta(months=1))
-
-            days_in_month = (month_end - month_start).days
-
-            monthly_logins = np.random.randint(CUSTOMER_BEHAVIOUR_SEGMENT_MAP[customer["customer_behaviour_segment"]]["monthly_logins"][0],CUSTOMER_BEHAVIOUR_SEGMENT_MAP[customer["customer_behaviour_segment"]]["monthly_logins"][1] + 1)
-            monthly_reviews = np.random.randint(max(1, int(monthly_logins * 0.3)),max(2, int(monthly_logins * 0.7)) + 1)
-
-    # Login events
-            login_times = sorted([
-            month_start + timedelta(
-            days=np.random.randint(0, days_in_month),
-            hours=np.random.randint(0, 24),
-            minutes=np.random.randint(0, 60)
-            )for _ in range(monthly_logins)
-        ])
-
-            for login_time in login_times:
-                low_engagement_events.append({
-                "user_id": customer["user_id"],
-                "event_time": login_time,
-                "event_type": "app_login"})
-
-    # Portfolio reviews must happen after a login
-            if len(login_times) > 0:
-
-                review_login_times = np.random.choice(login_times,size=min(monthly_reviews, len(login_times)),replace=False)
-
-                for login_time in review_login_times:
-
-                    review_time = login_time + timedelta(minutes=np.random.randint(1, 30))
-
-                    low_engagement_events.append({
-                    "user_id": customer["user_id"],
-                    "event_time": review_time,
-                    "event_type": "review_current_investment"})
-
-    low_engagement_events_df = pd.DataFrame(low_engagement_events)
-
-    print("Low Engagement Events:", len(low_engagement_events_df))
-
-    
-    start_position = end_position
-    end_position = start_position + len(low_engagement_events_df)
-
-
-
-    user_ids[start_position:end_position] = (low_engagement_events_df["user_id"].values)
-
-    event_time[start_position:end_position] = (low_engagement_events_df["event_time"])
-
-    event_type_ids[start_position:end_position] = [event_type_map.get(event_type)for event_type in low_engagement_events_df["event_type"]]
-
-    device_types[start_position:end_position] = [device_type_map.get(uid)for uid in low_engagement_events_df["user_id"]]
-
-
-    # let's simulate new investment creation
-
-    wallet_funding_events = []
-    new_investment_events = []
-    new_investment_creation = []
-
-    for _, customer in customers_who_have_invested_df.iterrows():
-
-        simulation_start = customer["last_login_time"]
-
-        simulation_end = TODAY
-
-        delta = relativedelta(simulation_end, simulation_start)
-
-        months = max(1, delta.years * 12 + delta.months)
-
-        #print("currently running customer: ",customer["user_id"])
-
-        investment_low_bound = CUSTOMER_BEHAVIOUR_SEGMENT_MAP[customer["customer_behaviour_segment"]]["average_investment_amount"][0]
-        investment_high_bound = CUSTOMER_BEHAVIOUR_SEGMENT_MAP[customer["customer_behaviour_segment"]]["average_investment_amount"][1]
-
-        for idx in range(months):
-            
-            
-            month_start = (simulation_start + relativedelta(months=idx))
-
-            month_end = (month_start + relativedelta(months=1))
-
-            days_in_month = (month_end - month_start).days
-
-
-            #number of wallet fundings for this month alone
-            num_wallet_fundings = np.random.randint(CUSTOMER_BEHAVIOUR_SEGMENT_MAP[customer["customer_behaviour_segment"]]["monthly_wallet_fundings"][0],CUSTOMER_BEHAVIOUR_SEGMENT_MAP[customer["customer_behaviour_segment"]]["monthly_wallet_fundings"][1] + 1)
-
-            #how many savings and investment positions will be created this month
-            savings_position_creation = np.random.randint(CUSTOMER_BEHAVIOUR_SEGMENT_MAP[customer["customer_behaviour_segment"]]["monthly_savings_position_creation"][0], CUSTOMER_BEHAVIOUR_SEGMENT_MAP[customer["customer_behaviour_segment"]]["monthly_savings_position_creation"][1] + 1)
-
-            investment_position_creation = np.random.randint(CUSTOMER_BEHAVIOUR_SEGMENT_MAP[customer["customer_behaviour_segment"]]["monthly_investment_position_creation"][0], CUSTOMER_BEHAVIOUR_SEGMENT_MAP[customer["customer_behaviour_segment"]]["monthly_investment_position_creation"][1] + 1)
-
-            #now we calculate the number of wallet fundings for this month alone, and for each funding, 
-            # we will create a wallet funding event and decide whether it converts into an investment or not. 
-            # If it does, we will create a review plan options event, a plan selected event, and a plan created event.
-            for _ in range(num_wallet_fundings):
-
-                funding_time = month_start + timedelta(
-                days=np.random.randint(1, days_in_month + 1),
-                hours=np.random.randint(0, 24),
-                minutes=np.random.randint(0, 60))
-
-                funding_amount = np.random.uniform(
-                investment_low_bound,
-                investment_high_bound
-                )
-
-        # Wallet funding event
-                wallet_funding_events.append({
-                "user_id": customer["user_id"],
-                "event_time": funding_time,
-                "event_type": "wallet_funded",
-                "amount": funding_amount
-                })
-
-        # Decide whether funding converts into an investment
-                segment = customer["customer_behaviour_segment"]
-
-                makes_investment = np.random.choice([True, False], p=CUSTOMER_BEHAVIOUR_SEGMENT_MAP[segment]["wallet_to_investment_conversion_probability"])
-
-                if not makes_investment:
-                    continue
-
-        # Review plans
-                review_time = funding_time + timedelta(minutes=np.random.randint(5, 60))
-
-        # Plan selected
-                selection_time = review_time + timedelta(minutes=np.random.randint(1, 30))
-            
-                total_positions = (savings_position_creation + investment_position_creation)
-
-                if total_positions == 0:
-                    continue
-
-        # Savings or Investment
-                investment_type = np.random.choice(["Savings", "Investment"],p=[savings_position_creation /total_positions,
-                investment_position_creation
-                /total_positions
-            ])
-
-                creation_time = selection_time + timedelta(minutes=np.random.randint(1, 15))
-
-                if investment_type == "Savings":
-
-                    plan_id = np.random.choice(
-                    savings_plans["plan_id"],
-                    p=savings_plans["plan_weight"] / savings_plans["plan_weight"].sum())
-
-                    event_type = "savings_plan_created"
-                else:
-
-                    plan_id = np.random.choice(
-                    investment_plans["plan_id"],
-                    p=investment_plans["plan_weight"] / investment_plans["plan_weight"].sum())
-                    event_type = "investment_plan_created"
-
-                new_investment_events.extend([
-            {
-                "user_id": customer["user_id"],
-                "event_time": review_time,
-                "event_type": "review_plan_options"
-            },
-            {
-                "user_id": customer["user_id"],
-                "event_time": selection_time,
-                "event_type": "plan_selected"
-            }
-            ])
-
-
-                new_investment_creation.extend([{
-                "user_id": customer["user_id"],
-                "event_time": creation_time,
-                "event_type": event_type,
-                "plan_id": plan_id,
-                "amount_invested": funding_amount * 0.95
-            }
-        ])
-
-
-
-    wallet_funding_events_df = pd.DataFrame(wallet_funding_events)
-    new_investment_events_df = pd.DataFrame(new_investment_events)
-
-    new_investment_creation_df = pd.DataFrame(new_investment_creation)
-
-    new_investment_creation_df.sort_values(by="event_time",inplace=True)
-    wallet_funding_events_df.sort_values(by="event_time",inplace=True)
-
-
-    #get app logins first
-    start_position = end_position
-    end_position = start_position + len(wallet_funding_events_df)
-
-    
-    user_ids[start_position:end_position] = (wallet_funding_events_df["user_id"].values)
-
-    login_times = wallet_funding_events_df["event_time"] - pd.to_timedelta(5,unit="m")
-
-    event_time[start_position:end_position] = login_times
-    event_type_ids[start_position:end_position] = [event_type_map.get("app_login") for _ in range(len(wallet_funding_events_df))]
-    device_types[start_position:end_position] = [device_type_map.get(uid) for uid in wallet_funding_events_df["user_id"]]
-
-    #now fund the wallets
-    start_position = end_position
-    end_position = start_position + len(wallet_funding_events_df)
-
-    
-    user_ids[start_position:end_position] = (wallet_funding_events_df["user_id"].values)
-
-    login_times = wallet_funding_events_df["event_time"]
-
-    event_time[start_position:end_position] = login_times
-    event_type_ids[start_position:end_position] = [event_type_map.get("wallet_funded") for _ in range(len(wallet_funding_events_df))]
-    wallet_ids[start_position:end_position] = [wallet_id_map.get(uid) for uid in wallet_funding_events_df["user_id"].values]
-    is_money_movement_activities[start_position:end_position] = True
-    transaction_ids[start_position:end_position] = np.arange(last_transaction_id + 1, last_transaction_id + len(wallet_funding_events_df) + 1)
-    transaction_type_ids[start_position:end_position] = [transaction_type_map.get("wallet_funding") for _ in range(len(wallet_funding_events_df))]
-    last_transaction_id = transaction_ids[start_position:end_position].max()
-    amount_invested[start_position:end_position] = wallet_funding_events_df["amount"]
-    device_types[start_position:end_position] = [device_type_map.get(uid) for uid in wallet_funding_events_df["user_id"]]
-    transaction_amounts[start_position:end_position] = wallet_funding_events_df["amount"]
-    transaction_statuses[start_position:end_position] = ["success" for _ in range(len(wallet_funding_events_df))]
-    
-    #plan selections
-    start_position = end_position
-    end_position = start_position + len(new_investment_events_df)
-    
-    user_ids[start_position:end_position] = (new_investment_events_df["user_id"].values)
-
-    event_time[start_position:end_position] = (new_investment_events_df["event_time"])
-
-    event_type_ids[start_position:end_position] = [event_type_map.get(event_type)for event_type in new_investment_events_df["event_type"]]
-
-    device_types[start_position:end_position] = [device_type_map.get(uid)for uid in new_investment_events_df["user_id"]]
-
-
-    start_position = end_position
-    end_position = start_position + len(new_investment_creation_df)
-
-    user_ids[start_position:end_position] = (new_investment_creation_df["user_id"].values)
-
-    event_time[start_position:end_position] = (new_investment_creation_df["event_time"])
-
-    event_type_ids[start_position:end_position] = [event_type_map.get(event_type)for event_type in new_investment_creation_df["event_type"]]
-
-    device_types[start_position:end_position] = [device_type_map.get(uid)for uid in new_investment_creation_df["user_id"]]
-
-    plan_ids[start_position:end_position] = (new_investment_creation_df["plan_id"].values)
-
-    wallet_ids[start_position:end_position] = [wallet_id_map.get(uid) for uid in new_investment_creation_df["user_id"].values]
-
-    amount_invested[start_position:end_position] = (new_investment_creation_df["amount_invested"].values)
-
-    is_money_movement_activities[start_position:end_position] = True
-    transaction_ids[start_position:end_position] = np.arange(last_transaction_id + 1, last_transaction_id + len(new_investment_creation_df) + 1)
-    transaction_type_ids[start_position:end_position] = [transaction_type_map.get("investment_funding") for _ in range(len(new_investment_creation_df))]
-    last_transaction_id = transaction_ids[start_position:end_position].max()
-    investment_ids[start_position:end_position] = np.arange(last_investment_id + 1, len(new_investment_creation_df) + last_investment_id + 1)
-    last_investment_id = investment_ids[start_position:end_position].max()
-    transaction_amounts[start_position:end_position] = new_investment_creation_df["amount_invested"]
-    transaction_statuses[start_position:end_position] = ["success" for _ in range(len(new_investment_creation_df))]
-
-    main_df = pd.DataFrame({
-        "user_id":user_ids[:end_position],
-        "event_type_id":event_type_ids[:end_position],
-        "wallet_id":wallet_ids[:end_position],
-        "plan_id":plan_ids[:end_position],
-        "event_time":event_time[:end_position],
-        "investment_id":investment_ids[:end_position],
-        "transaction_id":transaction_ids[:end_position],
-        "amount_invested":amount_invested[:end_position]
-    })
-
-    investments_subset_df = (main_df[~pd.isna(main_df["investment_id"])].copy())
-
-    investment_plans = investments_subset_df["plan_id"]
-
-    investments_subset_df["event_time"] = pd.to_datetime(investments_subset_df["event_time"])
-
-    investments_subset_df["tenure_days"] = [plan_id_map.get(plan) for plan in investment_plans]
-
-    investments_subset_df["tenure_days"] = pd.to_numeric(investments_subset_df["tenure_days"],errors="coerce")
-
-    investments_subset_df["investment_start_date"] = investments_subset_df["event_time"]
-
-    tenure_days_mask = investments_subset_df["tenure_days"].notna()
-
-    investments_subset_df.loc[tenure_days_mask,"investment_maturity_date"] = investments_subset_df.loc[tenure_days_mask,"event_time"] + pd.to_timedelta(investments_subset_df.loc[tenure_days_mask,"tenure_days"], unit = 'D')
-
-    investments_subset_df["investment_status"] = np.select([investments_subset_df["investment_maturity_date"] < pd.Timestamp.today()],
-    ["Matured"],default="Active")
-
-    investments_subset_df["investment_start_date_id"] = np.array([int(pd.Timestamp(ts).strftime('%Y%m%d'))for ts in investments_subset_df["investment_start_date"]], dtype=np.int32)
-
-    investments_subset_df.loc[tenure_days_mask,"investment_maturity_date_id"] = np.array([int(pd.Timestamp(ts).strftime('%Y%m%d'))for ts in investments_subset_df.loc[tenure_days_mask,"investment_maturity_date"]], dtype=np.int32)
-
-    plan_id_name_dict = dict(zip(
-        plans_data["plan_id"],
-        plans_data["plan_name"]
-    ))
-
-    cbh_id_map = dict(zip(
-        users_data["user_id"],
-        users_data["customer_behaviour_segment"]
-    ))
-
-    investments_subset_df["plan_name"] = [plan_id_name_dict.get(pid) for pid in investment_plans]
-
-    investments_subset_df["customer_behaviour_segment"] = [cbh_id_map.get(uid) for uid in investments_subset_df["user_id"] ]
-
-    #let's split into vestable invetsments and saleable investments
-    vestable_investments_df = investments_subset_df[(investments_subset_df["tenure_days"].notna()) & (investments_subset_df["investment_status"] == "Matured")].copy()
-
-    saleable_investments = investments_subset_df[pd.isna(investments_subset_df["tenure_days"]) & (investments_subset_df["investment_start_date"] <= MUTUAL_FUNDS_CUTOFF_DATE)].copy()
-
-    saleable_investments_df = saleable_investments.sample(frac=0.65,random_state=42)
-
-    active_investments_df = investments_subset_df[(investments_subset_df["tenure_days"].notna()) & (investments_subset_df["investment_status"] == "Active")].copy()
-
-    print("Total Vestable Investments:", len(vestable_investments_df))
-    print(vestable_investments_df.head())
-    print("Total Saleable Investments:", len(saleable_investments_df))
-    print(saleable_investments_df.head())
-    print("Total Active Investments:", len(active_investments_df))
-    print(active_investments_df.head())
-
-    vestable_investments_df["requests_early_withdrawal"] = [
-        np.random.random()
-    <= CUSTOMER_BEHAVIOUR_SEGMENT_MAP[segment]["early_withdrawal_probability"]
-    for segment in vestable_investments_df["customer_behaviour_segment"]]
-
-    early_withdrawal_mask = vestable_investments_df["requests_early_withdrawal"] == True
-    vested_invested_mask = vestable_investments_df["requests_early_withdrawal"] == False
-
-    vestable_investments_df.loc[early_withdrawal_mask,"investment_status"] = "Withdrawn Early"
-    vestable_investments_df.loc[vested_invested_mask,"investment_status"] = np.random.choice(["Matured","Redeemed"], p = [0.25,0.75], size = vested_invested_mask.sum())
-
-
-    #let's create the simulate early investment events
-    
-    vestable_investments_df.loc[early_withdrawal_mask,"days_before_maturity"] = [
-    int(
-        np.random.triangular(
-            EARLY_WITHDRAWAL_BEHAVIOUR[plan_name]["left"],
-            EARLY_WITHDRAWAL_BEHAVIOUR[plan_name]["mode"],
-            EARLY_WITHDRAWAL_BEHAVIOUR[plan_name]["right"]
-        )
-    )
-    for plan_name in vestable_investments_df.loc[
-        early_withdrawal_mask,
-        "plan_name"
-    ]]
-
-    vestable_investments_df.loc[early_withdrawal_mask,"withdrawal_request_date"] = (vestable_investments_df.loc[
-        early_withdrawal_mask,
-        "investment_maturity_date"
-    ] - pd.to_timedelta(
-                  vestable_investments_df.loc[
-        early_withdrawal_mask,
-        "days_before_maturity"
-    ],unit = "D"))
-
-    minutes_before_request = np.random.randint(
-    1,
-    31,
-    size=early_withdrawal_mask.sum())
-
-    vestable_investments_df.loc[early_withdrawal_mask,"withdrawal_request_login_time"] = (vestable_investments_df.loc[
-        early_withdrawal_mask,
-        "withdrawal_request_date"
-    ] - pd.to_timedelta(minutes_before_request,unit = "m"))
-
-    #early withdrawal events
-
-    start_position = end_position
-    end_position = start_position + early_withdrawal_mask.sum()
-
-    user_ids[start_position:end_position] = vestable_investments_df.loc[early_withdrawal_mask,"user_id"]
-    event_time[start_position:end_position] = vestable_investments_df.loc[early_withdrawal_mask,"withdrawal_request_login_time"]
-    event_type_ids[start_position:end_position] = [event_type_map.get("app_login") for _ in range(early_withdrawal_mask.sum())]
-    device_types[start_position:end_position] = [device_type_map.get(uid) for uid in vestable_investments_df.loc[early_withdrawal_mask,"user_id"]]
-
-    start_position = end_position
-    end_position = start_position + early_withdrawal_mask.sum()
-
-    user_ids[start_position:end_position] = vestable_investments_df.loc[early_withdrawal_mask,"user_id"]
-    event_time[start_position:end_position] = vestable_investments_df.loc[early_withdrawal_mask,"withdrawal_request_date"]
-    event_type_ids[start_position:end_position] = [event_type_map.get("request_early_withdrawal") for _ in range(early_withdrawal_mask.sum())]
-    device_types[start_position:end_position] = [device_type_map.get(uid) for uid in vestable_investments_df.loc[early_withdrawal_mask,"user_id"]]
-
-    
-    #early withdrawal requests moves money to the wallet - model the "investment_proceeds_wallet_transfer"
-    start_position = end_position
-    end_position = start_position + early_withdrawal_mask.sum()
-
-    user_ids[start_position:end_position] = vestable_investments_df.loc[early_withdrawal_mask,"user_id"]
-    event_time[start_position:end_position] = (vestable_investments_df.loc[early_withdrawal_mask,"withdrawal_request_date"] + pd.to_timedelta(INVESTMENT_WITHDRAWAL_PROCESSING_TIME,unit='m'))
-    event_type_ids[start_position:end_position] = [event_type_map.get("investment_proceeds_wallet_transfer") for _ in range(early_withdrawal_mask.sum())]
-    device_types[start_position:end_position] = [device_type_map.get(uid) for uid in vestable_investments_df.loc[early_withdrawal_mask,"user_id"]]
-    wallet_ids[start_position:end_position] = [wallet_id_map.get(uid) for uid in vestable_investments_df.loc[early_withdrawal_mask,"user_id"]]
-    is_money_movement_activities[start_position:end_position] = True
-    transaction_ids[start_position:end_position] = np.arange(last_transaction_id + 1, 1 + early_withdrawal_mask.sum() +  last_transaction_id)
-    last_transaction_id = transaction_ids[start_position:end_position].max()
-    amount_invested[start_position:end_position] = vestable_investments_df.loc[early_withdrawal_mask,"amount_invested"]
-    transaction_type_ids[start_position:end_position] = [transaction_type_map.get("investment_proceeds_transfer") for _ in range(early_withdrawal_mask.sum())]
-    vestable_investments_df.loc[early_withdrawal_mask,"investment_status"] = "Redeemed"
-    investment_ids[start_position:end_position] = vestable_investments_df.loc[early_withdrawal_mask,"investment_id"]
-    transaction_amounts[start_position:end_position] = vestable_investments_df.loc[early_withdrawal_mask,"amount_invested"]
-    transaction_statuses[start_position:end_position] = ["success" for _ in range(len(vestable_investments_df.loc[early_withdrawal_mask,"amount_invested"]))]
-    is_withdrawn_early[start_position:end_position] = True
-    withdrawal_date[start_position:end_position] = event_time[start_position:end_position]
-    early_withdrawal_investment_ids = investment_ids[start_position:end_position]
-    early_withdrawal_dates = event_time[start_position:end_position]
-
-    vestable_investments_df["is_withdrawn_early"] = np.full(len(vestable_investments_df),False,dtype=bool)
-    vestable_investments_df["early_withdrawal_date"] = np.empty(len(vestable_investments_df),dtype=object)
-    saleable_investments_df["is_withdrawn_early"] = np.full(len(saleable_investments_df),False,dtype=bool)
-    saleable_investments_df["early_withdrawal_date"] = np.empty(len(saleable_investments_df),dtype=object)
-    active_investments_df["is_withdrawn_early"] = np.full(len(active_investments_df),False,dtype=bool)
-    active_investments_df["early_withdrawal_date"] = np.empty(len(active_investments_df),dtype=object)
-
-
-    vestable_investments_df.loc[vestable_investments_df["investment_id"].isin(early_withdrawal_investment_ids),"is_withdrawn_early"] = True
-    vestable_investments_df.loc[vestable_investments_df["investment_id"].isin(early_withdrawal_investment_ids),"early_withdrawal_date"] = early_withdrawal_dates
-
-
-    #model investment vests transactions for matured investments
-    start_position = end_position
-    end_position = start_position + vested_invested_mask.sum()
-
-    user_ids[start_position:end_position] = vestable_investments_df.loc[vested_invested_mask,"user_id"]
-    event_time[start_position:end_position] = (vestable_investments_df.loc[vested_invested_mask,"investment_maturity_date"])
-    event_type_ids[start_position:end_position] = [event_type_map.get("investment_vests") for _ in range(vested_invested_mask.sum())]
-    device_types[start_position:end_position] = [device_type_map.get(uid) for uid in vestable_investments_df.loc[vested_invested_mask,"user_id"]]
-
-    #model investment proceeds wallet transfer for transactions with matured investments
-    start_position = end_position
-    end_position = start_position + vested_invested_mask.sum()
-
-    user_ids[start_position:end_position] = vestable_investments_df.loc[vested_invested_mask,"user_id"]
-    event_time[start_position:end_position] = (vestable_investments_df.loc[vested_invested_mask,"investment_maturity_date"])
-    event_type_ids[start_position:end_position] = [event_type_map.get("investment_proceeds_wallet_transfer") for _ in range(vested_invested_mask.sum())]
-    device_types[start_position:end_position] = [device_type_map.get(uid) for uid in vestable_investments_df.loc[vested_invested_mask,"user_id"]]
-
-    wallet_ids[start_position:end_position] = [wallet_id_map.get(uid) for uid in vestable_investments_df.loc[vested_invested_mask,"user_id"]]
-    is_money_movement_activities[start_position:end_position] = True
-    transaction_ids[start_position:end_position] = np.arange(last_transaction_id + 1, 1 + vested_invested_mask.sum() +  last_transaction_id)
-    last_transaction_id = transaction_ids[start_position:end_position].max()
-    amount_invested[start_position:end_position] = vestable_investments_df.loc[vested_invested_mask,"amount_invested"]
-    transaction_type_ids[start_position:end_position] = [transaction_type_map.get("investment_proceeds_transfer") for _ in range(vested_invested_mask.sum())]
-    vestable_investments_df.loc[vested_invested_mask,"investment_status"] = "Redeemed"
-    investment_ids[start_position:end_position] = vestable_investments_df.loc[vested_invested_mask,"investment_id"]
-    transaction_amounts[start_position:end_position] = vestable_investments_df.loc[vested_invested_mask,"amount_invested"]
-    transaction_statuses[start_position:end_position] = ["success" for _ in range(len(vestable_investments_df.loc[vested_invested_mask,"amount_invested"]))]
-
-
-    # now let's model asset sales
-    eligible_saleable_investments = saleable_investments_df[(pd.Timestamp.today() - saleable_investments_df["investment_start_date"]) > pd.Timedelta(days=200)]
-    saleable_investments_df_subset = eligible_saleable_investments.sample(frac=0.45).copy()
-    saleable_investments_df_subset["days_held"] = (pd.Timestamp.today() - saleable_investments_df_subset["investment_start_date"]).dt.days
-
-    saleable_investments_df_subset["days_held_before_sale"] = [
-    int(
-        np.random.triangular(
-            30,
-            min(180, days_held),
-            days_held
-        )
-    )
-    for days_held in saleable_investments_df_subset["days_held"]
-]
-
-    saleable_investments_df_subset["redemption_request_date"] = (
-    saleable_investments_df_subset["investment_start_date"]
-    +
-    pd.to_timedelta(saleable_investments_df_subset["days_held_before_sale"],unit="D"))
-
-    saleable_investments_df_subset["redemption_request_login_date"] = (
-    saleable_investments_df_subset["redemption_request_date"]
-    -
-    pd.to_timedelta(5,unit="m"))
-
-    saleable_investments_df_subset["review_current_investment_date"] = (
-    saleable_investments_df_subset["redemption_request_login_date"]
-    +
-    pd.to_timedelta(3,unit="m"))
-
-    saleable_investments_df_subset["redemption_request_processing_date"] = (
-        saleable_investments_df_subset["redemption_request_date"]
-    +
-    pd.to_timedelta(24,unit="h")
-    )
-
-    saleable_investments_df_subset["investment_status"] = "Redeemed"
-
-    #let's model the login first
-    start_position = end_position
-    end_position = start_position + len(saleable_investments_df_subset)
-
-    user_ids[start_position:end_position] = saleable_investments_df_subset["user_id"].values
-    event_time[start_position:end_position] = saleable_investments_df_subset["redemption_request_login_date"]
-    device_types[start_position:end_position] = [device_type_map.get(uid) for uid in saleable_investments_df_subset["user_id"]]
-    event_type_ids[start_position:end_position] = [event_type_map.get("app_login") for _ in range(len(saleable_investments_df_subset))]
-
-    #current investment review events
-    start_position = end_position
-    end_position = start_position + len(saleable_investments_df_subset)
-
-    user_ids[start_position:end_position] = saleable_investments_df_subset["user_id"].values
-    event_time[start_position:end_position] = saleable_investments_df_subset["review_current_investment_date"]
-    device_types[start_position:end_position] = [device_type_map.get(uid) for uid in saleable_investments_df_subset["user_id"]]
-    event_type_ids[start_position:end_position] = [event_type_map.get("review_current_investment") for _ in range(len(saleable_investments_df_subset))]
-
-    start_position = end_position
-    end_position = start_position + len(saleable_investments_df_subset)
-
-    user_ids[start_position:end_position] = saleable_investments_df_subset["user_id"].values
-    event_time[start_position:end_position] = saleable_investments_df_subset["redemption_request_date"]
-    device_types[start_position:end_position] = [device_type_map.get(uid) for uid in saleable_investments_df_subset["user_id"]]
-    event_type_ids[start_position:end_position] = [event_type_map.get("assets_sale") for _ in range(len(saleable_investments_df_subset))]
-    investment_ids[start_position:end_position] = saleable_investments_df_subset["investment_id"].values
-    saleable_investments_df_subset["investment_maturity_date"] = saleable_investments_df_subset["redemption_request_date"]
-
-    start_position = end_position
-    end_position = start_position + len(saleable_investments_df_subset)
-
-    user_ids[start_position:end_position] = saleable_investments_df_subset["user_id"].values
-    event_time[start_position:end_position] = saleable_investments_df_subset["redemption_request_processing_date"]
-    device_types[start_position:end_position] = [device_type_map.get(uid) for uid in saleable_investments_df_subset["user_id"]]
-    event_type_ids[start_position:end_position] = [event_type_map.get("investment_proceeds_wallet_transfer") for _ in range(len(saleable_investments_df_subset))]
-    investment_ids[start_position:end_position] = saleable_investments_df_subset["investment_id"].values
-    is_money_movement_activities[start_position:end_position] = True
-    transaction_ids[start_position:end_position] = np.arange(last_transaction_id + 1, last_transaction_id + 1 + len(saleable_investments_df_subset))
-    transaction_type_ids[start_position:end_position] = [transaction_type_map.get("investment_proceeds_transfer") for _ in range(len(saleable_investments_df_subset))]
-    wallet_ids[start_position:end_position] = [wallet_id_map.get(uid) for uid in saleable_investments_df_subset["user_id"].values]
-    amount_invested[start_position:end_position] = saleable_investments_df_subset["amount_invested"].values
-    last_transaction_id = transaction_ids[start_position:end_position].max()
-    transaction_amounts[start_position:end_position] = saleable_investments_df_subset["amount_invested"].values
-    transaction_statuses[start_position:end_position] = ["success" for _ in range(len(saleable_investments_df_subset))]
-
-
-    redeemed_ids = saleable_investments_df_subset["investment_id"]
-
-    saleable_investments_df.loc[
-    saleable_investments_df["investment_id"].isin(redeemed_ids),
-    "investment_status"] = "Redeemed"
-
-
-
-    saleable_updates = (
-    saleable_investments_df_subset[
-        ["investment_id", "investment_maturity_date"]
-    ]
-    .set_index("investment_id")
-)
-
-    saleable_investments_df["investment_maturity_date"] = (
-    saleable_investments_df["investment_id"]
-    .map(saleable_updates["investment_maturity_date"])
-    .fillna(saleable_investments_df["investment_maturity_date"])
-)
-
-    all_investments_df = pd.concat([active_investments_df, vestable_investments_df, saleable_investments_df], ignore_index = True)
-
-    redeemed_mask = all_investments_df["investment_status"] == "Redeemed"
-
-    redemption_investments_df = all_investments_df.loc[redeemed_mask].copy()
-    redeemed_investments_events_df = redemption_investments_df.sample(frac=0.9, random_state=42)
-    remaining_investments_df = redemption_investments_df.drop(redeemed_investments_events_df.index)
-
-    redeemed_investments_events_df["redemption_date"] = redeemed_investments_events_df["investment_maturity_date"] + pd.to_timedelta(1440,unit='m')
-    redeemed_investments_events_df["days_until_wallet_withdrawal"] = np.random.triangular(
-    left=1,
-    mode=14,
-    right=90,
-    size=len(redeemed_investments_events_df)
-).astype(int)
-    
-    random_offset = np.random.randint(2,15, size=len(remaining_investments_df))
-
-    remaining_investments_df["redemption_date"] = remaining_investments_df["investment_maturity_date"] + pd.to_timedelta(1440, unit="m")
-    remaining_investments_df["days_until_first_withdrawal_trial"] = np.random.triangular(
-    left=1,
-    mode=14,
-    right=90,
-    size=len(remaining_investments_df)
-).astype(int)
-    
-    remaining_investments_df["final_withdrawal_date"] = remaining_investments_df["redemption_date"] + pd.to_timedelta(remaining_investments_df["days_until_first_withdrawal_trial"], unit="D") + pd.to_timedelta(random_offset,unit="D")
-    remaining_investments_df["withdrawal_login_time"] = remaining_investments_df["final_withdrawal_date"] - pd.to_timedelta(5,unit="m")
-    remaining_investments_df["final_withdrawal_trial_date"] = remaining_investments_df["redemption_date"] + pd.to_timedelta(remaining_investments_df["days_until_first_withdrawal_trial"], unit="D")
-    remaining_investments_df["withdrawal_trial_login_time"] = remaining_investments_df["final_withdrawal_trial_date"] - pd.to_timedelta(5,unit="m")
-    
-
-    #let's model the wallet withdrawals
-    start_position = end_position
-    end_position = start_position + len(redeemed_investments_events_df)
-
-    is_money_movement_activities[start_position:end_position] = True
-    transaction_ids[start_position:end_position] = np.arange(last_transaction_id + 1,len(redeemed_investments_events_df) + last_transaction_id + 1)
-    last_transaction_id = transaction_ids[start_position:end_position].max()
-    transaction_type_ids[start_position:end_position] = [transaction_type_map.get("wallet_withdrawal") for _ in range(len(redeemed_investments_events_df))]
-    event_time[start_position:end_position] = redeemed_investments_events_df["redemption_date"] + pd.to_timedelta(redeemed_investments_events_df["days_until_wallet_withdrawal"],unit="D")
-    user_ids[start_position:end_position] = redeemed_investments_events_df["user_id"].values
-    wallet_ids[start_position:end_position] = [wallet_id_map.get(uid) for uid in redeemed_investments_events_df["user_id"]]
-    amount_invested[start_position:end_position] = redeemed_investments_events_df["amount_invested"]
-    event_type_ids[start_position:end_position] = [event_type_map.get("wallet_withdrawal") for _ in range(len(redeemed_investments_events_df))]
-    transaction_statuses[start_position:end_position] = ["success" for _ in range(len(redeemed_investments_events_df))]
-    transaction_amounts[start_position:end_position] = redeemed_investments_events_df["amount_invested"]
-    device_types[start_position:end_position] = [device_type_map.get(uid) for uid in redeemed_investments_events_df["user_id"].values]
-
-    #let's model withdrawal failures and withdrawal successes after
-    start_position = end_position
-    end_position = start_position + len(remaining_investments_df)
-
-    #login and withdrawal failure simulation first
-    user_ids[start_position:end_position] = remaining_investments_df["user_id"].values
-    event_time[start_position:end_position] = remaining_investments_df["withdrawal_trial_login_time"]
-    event_type_ids[start_position:end_position] = [event_type_map.get("app_login") for _ in range(len(remaining_investments_df))]
-    device_types[start_position:end_position] = [device_type_map.get(uid) for uid in remaining_investments_df["user_id"].values]
-
-    start_position = end_position
-    end_position = start_position + len(remaining_investments_df)
-
-    user_ids[start_position:end_position] = remaining_investments_df["user_id"].values
-    event_time[start_position:end_position] = remaining_investments_df["final_withdrawal_trial_date"]
-    event_type_ids[start_position:end_position] = [event_type_map.get("withdrawal_failed") for _ in range(len(remaining_investments_df))]
-    device_types[start_position:end_position] = [device_type_map.get(uid) for uid in remaining_investments_df["user_id"].values]
-    is_money_movement_activities[start_position:end_position] = [True for _ in range(len(remaining_investments_df))]
-    transaction_type_ids[start_position:end_position] = [transaction_type_map.get("wallet_withdrawal") for _ in range(len(remaining_investments_df))]
-    transaction_statuses[start_position:end_position] = ["failure" for _ in range(len(remaining_investments_df))]
-    transaction_amounts[start_position:end_position] = remaining_investments_df["amount_invested"]
-    transaction_ids[start_position:end_position] = np.arange(last_transaction_id + 1, last_transaction_id + 1 + len(remaining_investments_df))
-    last_transaction_id = transaction_ids[start_position:end_position].max()
-    wallet_ids[start_position:end_position] = [wallet_id_map.get(uid) for uid in remaining_investments_df["user_id"].values]
-
-    #let's model successful withdrawals now
-    start_position = end_position
-    end_position = start_position + len(remaining_investments_df)
-
-    user_ids[start_position:end_position] = remaining_investments_df["user_id"].values
-    event_time[start_position:end_position] = remaining_investments_df["withdrawal_login_time"]
-    event_type_ids[start_position:end_position] = [event_type_map.get("app_login") for _ in range(len(remaining_investments_df))]
-    device_types[start_position:end_position] = [device_type_map.get(uid) for uid in remaining_investments_df["user_id"].values]
-
-    start_position = end_position
-    end_position = start_position + len(remaining_investments_df)
-
-    user_ids[start_position:end_position] = remaining_investments_df["user_id"].values
-    event_time[start_position:end_position] = remaining_investments_df["final_withdrawal_date"]
-    event_type_ids[start_position:end_position] = [event_type_map.get("wallet_withdrawal") for _ in range(len(remaining_investments_df))]
-    device_types[start_position:end_position] = [device_type_map.get(uid) for uid in remaining_investments_df["user_id"].values]
-    is_money_movement_activities[start_position:end_position] = [True for _ in range(len(remaining_investments_df))]
-    transaction_type_ids[start_position:end_position] = [transaction_type_map.get("wallet_withdrawal") for _ in range(len(remaining_investments_df))]
-    transaction_statuses[start_position:end_position] = ["success" for _ in range(len(remaining_investments_df))]
-    transaction_amounts[start_position:end_position] = remaining_investments_df["amount_invested"]
-    transaction_ids[start_position:end_position] = np.arange(last_transaction_id + 1, len(remaining_investments_df) + last_transaction_id + 1)
-    last_transaction_id = transaction_ids[start_position:end_position].max()
-    wallet_ids[start_position:end_position] = [wallet_id_map.get(uid) for uid in remaining_investments_df["user_id"].values]
 
     total_events = end_position
     
@@ -1317,35 +469,6 @@ def generate_facts(conn, num_of_events):
     conn.execute(f'''
                     COPY fact_transaction TO '{CURRENT_FACT_TRANSACTION_PARQUET_PATH}' (FORMAT PARQUET)
     ''')
-
-    investment_maturity_mask = all_investments_df["investment_maturity_date"].notna()
-    all_investments_df["investment_maturity_date_id"] = np.empty(len(all_investments_df["investment_maturity_date"]),dtype=object)
-    all_investments_df.loc[investment_maturity_mask,"investment_maturity_date_id"] = np.array([int(pd.Timestamp(ts).strftime('%Y%m%d')) for ts in all_investments_df.loc[investment_maturity_mask,"investment_maturity_date"]
-    ], dtype=np.int32)
-
-    early_withdrawals = all_investments_df["is_withdrawn_early"] == True
-    all_investments_df["early_withdrawal_date_id"] = np.empty(len(all_investments_df),dtype=object)
-
-    all_investments_df.loc[early_withdrawals,"early_withdrawal_date_id"] = np.array([int(pd.Timestamp(ts).strftime('%Y%m%d')) for ts in all_investments_df.loc[early_withdrawals,"early_withdrawal_date"]],dtype=np.int32)
-
-    investment_positions_df = pd.DataFrame({
-        "investment_id":all_investments_df["investment_id"],
-        "user_id":all_investments_df["user_id"],
-        "wallet_id":all_investments_df["wallet_id"],
-        "plan_id":all_investments_df["plan_id"],
-        "amount_invested":all_investments_df["amount_invested"],
-        "investment_start_date":all_investments_df["investment_start_date"],
-        "investment_start_date_id": np.array([int(pd.Timestamp(ts).strftime('%Y%m%d')) for ts in all_investments_df["investment_start_date"]
-    ], dtype=np.int32),
-        "investment_maturity_date":all_investments_df["investment_maturity_date"],
-        "investment_maturity_date_id":all_investments_df["investment_maturity_date_id"],
-    "investment_status":all_investments_df["investment_status"],
-    "is_withdrawn_early":all_investments_df["is_withdrawn_early"],
-    "early_withdrawal_date":all_investments_df["early_withdrawal_date"],
-    "early_withdrawal_date_id":all_investments_df["early_withdrawal_date_id"]
-    })
-
-    conn.register("investment_df",investment_positions_df)
 
     conn.execute('''INSERT INTO FACT_INVESTMENT_POSITION SELECT * FROM INVESTMENT_DF''')
 

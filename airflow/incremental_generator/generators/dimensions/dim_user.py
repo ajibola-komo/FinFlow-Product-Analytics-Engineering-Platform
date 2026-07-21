@@ -87,7 +87,7 @@ def generate_users(conn, num_of_users):
 
     acquisition_channels = [np.random.choice(ACQUISITION_CHANNELS, p = CUSTOMER_PERSONA_MAP[cp]['acquisition_channels_weights']) for cp in customer_personas]
 
-    kyc_completed = np.full(num_of_users, "Not Started") #initialize with False, will update to True for users who completed KYC
+    kyc_completed = np.full(num_of_users, False, dtype=bool) #initialize with False, will update to True for users who completed KYC
     active_mask = is_activated_user == True
     inactive_mask = is_activated_user == False
     #kyc_completed[active_mask] = True #assuming all activated users completed KYC, this will set kyc_completed to True for those users

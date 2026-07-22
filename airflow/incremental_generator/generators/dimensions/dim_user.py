@@ -106,18 +106,22 @@ def generate_users(conn, num_of_users):
     is_immediate_login[active_mask] = np.random.choice([True, False], size=active_mask.sum(), p=[1, 0])
     is_immediate_login[inactive_mask] = np.random.choice([True, False], size=(~active_mask).sum(), p=[0.7, 0.3])
 
-    supposed_activation_dates = np.empty(num_of_users,dtype=object)
+    supposed_activation_dates = np.full(num_of_users, pd.NaT)
 
     signup_date = pd.to_datetime(signup_date)
 
     supposed_activation_dates[active_mask] = signup_date[active_mask] + pd.to_timedelta(wallet_activation_timeframe[active_mask],unit="m")
 
     kyc_completion_timeframe = np.empty(num_of_users, dtype=object)
-    kyc_completion_dates = np.empty(num_of_users, dtype=object)
+    kyc_completion_dates = np.full(num_of_users, pd.NaT)
 
     kyc_completion_timeframe[active_mask] = [np.random.randint(120,  activation_timeframe - 100) for activation_timeframe in wallet_activation_timeframe[active_mask]]
     kyc_completion_dates[active_mask] = signup_date[active_mask] + pd.to_timedelta(kyc_completion_timeframe[active_mask],unit="m")
-    
+
+    last_login_at = np.full(num_of_users, pd.NaT)
+    created_at = signup_date
+    last_updated_at = signup_date
+
 
     df_raw = pd.DataFrame({
         'first_name': customer_first_names,
@@ -140,7 +144,10 @@ def generate_users(conn, num_of_users):
         'customer_behaviour_segment':customer_behaviour_segment,
         'is_immediate_login': is_immediate_login,
         "supposed_activation_date":supposed_activation_dates,
-        "kyc_completion_date": kyc_completion_dates
+        "kyc_completion_date": kyc_completion_dates,
+        'last_login_at':last_login_at,
+        'created_at':created_at,
+        'last_updated_at':last_updated_at
     })
 
     df_raw = df_raw.sort_values(
@@ -151,7 +158,7 @@ def generate_users(conn, num_of_users):
 
     df_raw['user_id'] = np.arange(
     max_user_id + 1 if max_user_id is not None else 1,
-    len(df_raw) + 1
+    len(df_raw) + 1 + max_user_id
     )
 
     df_raw = df_raw[[
@@ -176,7 +183,10 @@ def generate_users(conn, num_of_users):
     'customer_behaviour_segment',
     'is_immediate_login',
     'supposed_activation_date',
-    'kyc_completion_date'
+    'kyc_completion_date',
+    'last_login_at',
+    'created_at',
+    'last_updated_at'
 ]]
 
     #write the generated data to a parquet file

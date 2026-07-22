@@ -8,6 +8,7 @@ from src.config.constants import (DEFAULT_TRANSACTION_START_DATE,IMMEDIATE_LOGIN
                                   )
 from datetime import timedelta
 from dateutil.relativedelta import relativedelta
+from src.logic.helper_functions import (update_last_login_timestamp)
 
 
 def generate_facts(conn, num_of_events):
@@ -98,6 +99,7 @@ def generate_facts(conn, num_of_events):
     event_time[start_immediate_logins:end_immediate_logins] = [pd.Timestamp(sd) + timedelta(seconds=int(ro)) for sd, ro in zip(new_users_logins["signup_date"], immediate_login_timeframe)]
     event_type_ids[start_immediate_logins:end_immediate_logins] = event_type_map.get("app_login")
     device_types[start_immediate_logins:end_immediate_logins] = np.array([device_type_map.get(uid) for uid in new_users_logins["user_id"]])
+    update_last_login_timestamp(conn, new_users_logins["user_id"], event_time[start_immediate_logins:end_immediate_logins])
 
     #kyc_completed_users
     kyc_completed_users = users_data[users_data["kyc_completed"] == True].copy()
@@ -132,6 +134,7 @@ def generate_facts(conn, num_of_events):
     event_time[start_kyc_activations:end_kyc_activations] = [last_login_map.get(uid,signup_map.get(uid)) + timedelta(minutes=int(ro)) for uid, ro in zip(kyc_completed_users["user_id"], kyc_logins_timeframe)]
     event_type_ids[start_kyc_activations:end_kyc_activations] = event_type_map.get("app_login")
     device_types[start_kyc_activations:end_kyc_activations] = np.array([device_type_map.get(uid) for uid in kyc_completed_users["user_id"]])
+    update_last_login_timestamp(conn, kyc_completed_users["user_id"], event_time[start_kyc_activations:end_kyc_activations])
 
     start_kyc_activation_completion = end_kyc_activations
     end_kyc_activation_completion = start_kyc_activation_completion + len(kyc_completed_users)
@@ -209,6 +212,7 @@ def generate_facts(conn, num_of_events):
     event_time[start_position:end_position] = [last_login + timedelta(minutes=np.random.randint(5, 80)) for last_login in customer_subset_1["last_login_time"]]
     event_type_ids[start_position:end_position] = event_type_map.get("app_login")
     device_types[start_position:end_position] = np.array([device_type_map.get(uid) for uid in customer_subset_1["user_id"]])
+    update_last_login_timestamp(conn, customer_subset_1["user_id"], event_time[start_position:end_position])
 
     login_time_for_review_plan_options = event_time[start_position:end_position]
 
@@ -262,6 +266,7 @@ def generate_facts(conn, num_of_events):
     event_time[start_position:end_position] = [last_login + timedelta(minutes=np.random.randint(0, mtft)) for last_login,mtft in zip(customer_subset_2["last_login_time"],customer_subset_2["mins_to_first_investment"])]
     event_type_ids[start_position:end_position] = event_type_map.get("app_login")
     device_types[start_position:end_position] = np.array([device_type_map.get(uid) for uid in customer_subset_2["user_id"]])
+    update_last_login_timestamp(conn, customer_subset_2["user_id"], event_time[start_position:end_position])
 
     login_time_for_review_plan_options_2 = event_time[start_position:end_position]
 
@@ -737,6 +742,7 @@ def generate_facts(conn, num_of_events):
     event_time[start_position:end_position] = login_times
     event_type_ids[start_position:end_position] = [event_type_map.get("app_login") for _ in range(len(wallet_funding_events_df))]
     device_types[start_position:end_position] = [device_type_map.get(uid) for uid in wallet_funding_events_df["user_id"]]
+    update_last_login_timestamp(conn, user_ids[start_position:end_position], event_time[start_position:end_position])
 
     #now fund the wallets
     start_position = end_position
@@ -917,6 +923,7 @@ def generate_facts(conn, num_of_events):
     event_time[start_position:end_position] = vestable_investments_df.loc[early_withdrawal_mask,"withdrawal_request_login_time"]
     event_type_ids[start_position:end_position] = [event_type_map.get("app_login") for _ in range(early_withdrawal_mask.sum())]
     device_types[start_position:end_position] = [device_type_map.get(uid) for uid in vestable_investments_df.loc[early_withdrawal_mask,"user_id"]]
+    update_last_login_timestamp(conn, user_ids[start_position:end_position], event_time[start_position:end_position])
 
     start_position = end_position
     end_position = start_position + early_withdrawal_mask.sum()
@@ -1039,6 +1046,8 @@ def generate_facts(conn, num_of_events):
     event_time[start_position:end_position] = saleable_investments_df_subset["redemption_request_login_date"]
     device_types[start_position:end_position] = [device_type_map.get(uid) for uid in saleable_investments_df_subset["user_id"]]
     event_type_ids[start_position:end_position] = [event_type_map.get("app_login") for _ in range(len(saleable_investments_df_subset))]
+    update_last_login_timestamp(conn, user_ids[start_position:end_position], event_time[start_position:end_position])
+    
 
     #current investment review events
     start_position = end_position
@@ -1156,6 +1165,7 @@ def generate_facts(conn, num_of_events):
     event_time[start_position:end_position] = remaining_investments_df["withdrawal_trial_login_time"]
     event_type_ids[start_position:end_position] = [event_type_map.get("app_login") for _ in range(len(remaining_investments_df))]
     device_types[start_position:end_position] = [device_type_map.get(uid) for uid in remaining_investments_df["user_id"].values]
+    update_last_login_timestamp(conn, user_ids[start_position:end_position], event_time[start_position:end_position])
 
     start_position = end_position
     end_position = start_position + len(remaining_investments_df)
@@ -1180,6 +1190,7 @@ def generate_facts(conn, num_of_events):
     event_time[start_position:end_position] = remaining_investments_df["withdrawal_login_time"]
     event_type_ids[start_position:end_position] = [event_type_map.get("app_login") for _ in range(len(remaining_investments_df))]
     device_types[start_position:end_position] = [device_type_map.get(uid) for uid in remaining_investments_df["user_id"].values]
+    update_last_login_timestamp(conn, user_ids[start_position:end_position], event_time[start_position:end_position])
 
     start_position = end_position
     end_position = start_position + len(remaining_investments_df)

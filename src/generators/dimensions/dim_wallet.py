@@ -19,9 +19,9 @@ def generate_list_of_wallets(conn):
 
     user_ids = users_data["user_id"]
 
-    created_at = np.array(users_data["signup_date"])
+    wallet_created_at = np.array(users_data["signup_date"])
 
-    print(pd.isna(created_at).sum())
+    print(pd.isna(wallet_created_at).sum())
 
     is_activated_user = users_data["is_activated_user"]
 
@@ -30,41 +30,42 @@ def generate_list_of_wallets(conn):
 
     activation_timeframe = users_data["wallet_activation_timeframe"]
 
-    activated_at = np.empty(
+    wallet_activated_at = np.empty(
         total_users,
         dtype=object
     )
 
 
-    activated_at[active_mask] = np.array([ca + pd.to_timedelta(int(ro),unit="m") for ca,ro in zip(created_at[active_mask], activation_timeframe[active_mask])])
-    activated_at[inactive_mask] = None
+    wallet_activated_at[active_mask] = np.array([ca + pd.to_timedelta(int(ro),unit="m") for ca,ro in zip(wallet_created_at[active_mask], activation_timeframe[active_mask])])
+    wallet_activated_at[inactive_mask] = None
 
-    activated_at_id = np.empty(total_users,
+    wallet_activated_at_id = np.empty(total_users,
         dtype=object)
 
-    created_at_id = [int(pd.Timestamp(created_at[i]).strftime('%Y%m%d')) for i in range(total_users)]
-    activated_at_id[active_mask] = [int(pd.Timestamp(i).strftime('%Y%m%d')) for i in activated_at[active_mask]]
+    wallet_created_at_id = [int(pd.Timestamp(wallet_created_at[i]).strftime('%Y%m%d')) for i in range(total_users)]
+    wallet_activated_at_id[active_mask] = [int(pd.Timestamp(i).strftime('%Y%m%d')) for i in wallet_activated_at[active_mask]]
 
     wallet_currency = np.array(["GBP"] * total_users)
 
+    created_at = wallet_created_at
+    last_updated_at = created_at
+
     df_raw = pd.DataFrame({
-        "wallet_id":wallet_ids,
-        "user_id":user_ids,
+        'wallet_id':wallet_ids,
+        'user_id':user_ids,
         'wallet_currency':wallet_currency,
-        "created_at":created_at,
-        "activated_at":activated_at,
-        "wallet_created_at_id":created_at_id,
-        "wallet_activated_at_id":activated_at_id
+        'wallet_created_at':wallet_created_at,
+        'wallet_activated_at':wallet_activated_at,
+        'wallet_created_at_id':wallet_created_at_id,
+        'wallet_activated_at_id':wallet_activated_at_id,
+        'created_at':created_at,
+        'last_updated_at':last_updated_at
     })
     conn.register('df_raw', df_raw)
 
     conn.execute('''INSERT into dim_wallet select * from df_raw''')
 
     conn.execute(f'''COPY dim_wallet to '{WALLETS_PARQUET_PATH}' (FORMAT PARQUET) ''')
-
-    read_parquet = conn.execute(f'''select * from read_parquet('{WALLETS_PARQUET_PATH}')''').fetchdf()
-
-    print(read_parquet.head(10))
 
     
 

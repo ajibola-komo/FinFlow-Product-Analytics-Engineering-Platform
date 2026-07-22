@@ -21,5 +21,7 @@ CREATE OR REPLACE TABLE dim_user(
     is_immediate_login boolean NOT NULL,
     supposed_activation_date TIMESTAMP,
     kyc_completion_date TIMESTAMP,
-    last_login_time timestamp
+    last_login_time timestamp,
+    created_at timestamp not null,
+    last_updated_at timestamp not null
 )

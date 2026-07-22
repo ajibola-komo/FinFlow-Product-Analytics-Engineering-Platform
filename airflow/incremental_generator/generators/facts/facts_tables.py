@@ -8,7 +8,7 @@ from incremental_generator.config.constants import (IMMEDIATE_LOGINS_TIME_FRAME,
 from datetime import timedelta
 from dateutil.relativedelta import relativedelta
 from incremental_generator.generators.facts.helper_functions import (update_last_login_timestamp, update_kyc_completion_status, update_wallet_balance_topup,
-debit_wallet_balance, wallet_activation_funding, get_current_wallet_balance )
+debit_wallet_balance, wallet_activation_funding, get_current_wallet_balance, early_withdrawal_requested_update )
 
 
 def generate_facts(conn, num_of_events):
@@ -390,6 +390,140 @@ def generate_facts(conn, num_of_events):
                          transaction_ids[start_position:end_position], event_ids[start_position:end_position])
 
 
+
+    #engagement from users who have existing investments
+    users_with_existing_investments = conn.execute('''
+        SELECT d.user_id, d.customer_behaviour_segment from fact_investment_position f inner join dim_user d on f.user_id = d.user_id where investment_status = 'Active'
+    ''').df()
+
+    high_engagement_mask = (users_with_existing_investments["customer_behaviour_segment"] == 'High_Engagement_High_Balance') | (users_with_existing_investments["customer_behaviour_segment"] == 'High_Engagement_Low_Balance')
+    moderate_engagement_mask = (users_with_existing_investments["customer_behaviour_segment"] == 'Moderate_Engagement_High_Balance') | (users_with_existing_investments["customer_behaviour_segment"] == 'Moderate_Engagement_Low_Balance')
+    low_engagement_mask = (users_with_existing_investments["customer_behaviour_segment"] == 'Low_Engagement_High_Balance') | (users_with_existing_investments["customer_behaviour_segment"] == 'Low_Engagement_Low_Balance')
+
+    high_engagement_subset = users_with_existing_investments[high_engagement_mask].sample(frac=0.6,random_state=1)
+    moderate_engagement_subset = users_with_existing_investments[moderate_engagement_mask].sample(frac=0.3,random_state=1)
+    low_engagement_subset = users_with_existing_investments[low_engagement_mask].sample(frac=0.1,random_state=1)
+
+    customer_subset_3 = pd.concat([high_engagement_subset, moderate_engagement_subset, low_engagement_subset],ignore_index=True)
+
+    total_customer_subset_3 = len(customer_subset_3)
+
+    random_offset = np.random.randint(0,1200,size=total_customer_subset_3)
+
+    start_position = end_position
+    end_position = start_position + total_customer_subset_3
+
+    user_ids[start_position:end_position] = customer_subset_3['user_id'].values
+    event_time[start_position:end_position] = [GENERATION_START_DATE + pd.to_timedelta(ro,unit="m") for ro in random_offset]
+    event_type_ids[start_position:end_position] = [event_type_map.get("app_login")]
+    device_types[start_position:end_position] = [device_type_map.get(uid) for uid in customer_subset_3['user_id']]
+    event_ids[start_position:end_position] = np.random.randint(last_event_id + 1, last_event_id + 1 + total_customer_subset_3)
+    last_event_id = event_ids[start_position:end_position].max()
+
+    customer_subset_3['last_login_at'] = event_time[start_position:end_position]
+
+    uids = customer_subset_3['user_id'].values
+    last_login = customer_subset_3['last_login_at']
+
+    update_last_login_timestamp(conn,uids, last_login)
+
+    start_position = end_position
+    end_position = start_position + total_customer_subset_3
+
+    random_offset = np.random.randint(2,4,size=total_customer_subset_3)
+
+    #review current investments
+    user_ids[start_position:end_position] = customer_subset_3['user_id'].values
+    event_time[start_position:end_position] = [last_login + pd.to_timedelta(ro,unit="m") for last_login, ro in zip(last_login,random_offset)]
+    event_type_ids[start_position:end_position] = [event_type_map.get("review_current_investment")]
+    device_types[start_position:end_position] = [device_type_map.get(uid) for uid in customer_subset_3['user_id']]
+    event_ids[start_position:end_position] = np.random.randint(last_event_id + 1, last_event_id + 1 + total_customer_subset_3)
+    last_event_id = event_ids[start_position:end_position].max()
+
+    #let's simulate previous early withdrawals proceeds transfer
+
+    #let's simulate early withdrawals
+    possible_early_maturity_users = conn.execute(f'''
+            with get_users as (
+                 SELECT user_id, investment_id, investment_maturity_date - '{GENERATION_START_DATE}'::DATE as days_left, row_number() over(
+                    partition by user_id
+                    order by investment_maturity_date asc
+                 ) as rn
+                 from fact_investment_position where investment_status = 'Active' and is_withdrawn_early = False
+                 ) select user_id, investment_id from get_users where rn = 1 and days_left between 0 and 30 
+                 order by random()
+                 limit 5
+    ''').df()
+
+    customer_subset_4 = possible_early_maturity_users
+
+    total_customer_subset_4 = len(customer_subset_4)
+
+    start_position = end_position
+    end_position = start_position + total_customer_subset_4
+
+    random_offset = np.random.randint(10,1000,size = total_customer_subset_4)
+
+    #we are logging in first, then reviewing current investments, then making an early withdrawal request
+    user_ids[start_position:end_position] = customer_subset_4['user_id']
+    event_time[start_position:end_position] = [GENERATION_START_DATE + pd.to_timedelta(ro,unit="m") for ro in random_offset]
+    event_type_ids[start_position:end_position] = [event_type_map.get("app_login")]
+    device_types[start_position:end_position] = [device_type_map.get(uid) for uid in customer_subset_4['user_id'] ]
+    event_ids[start_position:end_position] = np.arange(last_event_id + 1, last_event_id + 1 + total_customer_subset_4)
+    last_event_id = event_ids[start_position:end_position].max()
+
+    update_last_login_timestamp(conn, customer_subset_4['user_id'], event_time[start_position:end_position])
+
+    customer_subset_4["last_login_at"] = event_time[start_position:end_position]
+    random_offset = np.random.randint(1,3,size = total_customer_subset_4)
+
+    start_position = end_position
+    end_position = start_position + total_customer_subset_4
+
+    user_ids[start_position:end_position] = customer_subset_4['user_id']
+    event_time[start_position:end_position] = [last_login + pd.to_timedelta(ro,unit="m") for last_login, ro in zip(customer_subset_4["last_login_at"],random_offset)]
+    event_type_ids[start_position:end_position] = [event_type_map.get("review_current_investment")]
+    device_types[start_position:end_position] = [device_type_map.get(uid) for uid in customer_subset_4['user_id'] ]
+    event_ids[start_position:end_position] = np.arange(last_event_id + 1, last_event_id + 1 + total_customer_subset_4)
+    last_event_id = event_ids[start_position:end_position].max()
+
+    random_offset = np.random.randint(1,3,size = total_customer_subset_4)
+    last_timestamps = event_time[start_position:end_position]
+
+    start_position = end_position
+    end_position = start_position + total_customer_subset_4
+
+    user_ids[start_position:end_position] = customer_subset_4['user_id']
+    event_time[start_position:end_position] = [last_t + pd.to_timedelta(ro,unit="m") for last_t,ro in zip(last_timestamps, random_offset)]
+    event_type_ids[start_position:end_position] = [event_type_map.get("request_early_withdrawal")]
+    device_types[start_position:end_position] = [device_type_map.get(uid) for uid in customer_subset_4['user_id'] ]
+    event_ids[start_position:end_position] = np.arange(last_event_id + 1, last_event_id + 1 + total_customer_subset_4)
+    last_event_id = event_ids[start_position:end_position].max()
+
+    inv_ids = customer_subset_4['investment_id']
+
+    early_withdrawal_requested_update(conn, inv_ids)
+
+    possible_asset_sale_users = conn.execute(f'''
+            with get_users as (
+                 SELECT user_id, investment_id, '{GENERATION_START_DATE}'::DATE - investment_start_date as days_since_registration, row_number() over(
+                    partition by user_id
+                    order by investment_start_date asc
+                 ) as rn
+                 from fact_investment_position where investment_status = 'Active'
+                 ) select user_id, investment_id from get_users where rn = 1 and days_since_registration > 180 
+                 order by random()
+                 limit 15
+    ''').df()
+
+    customer_subset_5 = possible_asset_sale_users
+
+    total_customer_subset_5 = len(customer_subset_5)
+
+    start_position = end_position
+    end_position = start_position + total_customer_subset_5
+
+    random_offset = np.random.randint(10,1000,size = total_customer_subset_5)
 
 
 

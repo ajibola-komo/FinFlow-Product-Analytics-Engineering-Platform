@@ -1,4 +1,5 @@
 import pandas as pd
+from incremental_generator.config.constants import (GENERATION_START_DATE, INVESTMENT_WITHDRAWAL_PROCESSING_TIME)
 
 
 def update_last_login_timestamp(conn, user_ids, last_login):
@@ -103,4 +104,44 @@ def get_current_wallet_balance(conn, user_ids):
     conn.unregister('uids')
 
     return balances
-    
+
+def early_withdrawal_requested_update(conn, investment_ids, request_timestamps):
+
+    inv_ids = pd.DataFrame({
+        'investment_id':investment_ids,
+        'trans_time':request_timestamps
+    })
+
+    conn.register('inv_ids',inv_ids)
+
+    conn.execute(F'''
+                    update fact_investment_position f set is_withdrawn_early = True,
+                 early_withdrawal_date = i.trans_time, early_withdrawal_date_id = CAST(strftime(i.trans_time::DATE,'%Y%m%d') as INTEGER)
+                 from inv_ids i where f.investment_id = i.investment_id
+    ''')
+
+    conn.unregister('inv_ids')
+
+
+def transfer_early_withdrawals_to_wallets(conn):
+
+    eligible_investments = conn.execute('''
+            SELECT * FROM FACT_INVESTMENT_POSITION WHERE is_withdrawn_early = True and investment_status = 'Active'
+    ''').df()
+
+    inv_df = pd.DataFrame({
+        'investment_id':eligible_investments['investment_id'],
+        'event_time':eligible_investments['early_withdrawal_date'] + pd.to_timedelta(INVESTMENT_WITHDRAWAL_PROCESSING_TIME,unit="M")
+    })
+
+    conn.register('inv_df',inv_df)
+
+    conn.execute('''
+        update fact_investment_position f set investment_status = 'Redeemed' from inv_df i where f.investment_id = i.investment_id
+    ''')
+
+    conn.unregister('inv_df')
+
+    return inv_df
+
+

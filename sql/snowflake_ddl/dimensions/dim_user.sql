@@ -15,6 +15,13 @@ CREATE OR REPLACE TABLE dim_user(
     birth_date_id INT NOT NULL,
     signup_date TIMESTAMP NOT NULL,
     signup_date_id INT NOT NULL,
+    is_activated_user BOOLEAN NOT NULL,
+    wallet_activation_timeframe INT,
     customer_behaviour_segment VARCHAR(50) NOT NULL,
-    last_login_at TIMESTAMP
+    is_immediate_login BOOLEAN NOT NULL,
+    supposed_activation_date TIMESTAMP,
+    kyc_completion_date TIMESTAMP,
+    last_login_time TIMESTAMP,
+    created_at TIMESTAMP not null,
+    last_updated_at TIMESTAMP not null
 )

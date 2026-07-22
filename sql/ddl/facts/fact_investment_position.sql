@@ -12,6 +12,8 @@ CREATE OR REPLACE TABLE FACT_INVESTMENT_POSITION(
     is_withdrawn_early boolean NOT NULL,
     early_withdrawal_date timestamp,
     early_withdrawal_date_id int,
+    created_at timestamp not null,
+    last_updated_at timestamp not null,
     foreign key(user_id) references dim_user(user_id),
     foreign key(wallet_id) references dim_wallet(wallet_id),
     foreign key(plan_id) references dim_plan(plan_id),

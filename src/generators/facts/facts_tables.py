@@ -243,8 +243,7 @@ def generate_facts(conn, num_of_events):
     dtypes = np.array([device_type_map.get(uid) for uid in customer_subset_2["user_id"]])
     
 
-    plan_selected_df = plan_selection_events(context, start_position, end_position, 
-                                                   user_ids, uids, event_time, plan_review_time, event_type_ids, device_types, dtypes)
+    plan_selected_df = plan_selection_events(context, start_position, end_position, user_ids, uids, event_time, plan_review_time, event_type_ids, device_types, dtypes)
 
     plan_selected_df = plan_selected_df.merge(customer_subset_2["first_investment_type"], how="inner", on="user_id")
 
@@ -268,7 +267,7 @@ def generate_facts(conn, num_of_events):
     all_investments_df = investment_creation_dict["all_investments_df"]
 
     
-    customers_who_have_invested_df = get_last_login(conn, plan_selected_df["user_id"])
+    customers_who_have_invested_df = get_last_login(conn, all_investments_df["user_id"])
     cbs_df = get_customer_behaviour_segment(conn, customers_who_have_invested_df["user_id"])
 
     customers_who_have_invested_df = customers_who_have_invested_df.merge(cbs_df, how = "inner", on="user_id")
@@ -331,7 +330,7 @@ def generate_facts(conn, num_of_events):
 
     return_dict = create_wallet_funding_events(conn, context, start_position, end_position, user_ids,wallet_ids, wallet_funding_events['user_id'], event_time, wallet_funding_events['event_time'], last_transaction_id,
                                                 device_types, [device_type_map.get(uid) for uid in wallet_funding_events['user_id']], is_money_movement_activities, event_type_ids,
-                                                transaction_type_ids, transaction_ids, transaction_amounts)
+                                                transaction_type_ids, transaction_ids, transaction_amounts, transaction_statuses)
 
     last_transaction_id = return_dict['last_transaction_id']
     updated_end_position = return_dict['updated_end_position']
@@ -349,18 +348,10 @@ def generate_facts(conn, num_of_events):
 
     
     last_transaction_id = return_dict["last_transaction_id"]
-    all_investments_df = pd.concat(
-    [all_investments_df, return_dict["all_investments_df"]],
-    ignore_index=True
-)
+    all_investments_df = pd.concat([all_investments_df, return_dict["all_investments_df"]],ignore_index=True)
     end_position = return_dict["updated_end_position"]
 
-    all_investments_df["investment_status"] = np.select([all_investments_df["investment_maturity_date"] < pd.Timestamp.today()],
-    ["Matured"],default="Active")
-
-    tenure_days_mask = all_investments_df["tenure_days"].notna()
-
-    all_investments_df.loc[tenure_days_mask,"investment_maturity_date_id"] = np.array([int(pd.Timestamp(ts).strftime('%Y%m%d'))for ts in all_investments_df.loc[tenure_days_mask,"investment_maturity_date"]], dtype=np.int32)
+    all_investments_df["investment_status"] = np.select([all_investments_df["investment_maturity_date"] < pd.Timestamp.today()],["Matured"],default="Active")
 
     users_behaviour_segment_df = get_customer_behaviour_segment(conn, all_investments_df["user_id"])
 
@@ -379,7 +370,7 @@ def generate_facts(conn, num_of_events):
 
     saleable_investments = all_investments_df[pd.isna(all_investments_df["tenure_days"]) & (all_investments_df["investment_start_date"] <= MUTUAL_FUNDS_CUTOFF_DATE)].copy()
 
-    saleable_investments_df = saleable_investments.sample(frac=0.65,random_state=42)
+    saleable_investments_df = saleable_investments.sample(frac=0.45,random_state=42)
 
     active_investments_df = all_investments_df[(all_investments_df["tenure_days"].notna()) & (all_investments_df["investment_status"] == "Active")].copy()
 
@@ -431,15 +422,17 @@ def generate_facts(conn, num_of_events):
 
     dtypes = [device_type_map.get(uid) for uid in vested_investments_df['user_id']]
 
-    vested_investments_proceeds_transfer_events(conn, context, start_position, end_position, user_ids, event_time, wallet_ids, last_transaction_id, is_money_movement_activities,
+    return_dict = vested_investments_proceeds_transfer_events(conn, context, start_position, end_position, user_ids, event_time, wallet_ids, last_transaction_id, is_money_movement_activities,
                                                 transaction_type_ids, transaction_ids, transaction_amounts, transaction_statuses, event_type_ids, device_types, dtypes, vested_investments_df)
+
+    last_transaction_id = return_dict['last_transaction_id']
+    vested_investments_df = return_dict['vested_investments_df']
+
     
     # now let's model asset sales
-    eligible_saleable_investments = saleable_investments_df[(pd.Timestamp.today() - saleable_investments_df["investment_start_date"]) > pd.Timedelta(days=200)]
-    saleable_investments_df_subset = eligible_saleable_investments.sample(frac=0.45).copy()
-    saleable_investments_df_subset["days_held"] = (pd.Timestamp.today() - saleable_investments_df_subset["investment_start_date"]).dt.days
+    saleable_investments_df["days_held"] = (pd.Timestamp.today() - saleable_investments_df["investment_start_date"]).dt.days
 
-    saleable_investments_df_subset["days_held_before_sale"] = [
+    saleable_investments_df["days_held_before_sale"] = [
     int(
         np.random.triangular(
             30,
@@ -450,28 +443,22 @@ def generate_facts(conn, num_of_events):
     for days_held in saleable_investments_df_subset["days_held"]
 ]
 
-    saleable_investments_df_subset["redemption_request_date"] = (
-    saleable_investments_df_subset["investment_start_date"]
+    saleable_investments_df["redemption_request_date"] = (
+    saleable_investments_df["investment_start_date"]
     +
-    pd.to_timedelta(saleable_investments_df_subset["days_held_before_sale"],unit="D"))
+    pd.to_timedelta(saleable_investments_df["days_held_before_sale"],unit="D"))
 
-    saleable_investments_df_subset["redemption_request_login_date"] = (
-    saleable_investments_df_subset["redemption_request_date"]
+    saleable_investments_df["redemption_request_login_date"] = (
+    saleable_investments_df["redemption_request_date"]
     -
     pd.to_timedelta(5,unit="m"))
 
-    saleable_investments_df_subset["review_current_investment_date"] = (
-    saleable_investments_df_subset["redemption_request_login_date"]
+    saleable_investments_df["review_current_investment_date"] = (
+    saleable_investments_df["redemption_request_login_date"]
     +
     pd.to_timedelta(3,unit="m"))
 
-    saleable_investments_df_subset["redemption_request_processing_date"] = (
-        saleable_investments_df_subset["redemption_request_date"]
-    +
-    pd.to_timedelta(24,unit="h")
-    )
-
-    saleable_investments_df_subset["investment_status"] = "Redeemed"
+    saleable_investments_df["investment_status"] = "Redeemed"
 
     #let's model the login first and review of current investments
     start_position = end_position

@@ -491,8 +491,6 @@ def generate_wallet_funding_amounts(conn: DuckDBPyConnection, uids:list[int]) ->
 
 def build_investment_creation_users_dataframe(conn:DuckDBPyConnection, wallet_activated_users_dataframe:pd.DataFrame) -> pd.DataFrame:
 
-
-
     cbf = get_customer_behaviour_segment(conn, wallet_activated_users_dataframe["user_id"])
 
     wallet_activated_users_dataframe["customer_behaviour_segment"] = cbf["customer_behaviour_segment"]
@@ -691,7 +689,7 @@ def review_current_investment_events(conn:DuckDBPyConnection, context:any, start
             
 def create_wallet_funding_events(conn:DuckDBPyConnection, context:any, start_position:int, end_position:int, user_ids:list[int], uids:list[int], wallet_ids:list[int], event_times:list[pd.Timestamp],
                                  funding_time:list[pd.Timestamp], last_transaction_id:int, device_types, dtypes, is_money_movement_activity:list[bool], event_type_ids:list[int], 
-                                 transaction_type_ids:list[int], transaction_ids:list[int], transaction_amounts:list[float]) -> dict:
+                                 transaction_type_ids:list[int], transaction_ids:list[int], transaction_amounts:list[float], transaction_statuses:list[str]) -> dict:
 
 
     login_time = [ft - timedelta(minutes = np.random.randint(4,10)) for ft in funding_time]
@@ -714,6 +712,7 @@ def create_wallet_funding_events(conn:DuckDBPyConnection, context:any, start_pos
     transaction_amounts[start_position:end_position] = tran_amounts
     is_money_movement_activity[start_position:end_position] = [True] * len(uids)
     transaction_ids[start_position:end_position] = np.arange(last_transaction_id + 1, last_transaction_id + len(uids) + 1)
+    transaction_statuses[start_position:end_position] = ["success"] * len(uids)
     last_transaction_id = transaction_ids.max()
 
     update_wallet_balance(conn, uids, tran_amounts, transaction_ids[start_position:end_position], funding_time)
@@ -899,7 +898,6 @@ def vested_investments_events(context:any, start_position:int, end_position:int,
     event_type_ids[start_position:end_position] = [context.investment_vests_event_type_id] * len(vestable_investment_df)
     device_types[start_position:end_position] = dtypes
     event_time[start_position:end_position] = vestable_investment_df['investment_maturity_date']
-
 
 def vested_investments_proceeds_transfer_events(conn:DuckDBPyConnection, context:any, start_position:int, end_position:int, user_ids:list[int], event_time:list[pd.Timestamp], 
                                                 wallet_ids:list[int], last_transaction_id:int,is_money_movement_activity:list[bool],transaction_type_ids:list[int], transaction_ids:list[int], 

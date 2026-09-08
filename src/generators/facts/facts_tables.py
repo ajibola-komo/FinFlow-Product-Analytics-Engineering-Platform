@@ -30,7 +30,7 @@ def generate_facts(conn, num_of_events):
 
     #populate all possible signups within the project duration
     users_data = conn.execute(f'''SELECT user_id, signup_date, kyc_completed, is_activated_user, wallet_activation_timeframe, customer_behaviour_segment, device_type FROM dim_user
-     where signup_date >= '{DEFAULT_TRANSACTION_START_DATE}' order by signup_date''').df()
+     where signup_date between '{DEFAULT_TRANSACTION_START_DATE}' and '{DEFAULT_TRANSACTION_END_DATE}' order by signup_date''').df()
     
     user_wallet_data = conn.execute(f'''SELECT user_id, wallet_id, wallet_activated_at from dim_wallet''').df()
 
@@ -60,8 +60,6 @@ def generate_facts(conn, num_of_events):
 
     device_types = np.empty(num_of_events, dtype=object)
 
-    amount_invested = np.empty(num_of_events,dtype = object)
-
     is_money_movement_activities = np.empty(num_of_events, dtype=bool)
 
     transaction_type_ids = np.empty(num_of_events, dtype=object)
@@ -77,7 +75,6 @@ def generate_facts(conn, num_of_events):
     transaction_amounts = np.zeros(num_of_events, dtype=np.float64)
     transaction_statuses = np.empty(num_of_events, dtype = object)
     is_withdrawn_early = np.full(num_of_events,False,dtype=bool)
-
 
     # new user signups
     total_signups = len(users_data)
@@ -104,8 +101,7 @@ def generate_facts(conn, num_of_events):
     uids = new_users_logins["user_id"]
     dtypes=[device_type_map.get(uid) for uid in uids]
 
-    app_login_events(conn,context,start_position, end_position,
-                     user_ids,uids,event_time,etime,device_types,dtypes, event_type_ids)
+    app_login_events(conn,context,start_position, end_position, user_ids, uids, event_time, etime, device_types, dtypes, event_type_ids)
     
     #kyc_completed_users
     kyc_completed_users = users_data[users_data["kyc_completed"] == True].copy()
@@ -130,9 +126,11 @@ def generate_facts(conn, num_of_events):
     wallet_activation_timeframe = kyc_completed_users["wallet_activation_timeframe"].values
 
     kyc_activation_timeframe[unactivated_users_with_kyc] = np.random.randint(KYC_ACTIVATION_TIMEFRAME[0], KYC_ACTIVATION_TIMEFRAME[1], size=len(unactivated_users_with_kyc))
-    kyc_activation_timeframe[activated_users_with_kyc] = wallet_activation_timeframe[activated_users_with_kyc] - 1000 #assuming wallet activation happens after KYC completion, we can set the KYC activation timeframe to be slightly less than the wallet activation timeframe for those users
+    random_offset = np.random.randint(800,1000, size=len(activated_users_with_kyc))
 
-    kyc_logins_timeframe = kyc_activation_timeframe - 300 #assuming KYC completion happens after the last login, we can set the KYC activation timeframe to be slightly more than the last login timeframe
+    kyc_activation_timeframe[activated_users_with_kyc] = wallet_activation_timeframe[activated_users_with_kyc] - timedelta(minutes=random_offset) #assuming wallet activation happens after KYC completion, we can set the KYC activation timeframe to be slightly less than the wallet activation timeframe for those users
+
+    kyc_logins_timeframe = kyc_activation_timeframe - timedelta(seconds=300) #assuming KYC completion happens after the last login, we can set the KYC activation timeframe to be slightly more than the last login timeframe
 
     # start activation by logging in
     start_position = end_position
@@ -264,7 +262,7 @@ def generate_facts(conn, num_of_events):
 
     investment_creation_dict = investment_creation_events(conn, context, start_position, end_position, user_ids, uids,wallet_ids, event_time, plan_selection_time, first_inv_type,
                                                           device_types, dtypes, is_money_movement_activities, transaction_ids, last_transaction_id, transaction_type_ids,
-                                                          event_type_ids, plan_ids, transaction_amounts, amount_invested)
+                                                          event_type_ids, plan_ids, transaction_amounts, transaction_statuses)
 
     last_transaction_id = investment_creation_dict["last_transaction_id"]
     all_investments_df = investment_creation_dict["all_investments_df"]
@@ -347,7 +345,7 @@ def generate_facts(conn, num_of_events):
     inv_type = new_investment_creation_events['investment_type']
 
     return_dict = new_investment_creation(conn, context, start_position, end_position, user_ids, uids,wallet_ids, event_time, etime, inv_type, device_types, dtypes, 
-                                          is_money_movement_activities, transaction_ids, last_transaction_id, transaction_type_ids, event_type_ids, plan_ids, transaction_amounts, amount_invested)
+                                          is_money_movement_activities, transaction_ids, last_transaction_id, transaction_type_ids, event_type_ids, plan_ids, transaction_amounts, transaction_statuses)
 
     
     last_transaction_id = return_dict["last_transaction_id"]

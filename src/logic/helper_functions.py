@@ -331,7 +331,7 @@ def plan_ids_allocation(conn:DuckDBPyConnection, context:any, uids:list[int], in
 def investment_creation_events(conn: DuckDBPyConnection, context:any, start_position:int, end_position:int, user_ids:list[int],uids:list[int], wallet_ids:list[int], event_times:list[pd.Timestamp], 
                                plan_selection_time:list[pd.Timestamp], investment_type:list[str], device_types:list[str], dtypes:list[str], 
                                is_money_movement_activities:list[bool], transaction_ids:list[int], last_transaction_id:int, 
-                               transaction_type_ids:list[int], event_type_ids:list[int], plan_ids:list[int], transaction_amounts:list[float], amount_invested:list[float], transaction_statuses:list[str]) -> dict:
+                               transaction_type_ids:list[int], event_type_ids:list[int], plan_ids:list[int], transaction_amounts:list[float], transaction_statuses:list[str]) -> dict:
 
     """
         Return a dataframe with the following attributes:
@@ -376,7 +376,6 @@ def investment_creation_events(conn: DuckDBPyConnection, context:any, start_posi
     event_type_ids[start_position:end_position] = plan_ids_allocation_df["event_type_id"]
     plan_ids[start_position:end_position] = plan_ids_allocation_df["plan_id"]
     transaction_amounts[start_position:end_position] = plan_ids_allocation_df['amount_invested']
-    amount_invested[start_position:end_position] = plan_ids_allocation_df['amount_invested']
     transaction_statuses[start_position:end_position] = ["success"] * len(plan_ids_allocation_df)
 
     deduct_wallet_balance(conn, plan_ids_allocation_df["user_id"], plan_ids_allocation_df['amount_invested'], transaction_ids[start_position:end_position], plan_ids_allocation_df["plan_creation_time"])
@@ -726,7 +725,7 @@ def create_wallet_funding_events(conn:DuckDBPyConnection, context:any, start_pos
 def new_investment_creation(conn:DuckDBPyConnection, context:any, start_position:int, end_position:int, user_ids:list[int], uids:list[int], wallet_ids:list[int], event_times:list[pd.Timestamp],
                                plan_creation_time:list[pd.Timestamp], investment_type:list[str], device_types:list[str], dtypes:list[str], 
                                is_money_movement_activities:list[bool], transaction_ids:list[int], last_transaction_id:int, 
-                               transaction_type_ids:list[int], event_type_ids:list[int], plan_ids:list[int], transaction_amounts:list[float], amount_invested:list[float]) -> dict:
+                               transaction_type_ids:list[int], event_type_ids:list[int], plan_ids:list[int], transaction_amounts:list[float],transaction_statuses) -> dict:
 
     """
         This function creates new investment creation events for the given users.
@@ -778,7 +777,7 @@ def new_investment_creation(conn:DuckDBPyConnection, context:any, start_position
                                                           plan_selection_time, investment_type, device_types, dtypes,
                                                           is_money_movement_activities, transaction_ids, last_transaction_id,
                                                           transaction_type_ids, event_type_ids, plan_ids,
-                                                          transaction_amounts, amount_invested)
+                                                          transaction_amounts,transaction_statuses)
 
 
     last_transaction_id = investment_creation_dict['last_transaction_id']

@@ -12,9 +12,8 @@ from src.run_dbt.run_dbt import run_dbt_models
 from src.generators.dimensions.dim_plan import generate_dim_plan
 from src.generators.dimensions.dim_wallet import generate_list_of_wallets
 from src.generators.facts.facts_tables import generate_facts
+from src.generators.facts.fact_wallet_balance import generate_wallet_balance
 from src.generators.dimensions.dim_transaction_type import generate_transaction_types
-from storage.adls_upload import upload_to_gcs
-from storage.adls_to_snowflake_upload import upload_from_gcs_to_snowflake
 from src.config.paths import DB_DIR, FINFLOW_DB_PATH
 
 load_dotenv()
@@ -29,6 +28,7 @@ def create():
         generate_dim_plan(conn)
         generate_users(conn,5000)
         generate_list_of_wallets(conn)
+        generate_wallet_balance(conn)
         generate_transaction_types(conn)
         generate_facts(conn,6000000)
 

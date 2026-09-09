@@ -196,10 +196,4 @@ def generate_users(conn, num_of_users):
     conn.register('df_raw', df_raw)
     conn.execute('''INSERT INTO dim_user SELECT * FROM df_raw''')
 
-    conn.execute(f'''COPY (
-                        SELECT user_id, first_name, last_name, country, region, city, email_address, reported_annual_income,
-                        acquisition_channel, device_type, customer_persona, kyc_completed, date_of_birth, birth_date_id, signup_date, signup_date_id, 
-                        customer_behaviour_segment, last_login_at, created_at, last_updated_at
-                        from dim_user )
-                 TO '{USERS_PARQUET_PATH}' (FORMAT PARQUET) ''')
-
+    

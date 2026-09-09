@@ -1,7 +1,8 @@
 import numpy as np
 import pandas as pd
 from src.config.paths import (DDL_FACT_USER_EVENT_PATH, FACT_USER_EVENT_PARQUET_PATH, 
-                              FACT_INVESTMENT_POSITION_PARQUET_PATH, DDL_FACT_INVESTMENT_POSITION_PATH, DDL_FACT_TRANSACTION_PATH, FACT_TRANSACTION_PARQUET_PATH)
+                              FACT_INVESTMENT_POSITION_PARQUET_PATH, DDL_FACT_INVESTMENT_POSITION_PATH, DDL_FACT_TRANSACTION_PATH, FACT_TRANSACTION_PARQUET_PATH,
+                              FACT_WALLET_BALANCE_PARQUET_PATH, USERS_PARQUET_PATH, WALLETS_PARQUET_PATH)
 from src.config.constants import (DEFAULT_TRANSACTION_START_DATE, DEFAULT_TRANSACTION_END_DATE, IMMEDIATE_LOGINS_TIME_FRAME, KYC_ACTIVATION_TIMEFRAME,
                                   CUSTOMER_BEHAVIOUR_SEGMENT_MAP, 
                                   MUTUAL_FUNDS_CUTOFF_DATE
@@ -623,3 +624,14 @@ def generate_facts(conn, num_of_events):
     conn.execute('''INSERT INTO fact_user_event SELECT * FROM df_raw''')
 
     conn.execute(f'''COPY FACT_USER_EVENT TO '{FACT_USER_EVENT_PARQUET_PATH}' (FORMAT PARQUET) ''')
+
+    conn.execute(f'''COPY FACT_WALLET_BALANCE TO '{FACT_WALLET_BALANCE_PARQUET_PATH}' (FORMAT PARQUET)''')
+
+    conn.execute(f'''COPY (
+                            SELECT user_id, first_name, last_name, country, region, city, email_address, reported_annual_income,
+                            acquisition_channel, device_type, customer_persona, kyc_completed, date_of_birth, birth_date_id, signup_date, signup_date_id, 
+                            customer_behaviour_segment, last_login_at, created_at, last_updated_at
+                            from dim_user )
+                     TO '{USERS_PARQUET_PATH}' (FORMAT PARQUET) ''')
+
+    conn.execute(f'''COPY DIM_WALLET TO '{WALLETS_PARQUET_PATH}' (FORMAT PARQUET)''')

@@ -71,8 +71,6 @@ def generate_list_of_wallets(conn):
 
     conn.execute('''INSERT into dim_wallet select * from df_raw''')
 
-    conn.execute(f'''COPY dim_wallet to '{WALLETS_PARQUET_PATH}' (FORMAT PARQUET) ''')
-
     
 
 

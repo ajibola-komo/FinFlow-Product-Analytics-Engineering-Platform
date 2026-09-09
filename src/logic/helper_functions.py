@@ -979,6 +979,8 @@ def assets_sale_investment_proceeds_wallet_transfer_events(conn:DuckDBPyConnecti
         'saleable_investments_df':saleable_investment_df
     }
 
+    
+
 
 
 

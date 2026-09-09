@@ -42,10 +42,6 @@ def generate_facts(conn, num_of_events):
     
     transaction_type_lookup = conn.execute('''SELECT transaction_type_code, transaction_type_id FROM dim_transaction_type''').df()
     
-    event_type_map = dict(zip(event_type_lookup["event_type_code"],event_type_lookup["event_type_id"]))
-    
-    transaction_type_map = dict(zip(transaction_type_lookup["transaction_type_code"],transaction_type_lookup["transaction_type_id"]))
-    
     wallet_id_map = dict(zip(user_wallet_data["user_id"],user_wallet_data["wallet_id"]))
 
     event_time = np.empty(num_of_events, dtype=object)
@@ -69,12 +65,12 @@ def generate_facts(conn, num_of_events):
     investment_ids = np.empty(num_of_events, dtype=object)
 
     last_transaction_id = 0
+    last_investment_id = 0
 
     #event_ids = np.empty(num_of_events, dtype=np.int64)
 
     transaction_amounts = np.zeros(num_of_events, dtype=np.float64)
     transaction_statuses = np.empty(num_of_events, dtype = object)
-    is_withdrawn_early = np.full(num_of_events,False,dtype=bool)
 
     # new user signups
     total_signups = len(users_data)
@@ -261,10 +257,11 @@ def generate_facts(conn, num_of_events):
 
     investment_creation_dict = investment_creation_events(conn, context, start_position, end_position, user_ids, uids,wallet_ids, event_time, plan_selection_time, first_inv_type,
                                                           device_types, dtypes, is_money_movement_activities, transaction_ids, last_transaction_id, transaction_type_ids,
-                                                          event_type_ids, plan_ids, transaction_amounts, transaction_statuses)
+                                                          event_type_ids, plan_ids, transaction_amounts, transaction_statuses, investment_ids, last_investment_id)
 
     last_transaction_id = investment_creation_dict["last_transaction_id"]
     all_investments_df = investment_creation_dict["all_investments_df"]
+    last_investment_id = investment_creation_dict["last_investment_id"]
 
     
     customers_who_have_invested_df = get_last_login(conn, all_investments_df["user_id"])
@@ -344,12 +341,14 @@ def generate_facts(conn, num_of_events):
     inv_type = new_investment_creation_events['investment_type']
 
     return_dict = new_investment_creation(conn, context, start_position, end_position, user_ids, uids,wallet_ids, event_time, etime, inv_type, device_types, dtypes, 
-                                          is_money_movement_activities, transaction_ids, last_transaction_id, transaction_type_ids, event_type_ids, plan_ids, transaction_amounts, transaction_statuses)
+                                          is_money_movement_activities, transaction_ids, last_transaction_id, transaction_type_ids, event_type_ids, plan_ids, transaction_amounts, 
+                                          transaction_statuses, investment_ids, last_investment_id)
 
     
     last_transaction_id = return_dict["last_transaction_id"]
     all_investments_df = pd.concat([all_investments_df, return_dict["all_investments_df"]],ignore_index=True)
     end_position = return_dict["updated_end_position"]
+    last_investment_id = return_dict["last_investment_id"]
 
     all_investments_df["investment_status"] = np.select([all_investments_df["investment_maturity_date"] < pd.Timestamp.today()],["Matured"],default="Active")
 
@@ -399,7 +398,7 @@ def generate_facts(conn, num_of_events):
     
     return_dict = early_withdrawal_requests_events(conn, context, start_position, end_position, user_ids, wallet_ids, is_money_movement_activities, last_transaction_id, event_time,
                                                    device_types, dtypes, early_withrawal_df, event_type_ids, transaction_type_ids, transaction_ids, transaction_amounts, 
-                                                   transaction_statuses)
+                                                   transaction_statuses, investment_ids)
 
     last_transaction_id = return_dict['last_transaction_id']
     end_position = return_dict['updated_end_position']
@@ -414,7 +413,7 @@ def generate_facts(conn, num_of_events):
 
     dtypes = [device_type_map.get(uid) for uid in vested_investments_df['user_id']]
 
-    vested_investments_events(context, start_position, end_position, user_ids, event_time, event_type_ids, device_types,dtypes, vested_invested_mask)
+    vested_investments_events(context, start_position, end_position, user_ids, event_time, event_type_ids, device_types,dtypes, investment_ids, vested_invested_mask)
 
     #model investment proceeds wallet transfer for transactions with matured investments
     start_position = end_position
@@ -423,7 +422,8 @@ def generate_facts(conn, num_of_events):
     dtypes = [device_type_map.get(uid) for uid in vested_investments_df['user_id']]
 
     return_dict = vested_investments_proceeds_transfer_events(conn, context, start_position, end_position, user_ids, event_time, wallet_ids, last_transaction_id, is_money_movement_activities,
-                                                transaction_type_ids, transaction_ids, transaction_amounts, transaction_statuses, event_type_ids, device_types, dtypes, vested_investments_df)
+                                                transaction_type_ids, transaction_ids, transaction_amounts, transaction_statuses, event_type_ids, device_types, dtypes, investment_ids,
+                                                vested_investments_df)
 
     last_transaction_id = return_dict['last_transaction_id']
     vested_investments_df = return_dict['vested_investments_df']
@@ -472,7 +472,7 @@ def generate_facts(conn, num_of_events):
     end_position = start_position + len(saleable_investments_df)
 
     dtypes = [device_type_map.get(uid) for uid in saleable_investments_df["user_id"]]
-    assets_sale_events(context, start_position, end_position, user_ids, event_time, event_type_ids, device_types, dtypes, saleable_investments_df)
+    assets_sale_events(context, start_position, end_position, user_ids, event_time, event_type_ids, device_types, dtypes, investment_ids,saleable_investments_df)
 
     saleable_investments_df["investment_maturity_date"] = saleable_investments_df["redemption_request_date"]
     saleable_investments_df['investment_maturity_date_id'] = (pd.to_datetime(saleable_investments_df["redemption_request_date"]).dt.strftime('%Y%m%d').astype(int))
@@ -483,7 +483,8 @@ def generate_facts(conn, num_of_events):
     dtypes = [device_type_map.get(uid) for uid in saleable_investments_df["user_id"]]
 
     return_dict = assets_sale_investment_proceeds_wallet_transfer_events(conn, context, start_position, end_position, user_ids, wallet_ids, event_time, device_types, dtypes, transaction_type_ids,transaction_ids, last_transaction_id,
-                                                                         event_type_ids, is_money_movement_activities, transaction_amounts, transaction_statuses, saleable_investments_df)
+                                                                         event_type_ids, is_money_movement_activities, transaction_amounts, transaction_statuses, investment_ids,
+                                                                         saleable_investments_df)
 
     last_transaction_id = return_dict['last_transaction_id']
     saleable_investments_df = return_dict['saleable_investments_df']
@@ -505,6 +506,8 @@ def generate_facts(conn, num_of_events):
     saleable_investments.loc[saleable_investments_df.index] = saleable_investments_df
 
     all_investments_df = pd.concat([active_investments_df, vestable_investments_df, saleable_investments], ignore_index = True)
+
+    all_investments_df = all_investments_df.drop(['plan_name','tenure_days','penalty_rate_pct'])
 
     total_events = end_position
     
@@ -550,8 +553,8 @@ def generate_facts(conn, num_of_events):
                     COPY fact_transaction TO '{FACT_TRANSACTION_PARQUET_PATH}' (FORMAT PARQUET)
     ''')
 
-
     investment_positions_df = pd.DataFrame({
+        "investment_id":all_investments_df["investment_id"],
         "user_id":all_investments_df["user_id"],
         "wallet_id":all_investments_df["wallet_id"],
         "plan_id":all_investments_df["plan_id"],

@@ -331,7 +331,8 @@ def plan_ids_allocation(conn:DuckDBPyConnection, context:any, uids:list[int], in
 def investment_creation_events(conn: DuckDBPyConnection, context:any, start_position:int, end_position:int, user_ids:list[int],uids:list[int], wallet_ids:list[int], event_times:list[pd.Timestamp], 
                                plan_selection_time:list[pd.Timestamp], investment_type:list[str], device_types:list[str], dtypes:list[str], 
                                is_money_movement_activities:list[bool], transaction_ids:list[int], last_transaction_id:int, 
-                               transaction_type_ids:list[int], event_type_ids:list[int], plan_ids:list[int], transaction_amounts:list[float], transaction_statuses:list[str]) -> dict:
+                               transaction_type_ids:list[int], event_type_ids:list[int], plan_ids:list[int], transaction_amounts:list[float], transaction_statuses:list[str],
+                               investment_ids:list[int], last_investment_id) -> dict:
 
     """
         Return a dataframe with the following attributes:
@@ -377,12 +378,15 @@ def investment_creation_events(conn: DuckDBPyConnection, context:any, start_posi
     plan_ids[start_position:end_position] = plan_ids_allocation_df["plan_id"]
     transaction_amounts[start_position:end_position] = plan_ids_allocation_df['amount_invested']
     transaction_statuses[start_position:end_position] = ["success"] * len(plan_ids_allocation_df)
+    investment_ids[start_position:end_position] = np.arange(last_investment_id + 1, last_investment_id + 1 + len(plan_ids_allocation_df))
+    last_investment_id = investment_ids[start_position:end_position].max()
 
     deduct_wallet_balance(conn, plan_ids_allocation_df["user_id"], plan_ids_allocation_df['amount_invested'], transaction_ids[start_position:end_position], plan_ids_allocation_df["plan_creation_time"])
 
     # build dataframe
 
     all_investments_df = pd.DataFrame({
+        'investment_id':investment_ids[start_position:end_position],
         'user_id': plan_ids_allocation_df["user_id"],
         'wallet_id':plan_ids_allocation_df["wallet_id"],
         'plan_id':plan_ids_allocation_df["plan_id"],
@@ -407,7 +411,7 @@ def investment_creation_events(conn: DuckDBPyConnection, context:any, start_posi
     all_investments_df['last_updated_at'] = all_investments_df['investment_start_date']
     
     return {
-        'all_investments_df':all_investments_df, 'last_transaction_id':last_transaction_id
+        'all_investments_df':all_investments_df, 'last_transaction_id':last_transaction_id,'last_investment_id':last_investment_id
     }
     
 
@@ -724,7 +728,8 @@ def create_wallet_funding_events(conn:DuckDBPyConnection, context:any, start_pos
 def new_investment_creation(conn:DuckDBPyConnection, context:any, start_position:int, end_position:int, user_ids:list[int], uids:list[int], wallet_ids:list[int], event_times:list[pd.Timestamp],
                                plan_creation_time:list[pd.Timestamp], investment_type:list[str], device_types:list[str], dtypes:list[str], 
                                is_money_movement_activities:list[bool], transaction_ids:list[int], last_transaction_id:int, 
-                               transaction_type_ids:list[int], event_type_ids:list[int], plan_ids:list[int], transaction_amounts:list[float],transaction_statuses) -> dict:
+                               transaction_type_ids:list[int], event_type_ids:list[int], plan_ids:list[int], transaction_amounts:list[float],transaction_statuses,
+                               investment_ids:list[int], last_investment_id:int) -> dict:
 
     """
         This function creates new investment creation events for the given users.
@@ -776,24 +781,25 @@ def new_investment_creation(conn:DuckDBPyConnection, context:any, start_position
                                                           plan_selection_time, investment_type, device_types, dtypes,
                                                           is_money_movement_activities, transaction_ids, last_transaction_id,
                                                           transaction_type_ids, event_type_ids, plan_ids,
-                                                          transaction_amounts,transaction_statuses)
+                                                          transaction_amounts,transaction_statuses,investment_ids, last_investment_id)
 
 
     last_transaction_id = investment_creation_dict['last_transaction_id']
     all_investments_df = investment_creation_dict['all_investment_df']
     updated_end_position = end_position
+    last_investment_id = investment_creation_dict['last_investment_id']
 
     return {
         'last_transaction_id':last_transaction_id,
         'all_investments_df':all_investments_df,
-        'updated_end_position':updated_end_position
-
+        'updated_end_position':updated_end_position,
+        'last_investment_id':last_investment_id
     }
 
 def early_withdrawal_requests_events(conn:DuckDBPyConnection,context:any, start_position:int, end_position:int, user_ids:list[int], wallet_ids:list[int], 
                                      is_money_movement_activity:list[bool], last_transaction_id:int, event_times:list[pd.Timestamp], device_types:list[str], dtypes:list[str], 
                                      early_withdrawal_requests_df:pd.DataFrame, event_type_ids:list[int], transaction_types_ids:list[int],transaction_ids:list[int], 
-                                     transaction_amounts:list[float], transaction_statuses:list[str]) -> dict:
+                                     transaction_amounts:list[float], transaction_statuses:list[str], investment_ids:list[int]) -> dict:
 
 
 
@@ -830,6 +836,7 @@ def early_withdrawal_requests_events(conn:DuckDBPyConnection,context:any, start_
 
     user_ids[start_position:end_position] = early_withdrawal_requests_df['user_id']
     event_times[start_position:end_position] = early_withdrawal_requests_df['withdrawal_request_date']
+    investment_ids[start_position:end_position] = early_withdrawal_requests_df['investment_id']
     event_type_ids[start_position:end_position] = [context.request_early_withdrawal_event_type_id] * len(early_withdrawal_requests_df)
     device_types[start_position:end_position] = dtypes
 
@@ -838,6 +845,7 @@ def early_withdrawal_requests_events(conn:DuckDBPyConnection,context:any, start_
     end_position = start_position + len(early_withdrawal_requests_df)
 
     user_ids[start_position:end_position] = early_withdrawal_requests_df['user_id']
+    investment_ids[start_position:end_position] = early_withdrawal_requests_df['investment_id']
     event_times[start_position:end_position] = early_withdrawal_requests_df['withdrawal_request_date'] + timedelta(minutes = INVESTMENT_WITHDRAWAL_PROCESSING_TIME)
     is_money_movement_activity[start_position:end_position] = [True] * len(early_withdrawal_requests_df)
     event_type_ids[start_position:end_position] = [context.investment_proceeds_wallet_transfer_event_type_id] * len(early_withdrawal_requests_df)
@@ -860,6 +868,7 @@ def early_withdrawal_requests_events(conn:DuckDBPyConnection,context:any, start_
     early_withdrawal_requests_df['wallet_id'] = early_withdrawal_requests_df['user_id']
 
     early_withdrawal_df = pd.DataFrame({
+        'investment_id':early_withdrawal_requests_df['investment_id'],
         'user_id':early_withdrawal_requests_df['user_id'],
         'wallet_id':early_withdrawal_requests_df['wallet_id'],
         'plan_id':early_withdrawal_requests_df['plan_id'],
@@ -891,22 +900,24 @@ def early_withdrawal_requests_events(conn:DuckDBPyConnection,context:any, start_
     }
 
 def vested_investments_events(context:any, start_position:int, end_position:int, user_ids:list[int], event_time:list[pd.Timestamp], event_type_ids:list[int], device_types:list[str], dtypes:list[str],
-                              vestable_investment_df:pd.DataFrame) -> None:
+                              investment_ids:list[int],vestable_investment_df:pd.DataFrame) -> None:
 
 
     user_ids[start_position:end_position] = vestable_investment_df['user_id']
     event_type_ids[start_position:end_position] = [context.investment_vests_event_type_id] * len(vestable_investment_df)
+    investment_ids[start_position:end_position] = vestable_investment_df['investment_id']
     device_types[start_position:end_position] = dtypes
     event_time[start_position:end_position] = vestable_investment_df['investment_maturity_date']
 
 def vested_investments_proceeds_transfer_events(conn:DuckDBPyConnection, context:any, start_position:int, end_position:int, user_ids:list[int], event_time:list[pd.Timestamp], 
                                                 wallet_ids:list[int], last_transaction_id:int,is_money_movement_activity:list[bool],transaction_type_ids:list[int], transaction_ids:list[int], 
                                                 transaction_amounts:list[float], transaction_statuses:list[str],
-                                                event_type_ids:list[int], device_types:list[str], dtypes:list[str], 
+                                                event_type_ids:list[int], device_types:list[str], dtypes:list[str], investment_ids:list[int],
                                                 vested_investment_df:pd.DataFrame) -> dict:
 
     user_ids[start_position:end_position] = vested_investment_df['user_id']
     wallet_ids[start_position:end_position] = vested_investment_df['user_id']
+    investment_ids[start_position:end_position] = vested_investment_df['invesment_id']
     is_money_movement_activity[start_position:end_position] = [True] * len(vested_investment_df)
     event_type_ids[start_position:end_position] = [context.investment_proceeds_wallet_transfer_event_type_id] * len(vested_investment_df)
     device_types[start_position:end_position] = dtypes
@@ -935,16 +946,19 @@ def vested_investments_proceeds_transfer_events(conn:DuckDBPyConnection, context
     }
         
 def assets_sale_events(context:any, start_position:int, end_position:int, user_ids:list[int], event_time:list[pd.Timestamp], event_type_ids:list[int], device_types:list[str], dtypes:list[str],
+                       investment_ids:list[int],
                         saleable_investments_df:pd.DataFrame) -> None:
 
     user_ids[start_position:end_position] = saleable_investments_df['user_id']
     event_time[start_position:end_position] = saleable_investments_df['redemption_request_date']
     event_type_ids[start_position:end_position] = [context.assets_sale_event_type_id] * len(saleable_investments_df)
     device_types[start_position:end_position] = dtypes
+    investment_ids[start_position:end_position] = saleable_investments_df['investment_id']
 
 def assets_sale_investment_proceeds_wallet_transfer_events(conn:DuckDBPyConnection, context:any, start_position:int, end_position:int, user_ids:list[int], wallet_ids:list[int],
                                                     event_time:list[pd.Timestamp], device_types:list[str], dtypes, transaction_type_ids:list[int], transaction_ids:list[int],
                                                     last_transaction_id:int, event_type_ids, is_money_movement_activity:list[bool], transaction_amounts:list[float], transaction_statuses:list[str],
+                                                    investment_ids:list[int],
                                                     saleable_investment_df:pd.DataFrame) -> dict:
 
     saleable_investment_df = saleable_investment_df.copy()
@@ -953,6 +967,7 @@ def assets_sale_investment_proceeds_wallet_transfer_events(conn:DuckDBPyConnecti
     event_time[start_position:end_position] = (saleable_investment_df['redemption_request_date'] + timedelta(minutes=INVESTMENT_WITHDRAWAL_PROCESSING_TIME))
     is_money_movement_activity[start_position:end_position] = [True] * len(saleable_investment_df)
     device_types[start_position:end_position] = dtypes
+    investment_ids[start_position:end_position] = saleable_investment_df['investment_id']
     event_type_ids[start_position:end_position] = [context.investment_proceeds_wallet_transfer_event_type_id] * len(saleable_investment_df)
     transaction_type_ids[start_position:end_position] = [context.investment_proceeds_transfer_transaction_type_id] * len(saleable_investment_df)
     transaction_ids[start_position:end_position] = np.arange(last_transaction_id + 1, last_transaction_id + 1 + len(saleable_investment_df))

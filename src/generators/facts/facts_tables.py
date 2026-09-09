@@ -440,7 +440,7 @@ def generate_facts(conn, num_of_events):
             days_held
         )
     )
-    for days_held in saleable_investments_df_subset["days_held"]
+    for days_held in saleable_investments_df["days_held"]
 ]
 
     saleable_investments_df["redemption_request_date"] = (
@@ -462,40 +462,42 @@ def generate_facts(conn, num_of_events):
 
     #let's model the login first and review of current investments
     start_position = end_position
-    end_position = start_position + len(saleable_investments_df_subset)
+    end_position = start_position + len(saleable_investments_df)
 
 
-    review_current_investment_events(conn, context, start_position, end_position, user_ids,saleable_investments_df_subset["user_id"].values,saleable_investments_df_subset["review_current_investment_date"],
+    review_current_investment_events(conn, context, start_position, end_position, user_ids,saleable_investments_df["user_id"].values,saleable_investments_df["review_current_investment_date"],
                                       device_types, dtypes, event_type_ids)
 
     start_position = end_position
-    end_position = start_position + len(saleable_investments_df_subset)
+    end_position = start_position + len(saleable_investments_df)
 
-    dtypes = [device_type_map.get(uid) for uid in saleable_investments_df_subset["user_id"]]
-    assets_sale_events(context, start_position, end_position, user_ids, event_time, event_type_ids, device_types, dtypes, saleable_investments_df_subset)
+    dtypes = [device_type_map.get(uid) for uid in saleable_investments_df["user_id"]]
+    assets_sale_events(context, start_position, end_position, user_ids, event_time, event_type_ids, device_types, dtypes, saleable_investments_df)
 
-    saleable_investments_df_subset["investment_maturity_date"] = saleable_investments_df_subset["redemption_request_date"]
-    saleable_investments_df_subset['investment_maturity_date_id'] = (pd.to_datetime(saleable_investments_df_subset["redemption_request_date"]).dt.strftime('%Y%m%d').astype(int))
+    saleable_investments_df["investment_maturity_date"] = saleable_investments_df["redemption_request_date"]
+    saleable_investments_df['investment_maturity_date_id'] = (pd.to_datetime(saleable_investments_df["redemption_request_date"]).dt.strftime('%Y%m%d').astype(int))
 
     start_position = end_position
-    end_position = start_position + len(saleable_investments_df_subset)
+    end_position = start_position + len(saleable_investments_df)
 
-    dtypes = [device_type_map.get(uid) for uid in saleable_investments_df_subset["user_id"]]
+    dtypes = [device_type_map.get(uid) for uid in saleable_investments_df["user_id"]]
 
     return_dict = assets_sale_investment_proceeds_wallet_transfer_events(conn, context, start_position, end_position, user_ids, wallet_ids, event_time, device_types, dtypes, transaction_type_ids,transaction_ids, last_transaction_id,
-                                                                         event_type_ids, is_money_movement_activities, transaction_amounts, transaction_statuses, saleable_investments_df_subset)
+                                                                         event_type_ids, is_money_movement_activities, transaction_amounts, transaction_statuses, saleable_investments_df)
 
     last_transaction_id = return_dict['last_transaction_id']
-    saleable_investments_df_subset = return_dict['saleable_investments_df']
+    saleable_investments_df = return_dict['saleable_investments_df']
 
     # vestable - early_withdrawal_df and vested_investment_df
-    # saleable - saleable_investments_df_subset
+    # saleable - saleable_investments_df
 
     vestable_investments_df = pd.concat([early_withrawal_df, vested_investments_df])
 
-    saleable_investments_df.loc[saleable_investments_df_subset] = saleable_investments_df_subset
+    saleable_investments.loc[saleable_investments_df.index] = saleable_investments_df
 
-    all_investments_df = pd.concat([active_investments_df, vestable_investments_df, saleable_investments_df], ignore_index = True)
+    all_investments_df = pd.concat([active_investments_df, vestable_investments_df, saleable_investments], ignore_index = True)
+
+
 
     redeemed_mask = all_investments_df["investment_status"] == "Redeemed"
 

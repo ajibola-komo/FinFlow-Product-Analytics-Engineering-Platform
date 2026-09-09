@@ -356,7 +356,7 @@ def investment_creation_events(conn: DuckDBPyConnection, context:any, start_posi
     """
 
     plan_ids_allocation_df = plan_ids_allocation(conn, context,uids, investment_type, plan_selection_time)
-    plan_ids_allocation_df["plan_creation_time"] = [plan_ids_allocation_df["plan_selection_time"] + pd.to_timedelta(np.random.randint(3,6),unit="m")]
+    plan_ids_allocation_df["plan_creation_time"] = (plan_ids_allocation_df["plan_selection_time"] + pd.to_timedelta(np.random.randint(3,6),unit="m"))
     plan_attributes_df = get_plan_attributes(conn, plan_ids_allocation_df["user_id"], plan_ids_allocation_df["plan_id"],plan_ids_allocation_df["plan_creation_time"])
 
     plan_ids_allocation_df = plan_ids_allocation_df.merge(plan_attributes_df, how="inner", on=["user_id","plan_id"])

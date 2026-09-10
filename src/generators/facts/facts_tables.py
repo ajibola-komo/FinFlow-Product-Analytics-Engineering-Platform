@@ -35,14 +35,8 @@ def generate_facts(conn, num_of_events):
     
     user_wallet_data = conn.execute(f'''SELECT user_id, wallet_id, wallet_activated_at from dim_wallet''').df()
 
-    plans_data = conn.execute('''SELECT * FROM dim_plan''').df()
-
     device_type_map = dict(zip(users_data["user_id"],users_data["device_type"]))
 
-    event_type_lookup = conn.execute('''SELECT event_type_code, event_type_id FROM dim_event_type''').df()
-    
-    transaction_type_lookup = conn.execute('''SELECT transaction_type_code, transaction_type_id FROM dim_transaction_type''').df()
-    
     wallet_id_map = dict(zip(user_wallet_data["user_id"],user_wallet_data["wallet_id"]))
 
     event_time = np.empty(num_of_events, dtype=object)
@@ -52,8 +46,6 @@ def generate_facts(conn, num_of_events):
     event_type_ids = np.empty(num_of_events, dtype=object)
 
     wallet_ids = np.empty(num_of_events, dtype=object)
-
-    plan_ids = np.empty(num_of_events, dtype=object)
 
     device_types = np.empty(num_of_events, dtype=object)
 
@@ -125,9 +117,9 @@ def generate_facts(conn, num_of_events):
     kyc_activation_timeframe[unactivated_users_with_kyc] = np.random.randint(KYC_ACTIVATION_TIMEFRAME[0], KYC_ACTIVATION_TIMEFRAME[1], size=len(unactivated_users_with_kyc))
     random_offset = np.random.randint(800,1000, size=len(activated_users_with_kyc))
 
-    kyc_activation_timeframe[activated_users_with_kyc] = wallet_activation_timeframe[activated_users_with_kyc] - timedelta(minutes=random_offset) #assuming wallet activation happens after KYC completion, we can set the KYC activation timeframe to be slightly less than the wallet activation timeframe for those users
+    kyc_activation_timeframe[activated_users_with_kyc] = wallet_activation_timeframe[activated_users_with_kyc] - random_offset #assuming wallet activation happens after KYC completion, we can set the KYC activation timeframe to be slightly less than the wallet activation timeframe for those users
 
-    kyc_logins_timeframe = kyc_activation_timeframe - timedelta(seconds=300) #assuming KYC completion happens after the last login, we can set the KYC activation timeframe to be slightly more than the last login timeframe
+    kyc_logins_timeframe = kyc_activation_timeframe - 5 #assuming KYC completion happens after the last login, we can set the KYC activation timeframe to be slightly more than the last login timeframe
 
     # start activation by logging in
     start_position = end_position
@@ -166,7 +158,7 @@ def generate_facts(conn, num_of_events):
     return_dict = wallet_activation_events(
         conn, context, start_position, end_position,user_ids, uids, event_time, etime,
     device_types, dtypes, event_type_ids, wallet_ids, wids, is_money_movement_activities, transaction_type_ids, transaction_ids, transaction_amounts,
-    wallet_activated_users["amount_invested"],transaction_statuses, last_transaction_id
+    transaction_statuses, last_transaction_id
     )
 
     last_transaction_id = return_dict['last_transaction_id']
@@ -179,7 +171,8 @@ def generate_facts(conn, num_of_events):
 
     
     customer_subset_1 = wallet_activated_users.sample(frac = 0.55, random_state=1)
-    customer_subset_1["last_login_at"] = get_last_login(conn, customer_subset_1["user_id"])
+    last_login_df = get_last_login(conn, customer_subset_1['user_id'])
+    customer_subset_1 = customer_subset_1.merge(last_login_df,how="inner",on="user_id")
 
     total_customer_subset_1 = len(customer_subset_1)
 
@@ -238,11 +231,16 @@ def generate_facts(conn, num_of_events):
 
     uids = customer_subset_2["user_id"]
     dtypes = np.array([device_type_map.get(uid) for uid in customer_subset_2["user_id"]])
+
+    investment_type_df = pd.DataFrame({
+        'user_id':customer_subset_2["user_id"],
+        'first_investment_type':customer_subset_2["first_investment_type"]
+    })
     
 
     plan_selected_df = plan_selection_events(context, start_position, end_position, user_ids, uids, event_time, plan_review_time, event_type_ids, device_types, dtypes)
 
-    plan_selected_df = plan_selected_df.merge(customer_subset_2["first_investment_type"], how="inner", on="user_id")
+    plan_selected_df = plan_selected_df.merge(investment_type_df, how="inner", on="user_id")
 
     # investment creation events
 
@@ -258,7 +256,7 @@ def generate_facts(conn, num_of_events):
 
     investment_creation_dict = investment_creation_events(conn, context, start_position, end_position, user_ids, uids,wallet_ids, event_time, plan_selection_time, first_inv_type,
                                                           device_types, dtypes, is_money_movement_activities, transaction_ids, last_transaction_id, transaction_type_ids,
-                                                          event_type_ids, plan_ids, transaction_amounts, transaction_statuses, investment_ids, last_investment_id)
+                                                          event_type_ids, transaction_amounts, transaction_statuses, investment_ids, last_investment_id)
 
     last_transaction_id = investment_creation_dict["last_transaction_id"]
     all_investments_df = investment_creation_dict["all_investments_df"]
@@ -342,7 +340,7 @@ def generate_facts(conn, num_of_events):
     inv_type = new_investment_creation_events['investment_type']
 
     return_dict = new_investment_creation(conn, context, start_position, end_position, user_ids, uids,wallet_ids, event_time, etime, inv_type, device_types, dtypes, 
-                                          is_money_movement_activities, transaction_ids, last_transaction_id, transaction_type_ids, event_type_ids, plan_ids, transaction_amounts, 
+                                          is_money_movement_activities, transaction_ids, last_transaction_id, transaction_type_ids, event_type_ids, transaction_amounts, 
                                           transaction_statuses, investment_ids, last_investment_id)
 
     

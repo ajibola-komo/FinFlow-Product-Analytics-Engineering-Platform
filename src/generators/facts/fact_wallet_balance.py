@@ -13,10 +13,9 @@ def generate_wallet_balance(conn):
 
     wallet_ids = wallets_data['wallet_id']
     user_ids = wallets_data['user_id']
-    current_wallet_balance = np.zeros(len(wallets_data))
+    current_wallet_balance = np.zeros(len(wallets_data),dtype=np.float64)
     updated_at = wallets_data['wallet_created_at']
-    last_transaction_id = np.empty(len(wallets_data), dtype=object)
-    last_event_id = np.empty(len(wallets_data), dtype=object)
+    last_transaction_id = np.full(len(wallets_data), pd.NA, dtype=object)
     created_at = wallets_data['wallet_created_at']
     last_updated_at = wallets_data['wallet_created_at']
 
@@ -24,17 +23,18 @@ def generate_wallet_balance(conn):
         'wallet_id':wallet_ids,
         'user_id':user_ids,
         'current_balance':current_wallet_balance,
-        'updated_at':updated_at,
+        'last_updated_date':last_updated_at,
+        'last_updated_date_id':last_updated_at.dt.strftime("%Y%m%d").astype(int),
         'last_transaction_id':last_transaction_id,
-        'last_event_id':last_event_id,
         'created_at':created_at,
-        'last_updated_at':last_updated_at
+        'updated_at':updated_at
+        
     })
 
     conn.register('wallet_balance_df', df_raw)
 
-    conn.execute(f'''insert into fact_wallet_balance (wallet_id, user_id, current_balance, updated_at, last_transaction_id, last_event_id, created_at, last_updated_at)
-                     select wallet_id, user_id, current_balance, updated_at, last_transaction_id, last_event_id, created_at, last_updated_at from wallet_balance_df''')
+    conn.execute(f'''insert into fact_wallet_balance (wallet_id, user_id, current_balance, last_updated_date,last_updated_date_id, last_transaction_id, created_at, updated_at)
+                     select wallet_id, user_id, current_balance, last_updated_date,last_updated_date_id, last_transaction_id, created_at, updated_at from wallet_balance_df''')
 
     conn.unregister('wallet_balance_df')
 

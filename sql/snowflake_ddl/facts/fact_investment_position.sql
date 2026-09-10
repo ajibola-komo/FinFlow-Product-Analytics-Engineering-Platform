@@ -17,12 +17,6 @@ CREATE OR REPLACE TABLE FACT_INVESTMENT_POSITION(
     early_withdrawal_date_id int,
     created_at timestamp not null,
     last_updated_at timestamp not null,
-    foreign key(user_id) references dim_user(user_id),
-    foreign key(wallet_id) references dim_wallet(wallet_id),
-    foreign key(plan_id) references dim_plan(plan_id),
-    foreign key(investment_start_date_id) references dim_date(date_id),
-    foreign key(investment_maturity_date_id) references dim_date(date_id),
-    foreign key(early_withdrawal_date_id) references dim_date(date_id),
     check(amount_invested > 0),
     check (investment_status in ('Active', 'Redeemed', 'Matured', 'Withdrawn_Early'))
 );

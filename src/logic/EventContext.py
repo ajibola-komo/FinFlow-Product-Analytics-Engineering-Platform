@@ -30,7 +30,9 @@ def load_event_context(conn):
 
     event_types = dict(conn.execute(''' SELECT event_type_code, event_type_id from dim_event_type ''').fetchall())
 
-    transaction_types = dict(conn.execute(''' SELECT transaction_type_id, transaction_type_code from dim_transaction_type ''').fetchall())
+    transaction_types = dict(conn.execute(''' SELECT transaction_type_code, transaction_type_id from dim_transaction_type ''').fetchall())
+
+
 
     try:
         return EventContext(

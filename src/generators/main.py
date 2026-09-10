@@ -25,12 +25,12 @@ def create():
         generate_dates(conn)
         generate_products(conn)
         generate_event_types(conn)
+        generate_transaction_types(conn)
         generate_dim_plan(conn)
-        generate_users(conn,5000)
+        generate_users(conn,5_000)
         generate_list_of_wallets(conn)
         generate_wallet_balance(conn)
-        generate_transaction_types(conn)
-        generate_facts(conn,6000000)
+        generate_facts(conn,10_000_000)
 
     
     #upload_parquet_files()

@@ -152,7 +152,8 @@ def wallet_activation_events(conn: DuckDBPyConnection, context: any, start_posit
         'updated_end_position':updated_end_position
         }
 
-def update_wallet_balance(conn:DuckDBPyConnection, uids:list[int], transaction_amount:list[float], transaction_ids:list[int], event_time:list[pd.Timestamp]) -> None:
+def update_wallet_balance(conn:DuckDBPyConnection, uids:list[int], transaction_amount:list[float], transaction_ids:list[int], 
+                          event_time:list[pd.Timestamp]) -> None:
 
     """
         This function updates the fact_wallet_balance table with the updated transaction amounts for the given users.
@@ -168,7 +169,7 @@ def update_wallet_balance(conn:DuckDBPyConnection, uids:list[int], transaction_a
     conn.register('wallet_activation_df', wallet_activation_df)
     
     conn.execute(''' UPDATE fact_wallet_balance as f set current_balance = current_balance + w.transaction_amount,
-                        last_updated_at = w.last_updated_at, updated_at = w.last_updated_at, last_updated_at_id = CAST(strftime(w.last_updated_at, '%Y%m%d') AS BIGINT),
+                        last_updated_date = w.last_updated_at, updated_at = w.last_updated_at, last_updated_date_id = CAST(strftime(w.last_updated_at, '%Y%m%d') AS BIGINT),
                         last_transaction_id = w.last_transaction_id from wallet_activation_df as w WHERE f.user_id = w.user_id 
               ''') 
     
@@ -185,7 +186,7 @@ def activate_wallet(conn, uids, funding_time):
 
     conn.register('activation_df', activation_df)
 
-    conn.execute('''update dim_wallet as w set wallet_activated_at = a.event_time, last_updated_at = a.event_time, wallet_activated_at_id = CAST(strftime(a.event_time, '%Y%m%d') AS BIGINT) 
+    conn.execute('''update dim_wallet as w set wallet_activated_at = a.event_time, last_updated_at = a.event_time, wallet_activated_date_id = CAST(strftime(a.event_time, '%Y%m%d') AS BIGINT) 
         from activation_df as a where w.user_id = a.user_id
     ''')
 
@@ -203,8 +204,8 @@ def deduct_wallet_balance(conn:DuckDBPyConnection, uids:list[int], transaction_a
     conn.register('transactions_df',transactions_data_df)
 
     conn.execute('''
-            UPDATE fact_wallet_balance AS f SET current_balance = f.current_balance - t.transaction_amount, last_updated_at = t.last_updated_at, 
-            updated_at = t.last_updated_at, last_updated_at_id = CAST(strftime(t.last_updated_at, '%Y%m%d') AS BIGINT),
+            UPDATE fact_wallet_balance AS f SET current_balance = f.current_balance - t.transaction_amount, last_updated_date = t.last_updated_at, 
+            updated_at = t.last_updated_at, last_updated_date_id = CAST(strftime(t.last_updated_at, '%Y%m%d') AS BIGINT),
                                     last_transaction_id = w.last_transaction_id FROM transactions_df AS t WHERE f.user_id = t.user_id''')
 
     conn.unregister('transactions_df')
@@ -251,7 +252,7 @@ def plan_selection_events(context:any, start_position:int, end_position:int, use
         """
 
     random_offset = np.random.randint(1,3,size=len(uids))
-    plan_selection_time = [review_time + timedelta(minutes=ro) for review_time, ro in zip(plan_review_time, random_offset)]
+    plan_selection_time = [review_time + timedelta(minutes=int(ro)) for review_time, ro in zip(plan_review_time, random_offset)]
 
     user_ids[start_position:end_position] = uids
     event_time[start_position:end_position] = plan_selection_time
@@ -331,7 +332,7 @@ def plan_ids_allocation(conn:DuckDBPyConnection, context:any, uids:list[int], in
 def investment_creation_events(conn: DuckDBPyConnection, context:any, start_position:int, end_position:int, user_ids:list[int],uids:list[int], wallet_ids:list[int], event_times:list[pd.Timestamp], 
                                plan_selection_time:list[pd.Timestamp], investment_type:list[str], device_types:list[str], dtypes:list[str], 
                                is_money_movement_activities:list[bool], transaction_ids:list[int], last_transaction_id:int, 
-                               transaction_type_ids:list[int], event_type_ids:list[int], plan_ids:list[int], transaction_amounts:list[float], transaction_statuses:list[str],
+                               transaction_type_ids:list[int], event_type_ids:list[int], transaction_amounts:list[float], transaction_statuses:list[str],
                                investment_ids:list[int], last_investment_id) -> dict:
 
     """
@@ -375,7 +376,6 @@ def investment_creation_events(conn: DuckDBPyConnection, context:any, start_posi
     transaction_ids[start_position:end_position] = np.arange(last_transaction_id + 1, last_transaction_id + 1 + len(plan_ids_allocation_df))
     transaction_type_ids[start_position:end_position] = plan_ids_allocation_df["transaction_type_id"]
     event_type_ids[start_position:end_position] = plan_ids_allocation_df["event_type_id"]
-    plan_ids[start_position:end_position] = plan_ids_allocation_df["plan_id"]
     transaction_amounts[start_position:end_position] = plan_ids_allocation_df['amount_invested']
     transaction_statuses[start_position:end_position] = ["success"] * len(plan_ids_allocation_df)
     investment_ids[start_position:end_position] = np.arange(last_investment_id + 1, last_investment_id + 1 + len(plan_ids_allocation_df))
@@ -486,20 +486,21 @@ def generate_wallet_funding_amounts(conn: DuckDBPyConnection, uids:list[int]) ->
     cbs_map = dict(zip(cbs_df["user_id"], cbs_df["customer_behaviour_segment"]))
 
     tran_amount = [int(np.random.triangular(
-        CUSTOMER_BEHAVIOUR_SEGMENT_MAP[cbs_map[uid]]["average_wallet_funding_amount"][0],
-        np.mean(CUSTOMER_BEHAVIOUR_SEGMENT_MAP[cbs_map[uid]]["average_wallet_funding_amount"]),
-        CUSTOMER_BEHAVIOUR_SEGMENT_MAP[cbs_map[uid]]["average_wallet_funding_amount"][1],
+        CUSTOMER_BEHAVIOUR_SEGMENT_MAP[cbs_map[uid]]["average_investment_amount"][0],
+        np.mean(CUSTOMER_BEHAVIOUR_SEGMENT_MAP[cbs_map[uid]]["average_investment_amount"]),
+        CUSTOMER_BEHAVIOUR_SEGMENT_MAP[cbs_map[uid]]["average_investment_amount"][1],
     )) for uid in uids]
 
     return tran_amount
 
 def build_investment_creation_users_dataframe(conn:DuckDBPyConnection, wallet_activated_users_dataframe:pd.DataFrame) -> pd.DataFrame:
 
-    cbf = get_customer_behaviour_segment(conn, wallet_activated_users_dataframe["user_id"])
+    #cbf = get_customer_behaviour_segment(conn, wallet_activated_users_dataframe["user_id"])
 
-    wallet_activated_users_dataframe["customer_behaviour_segment"] = cbf["customer_behaviour_segment"]
+    #wallet_activated_users_dataframe = wallet_activated_users_dataframe.merge(cbf,how="inner", on="user_id")
 
-    wallet_activated_users_dataframe["last_login_at"] = get_last_login(conn,wallet_activated_users_dataframe["user_id"] )
+    last_logins_df = get_last_login(conn, wallet_activated_users_dataframe['user_id'])
+    wallet_activated_users_dataframe = wallet_activated_users_dataframe.merge(last_logins_df,how="inner",on="user_id")
 
     probability_of_making_first_investment = [
         np.random.choice(USERS_MAKES_FIRST_INVESTMENT_AFTER_FUNDING,p=CUSTOMER_BEHAVIOUR_SEGMENT_MAP[cp]['wallet_to_investment_conversion_probability'])
@@ -728,7 +729,7 @@ def create_wallet_funding_events(conn:DuckDBPyConnection, context:any, start_pos
 def new_investment_creation(conn:DuckDBPyConnection, context:any, start_position:int, end_position:int, user_ids:list[int], uids:list[int], wallet_ids:list[int], event_times:list[pd.Timestamp],
                                plan_creation_time:list[pd.Timestamp], investment_type:list[str], device_types:list[str], dtypes:list[str], 
                                is_money_movement_activities:list[bool], transaction_ids:list[int], last_transaction_id:int, 
-                               transaction_type_ids:list[int], event_type_ids:list[int], plan_ids:list[int], transaction_amounts:list[float],transaction_statuses,
+                               transaction_type_ids:list[int], event_type_ids:list[int], transaction_amounts:list[float],transaction_statuses,
                                investment_ids:list[int], last_investment_id:int) -> dict:
 
     """
@@ -780,7 +781,7 @@ def new_investment_creation(conn:DuckDBPyConnection, context:any, start_position
     investment_creation_dict = investment_creation_events(conn, context, start_position, end_position, user_ids, uids, wallet_ids, event_times,
                                                           plan_selection_time, investment_type, device_types, dtypes,
                                                           is_money_movement_activities, transaction_ids, last_transaction_id,
-                                                          transaction_type_ids, event_type_ids, plan_ids,
+                                                          transaction_type_ids, event_type_ids,
                                                           transaction_amounts,transaction_statuses,investment_ids, last_investment_id)
 
 

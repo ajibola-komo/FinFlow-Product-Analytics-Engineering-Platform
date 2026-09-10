@@ -250,6 +250,7 @@ def generate_facts(conn, num_of_events):
     end_position = start_position + total_plan_selection_events
 
     uids = plan_selected_df["user_id"]
+    print("Total users data frame",len(uids))
     first_inv_type = plan_selected_df["first_investment_type"]
     plan_selection_time = plan_selected_df["plan_selection_time"]
     dtypes = [device_type_map.get(uid) for uid in uids]

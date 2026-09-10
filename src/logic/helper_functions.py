@@ -206,7 +206,7 @@ def deduct_wallet_balance(conn:DuckDBPyConnection, uids:list[int], transaction_a
     conn.execute('''
             UPDATE fact_wallet_balance AS f SET current_balance = f.current_balance - t.transaction_amount, last_updated_date = t.last_updated_at, 
             updated_at = t.last_updated_at, last_updated_date_id = CAST(strftime(t.last_updated_at, '%Y%m%d') AS BIGINT),
-                                    last_transaction_id = w.last_transaction_id FROM transactions_df AS t WHERE f.user_id = t.user_id''')
+                                    last_transaction_id = t.transaction_id FROM transactions_df AS t WHERE f.user_id = t.user_id''')
 
     conn.unregister('transactions_df')
 
@@ -287,6 +287,9 @@ def plan_ids_allocation(conn:DuckDBPyConnection, context:any, uids:list[int], in
 
     total_plans = len(uids)
 
+    print("Total Plans", total_plans)
+    print("Total Investments",len(investment_type))
+
     plan_id = np.empty(total_plans, dtype=np.int64)
 
     event_type_ids = np.empty(total_plans, dtype=np.int64)
@@ -303,7 +306,9 @@ def plan_ids_allocation(conn:DuckDBPyConnection, context:any, uids:list[int], in
     })
 
     savings_mask = plan_ids_allocation_df["investment_type"] == "Savings"
-    investment_mask = plan_ids_allocation_df["investment_type"] == "Investment"
+    print("total_savings_mask",savings_mask.sum())
+    investment_mask = plan_ids_allocation_df["investment_type"] == "Investments"
+    print("total_investments_mask",investment_mask.sum())
 
     plan_ids_allocation_df.loc[savings_mask,"plan_id"] = np.random.choice(savings_plans["plan_id"], 
                                                                            p = savings_plans["plan_weight"] / savings_plans["plan_weight"].sum(),
@@ -317,6 +322,8 @@ def plan_ids_allocation(conn:DuckDBPyConnection, context:any, uids:list[int], in
     plan_ids_allocation_df.loc[investment_mask, "plan_id"] = np.random.choice(investment_plans["plan_id"], 
                                                                            p = investment_plans["plan_weight"] / investment_plans["plan_weight"].sum(),
                                                                            size = investment_mask.sum())
+
+    print('total length of created_df',len(plan_ids_allocation_df))
 
     conn.register('plan_ids_allocation_df', plan_ids_allocation_df)
 
@@ -356,8 +363,9 @@ def investment_creation_events(conn: DuckDBPyConnection, context:any, start_posi
             - last_updated_at
     
     """
-
+    print("length of uids in investment creation events",len(uids))
     plan_ids_allocation_df = plan_ids_allocation(conn, context,uids, investment_type, plan_selection_time)
+    print("Total plans allocation",len(plan_ids_allocation_df))
     plan_ids_allocation_df["plan_creation_time"] = (plan_ids_allocation_df["plan_selection_time"] + pd.to_timedelta(np.random.randint(3,6),unit="m"))
     plan_attributes_df = get_plan_attributes(conn, plan_ids_allocation_df["user_id"], plan_ids_allocation_df["plan_id"],plan_ids_allocation_df["plan_creation_time"])
 
@@ -367,7 +375,7 @@ def investment_creation_events(conn: DuckDBPyConnection, context:any, start_posi
 
     plan_ids_allocation_df['expected_maturity_value'] = plan_ids_allocation_df['amount_invested'] * (1 + (plan_ids_allocation_df['interest_rate'] / 100) * plan_ids_allocation_df['tenure_days']/365)
 
-
+    print("Total plans allocation",len(plan_ids_allocation_df))
     user_ids[start_position:end_position] = plan_ids_allocation_df["user_id"]
     wallet_ids[start_position:end_position] = plan_ids_allocation_df["user_id"]
     event_times[start_position:end_position] = plan_ids_allocation_df["plan_creation_time"]
@@ -396,7 +404,7 @@ def investment_creation_events(conn: DuckDBPyConnection, context:any, start_posi
         'investment_start_date':plan_ids_allocation_df['investment_start_date'],
         'investment_start_date_id':(plan_ids_allocation_df['investment_start_date'].dt.strftime("%Y%m%d").astype(int)),
         'investment_maturity_date':plan_ids_allocation_df['investment_maturity_date'],
-        'investment_maturity_date_id':(plan_ids_allocation_df['investment_maturity_date'].dt.strftime("%Y%m%d").astype(int))
+        'investment_maturity_date_id':(plan_ids_allocation_df['investment_maturity_date_id'])
     })
 
     last_transaction_id = transaction_ids[start_position:end_position].max()
@@ -461,14 +469,54 @@ def get_plan_attributes(conn:DuckDBPyConnection, uids:list[int], plan_ids:list[i
     conn.register('plan_ids_df',plan_ids_df)
 
     try:
-        plan_attributes_df = conn.execute(''' SELECT f.user_id, w.wallet_id, d.customer_behaviour_segment, f.plan_id, p.tenure_days, 
-                                              case when p.tenure_days is null then null else p.interest_rate_min end as interest_rate, f.investment_start_date, 
-                                              case when p.tenure_days is null then null else f.investment_start_date + (p.tenure_days * INTERVAL '1 DAY')
-                                              end as investment_maturity_date
-                from dim_plan as p inner join plan_ids_df f on p.plan_id = f.plan_id
-                inner join dim_user as d on d.user_id = f.user_id
-                inner join dim_wallet as w on d.user_id = w.user_id
-                   ''').df()
+        plan_attributes_df = conn.execute("""
+            WITH plan_attributes AS (
+                SELECT
+                    f.user_id,
+                    w.wallet_id,
+                    d.customer_behaviour_segment,
+                    f.plan_id,
+                    p.tenure_days,
+            CASE
+                WHEN p.tenure_days IS NULL
+                THEN NULL
+                ELSE p.interest_rate_min
+            END AS interest_rate,
+
+            f.investment_start_date,
+
+            CASE
+                WHEN p.tenure_days IS NULL
+                THEN NULL
+                ELSE f.investment_start_date
+                     + (p.tenure_days * INTERVAL '1 DAY')
+            END AS investment_maturity_date
+
+        FROM dim_plan AS p
+
+        INNER JOIN plan_ids_df AS f
+            ON p.plan_id = f.plan_id
+
+        INNER JOIN dim_user AS d
+            ON d.user_id = f.user_id
+
+        INNER JOIN dim_wallet AS w
+            ON d.user_id = w.user_id
+    )
+
+    SELECT
+        *,
+        CASE
+            WHEN investment_maturity_date IS NULL
+            THEN NULL
+            ELSE CAST(
+                strftime(investment_maturity_date, '%Y%m%d')
+                AS INTEGER
+            )
+        END AS investment_maturity_date_id
+
+    FROM plan_attributes
+""").df()
     finally:
         conn.unregister('plan_ids_df')
 
@@ -661,6 +709,9 @@ def create_engagement_events(engagement_sample_df:pd.DataFrame) -> dict:
                                     'event_time':investment_creation_time,
                                     'investment_type':investment_type
                                 })
+
+    
+    login_events_df = pd.DataFrame(login_events)
 
     return {
         'login_events':login_events,

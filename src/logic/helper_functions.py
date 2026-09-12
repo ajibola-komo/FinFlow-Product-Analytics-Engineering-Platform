@@ -210,11 +210,11 @@ def deduct_wallet_balance(conn:DuckDBPyConnection, uids:list[int], transaction_a
 
     conn.unregister('transactions_df')
 
-def get_current_wallet_balance(conn:DuckDBPyConnection, uids:list[int]) -> pd.DataFrame:
+def get_current_wallet_balance(conn:DuckDBPyConnection, uids:list[int]) -> dict[int,float]:
 
     """
         This function returns the current wallet balance for the given users.
-        It returns a data frame with the following attributes:
+        It returns a dictionary with the following attributes:
             - user_id
             - current_balance    
     """
@@ -226,12 +226,15 @@ def get_current_wallet_balance(conn:DuckDBPyConnection, uids:list[int]) -> pd.Da
     conn.register('uids_df',uids_df)
 
     try:
-        current_balances = conn.execute('''SELECT w.user_id, w.current_balance from fact_wallet_balance w inner join
+        current_balances = conn.execute('''SELECT distinct u.user_id, w.current_balance from fact_wallet_balance w inner join
         uids_df u on w.user_id = u.user_id ''').df()
+
+        current_balance_map = dict(zip(current_balances["user_id"], current_balances["current_balance"]))
+
     finally:
         conn.unregister('uids_df')
 
-    return current_balances
+    return current_balance_map
 
 def review_plan_options_events(conn, context, start_position, end_position, user_ids, uids, event_times, event_type_ids, device_types, dtypes):
 
@@ -423,7 +426,7 @@ def investment_creation_events(conn: DuckDBPyConnection, context:any, start_posi
     }
     
 
-def get_customer_behaviour_segment(conn: DuckDBPyConnection, uids: list[int]) -> pd.DataFrame:
+def get_customer_behaviour_segment(conn: DuckDBPyConnection, uids: list[int]) -> dict[int,str]:
 
     """
     Returns a dataframe with the following attributes:
@@ -438,12 +441,14 @@ def get_customer_behaviour_segment(conn: DuckDBPyConnection, uids: list[int]) ->
     conn.register('user_ids_df', user_ids_df)
 
     try:
-        cbs_df = conn.execute(''' SELECT f.user_id, customer_behaviour_segment from dim_user u inner join user_ids_df f on u.user_id = f.user_id ''').df()
+        cbs_df = conn.execute(''' SELECT distinct f.user_id, customer_behaviour_segment from dim_user u inner join user_ids_df f on u.user_id = f.user_id ''').df()
+
+        cbs_map = dict(zip(cbs_df["user_id"], cbs_df["customer_behaviour_segment"]))
 
     finally:
         conn.unregister('user_ids_df')
 
-    return cbs_df
+    return cbs_map
 
 def get_plan_attributes(conn:DuckDBPyConnection, uids:list[int], plan_ids:list[int], plan_creation_time:list[pd.Timestamp]) -> pd.DataFrame:
 
@@ -529,9 +534,7 @@ def generate_wallet_funding_amounts(conn: DuckDBPyConnection, uids:list[int]) ->
         
     """
 
-    cbs_df = get_customer_behaviour_segment(conn, uids)
-
-    cbs_map = dict(zip(cbs_df["user_id"], cbs_df["customer_behaviour_segment"]))
+    cbs_map = get_customer_behaviour_segment(conn, uids)
 
     tran_amount = [int(np.random.triangular(
         CUSTOMER_BEHAVIOUR_SEGMENT_MAP[cbs_map[uid]]["average_investment_amount"][0],
@@ -582,21 +585,27 @@ def build_investment_creation_users_dataframe(conn:DuckDBPyConnection, wallet_ac
 def create_investment_amount(conn:DuckDBPyConnection, uids:list[int]) -> pd.DataFrame:
 
     """
+    This method is called only when a new investment is created. 
         Returns a dataframe with the following attributes:
             - user_id
             - amount_invested
     """
 
-    cbs_df = get_customer_behaviour_segment(conn,uids)
+    cbs_map = get_customer_behaviour_segment(conn,uids)
 
-    cbs_df['investment_percentage'] = cbs_df['customer_behaviour_segment'].apply(
+    investments_df = pd.DataFrame({
+        'user_id':uids,
+        'customer_behaviour_segment':[cbs_map[uid] for uid in uids]
+    })
+
+    investments_df['investment_percentage'] = investments_df['customer_behaviour_segment'].apply(
     lambda segment: np.random.uniform(
         *CUSTOMER_BEHAVIOUR_SEGMENT_MAP[segment]['investment_percentage']
     ))
 
-    investments_df = get_current_wallet_balance(conn,uids)
+    current_balance_map = get_current_wallet_balance(conn,uids)
 
-    investments_df = investments_df.merge(cbs_df, how="inner", on="user_id")
+    investments_df['current_balance'] = [current_balance_map.get(uid) for uid in investments_df['user_id']]
 
     investments_df['amount_invested'] = (investments_df['current_balance'] * investments_df['investment_percentage']).round(2)
 

@@ -371,7 +371,7 @@ def investment_creation_events(conn: DuckDBPyConnection, context:any, start_posi
 
     plan_ids_allocation_df = plan_ids_allocation_df.merge(plan_attributes_df, how="inner", on=["user_id","plan_id"])
     investment_amount_df = create_investment_amount(conn,uids)
-    plan_ids_allocation_df = plan_ids_allocation_df.merge(investment_amount_df,how="inner",on="user_id")
+    plan_ids_allocation_df = plan_ids_allocation_df.merge(investment_amount_df,how="inner",on=["user_id","plan_id"])
 
     plan_ids_allocation_df['expected_maturity_value'] = plan_ids_allocation_df['amount_invested'] * (1 + (plan_ids_allocation_df['interest_rate'] / 100) * plan_ids_allocation_df['tenure_days']/365)
 
@@ -712,12 +712,15 @@ def create_engagement_events(engagement_sample_df:pd.DataFrame) -> dict:
 
     
     login_events_df = pd.DataFrame(login_events)
+    engagement_events_df = pd.DataFrame(engagement_events)
+    wallet_funding_events_df = pd.DataFrame(wallet_funding_events)
+    investment_events_df = pd.DataFrame(investment_events)
 
     return {
-        'login_events':login_events,
-        'engagement_events':engagement_events,
-        'wallet_funding_events':wallet_funding_events,
-        'investment_events':investment_events
+        'login_events':login_events_df,
+        'engagement_events':engagement_events_df,
+        'wallet_funding_events':wallet_funding_events_df,
+        'investment_events':investment_events_df
     }
 
 def review_current_investment_events(conn:DuckDBPyConnection, context:any, start_position:int, end_position:int, user_ids:list[int], uids:list[int], event_times:list[pd.Timestamp],
@@ -769,7 +772,7 @@ def create_wallet_funding_events(conn:DuckDBPyConnection, context:any, start_pos
     is_money_movement_activity[start_position:end_position] = [True] * len(uids)
     transaction_ids[start_position:end_position] = np.arange(last_transaction_id + 1, last_transaction_id + len(uids) + 1)
     transaction_statuses[start_position:end_position] = ["success"] * len(uids)
-    last_transaction_id = transaction_ids.max()
+    last_transaction_id = transaction_ids[start_position:end_position].max()
 
     update_wallet_balance(conn, uids, tran_amounts, transaction_ids[start_position:end_position], funding_time)
 
@@ -817,7 +820,7 @@ def new_investment_creation(conn:DuckDBPyConnection, context:any, start_position
 
     review_time = [lt + timedelta(minutes = np.random.randint(2,5)) for lt in login_time]
 
-    review_plan_options_events(conn, context, start_position, end_position, user_ids, uids, event_times, review_time, event_type_ids, device_types, dtypes)
+    review_plan_options_events(conn, context, start_position, end_position, user_ids, uids, event_times, event_type_ids, device_types, dtypes)
 
     start_position = end_position
     end_position = start_position + len(uids)

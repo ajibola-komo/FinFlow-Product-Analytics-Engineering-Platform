@@ -325,7 +325,9 @@ def generate_facts(conn, num_of_events):
     start_position = updated_end_position
     end_position = start_position + len(wallet_funding_events)
 
-    return_dict = create_wallet_funding_events(conn, context, start_position, end_position, user_ids,wallet_ids, wallet_funding_events['user_id'], event_time, wallet_funding_events['event_time'], last_transaction_id,
+    uids = wallet_funding_events['user_id']
+
+    return_dict = create_wallet_funding_events(conn, context, start_position, end_position, user_ids,uids,wallet_ids, event_time, wallet_funding_events['event_time'], last_transaction_id,
                                                 device_types, [device_type_map.get(uid) for uid in wallet_funding_events['user_id']], is_money_movement_activities, event_type_ids,
                                                 transaction_type_ids, transaction_ids, transaction_amounts, transaction_statuses)
 

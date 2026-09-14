@@ -1,4 +1,4 @@
-create table fact_wallet_balance(
+create or replace table fact_wallet_balance(
     wallet_id int primary key,
     user_id int not null unique,
     current_balance decimal(15,2) not null default 0.00,

@@ -250,7 +250,6 @@ def generate_facts(conn, num_of_events):
     end_position = start_position + total_plan_selection_events
 
     uids = plan_selected_df["user_id"]
-    print("Total users data frame",len(uids))
     first_inv_type = plan_selected_df["first_investment_type"]
     plan_selection_time = plan_selected_df["plan_selection_time"]
     dtypes = [device_type_map.get(uid) for uid in uids]
@@ -265,9 +264,9 @@ def generate_facts(conn, num_of_events):
 
     
     customers_who_have_invested_df = get_last_login(conn, all_investments_df["user_id"])
-    cbs_df = get_customer_behaviour_segment(conn, customers_who_have_invested_df["user_id"])
+    cbs_map = get_customer_behaviour_segment(conn, all_investments_df["user_id"])
 
-    customers_who_have_invested_df = customers_who_have_invested_df.merge(cbs_df, how = "inner", on="user_id")
+    customers_who_have_invested_df['customer_behaviour_segment'] = customers_who_have_invested_df['user_id'].map(cbs_map)
 
 
     active_users_subset = customers_who_have_invested_df[
@@ -354,17 +353,15 @@ def generate_facts(conn, num_of_events):
 
     all_investments_df["investment_status"] = np.select([all_investments_df["investment_maturity_date"] < pd.Timestamp.today()],["Matured"],default="Active")
 
-    users_behaviour_segment_df = get_customer_behaviour_segment(conn, all_investments_df["user_id"])
+    all_investments_df["customer_behaviour_segment"] = all_investments_df["user_id"].map(cbs_map)
 
     conn.register('all_investments_df', all_investments_df)
 
-    plan_names = conn.execute('''select f.user_id, f.plan_id, p.plan_name, p.penalty_rate_pct from all_investments_df as f inner join dim_plan p on f.plan_id = p.plan_id''').df()
+    plan_names = conn.execute('''select f.investment_id, f.user_id, f.plan_id, p.plan_name, p.penalty_rate_pct from all_investments_df as f inner join dim_plan p on f.plan_id = p.plan_id''').df()
 
-    all_investments_df = all_investments_df.merge(plan_names, how="inner", on=["user_id","plan_id"])
+    all_investments_df = all_investments_df.merge(plan_names, how="inner", on=["investment_id", "user_id", "plan_id"])
 
     conn.unregister('all_investments_df')
-
-    all_investments_df = all_investments_df.merge(users_behaviour_segment_df, how="inner", on="user_id")
 
     #let's split into vestable investments and saleable investments
     vestable_investments_df = all_investments_df[(all_investments_df["tenure_days"].notna()) & (all_investments_df["investment_status"] == "Matured")].copy()
@@ -388,7 +385,7 @@ def generate_facts(conn, num_of_events):
     vestable_investments_df.loc[early_withdrawal_mask,"investment_status"] = "Withdrawn Early"
     vestable_investments_df.loc[vested_invested_mask,"investment_status"] = "Redeemed"
 
-    early_withrawal_df = vestable_investments_df.loc[early_withdrawal_mask]
+    early_withrawal_df = (vestable_investments_df.loc[early_withdrawal_mask].copy())
 
     start_position = end_position
     end_position = start_position + len(early_withrawal_df)
@@ -404,11 +401,11 @@ def generate_facts(conn, num_of_events):
 
     last_transaction_id = return_dict['last_transaction_id']
     end_position = return_dict['updated_end_position']
-    early_withrawal_df = return_dict['early_withdrawal_df']
+    early_withrawal_dataframe = return_dict['early_withdrawal_df']
 
     #model investment vests transactions for matured investments
 
-    vested_investments_df = vestable_investments_df.loc[vested_invested_mask]
+    vested_investments_df = (vestable_investments_df.loc[vested_invested_mask].copy())
 
     start_position = end_position
     end_position = start_position + len(vested_investments_df)
@@ -428,7 +425,7 @@ def generate_facts(conn, num_of_events):
                                                 vested_investments_df)
 
     last_transaction_id = return_dict['last_transaction_id']
-    vested_investments_df = return_dict['vested_investments_df']
+    vested_investments_dataframe = return_dict['vested_investments_df']
 
     
     # now let's model asset sales
@@ -503,7 +500,7 @@ def generate_facts(conn, num_of_events):
     # vestable - early_withdrawal_df and vested_investment_df
     # saleable - saleable_investments_df
 
-    vestable_investments_df = pd.concat([early_withrawal_df, vested_investments_df])
+    vestable_investments_df = pd.concat([early_withrawal_dataframe, vested_investments_dataframe], ignore_index=True)
 
     saleable_investments.loc[saleable_investments_df.index] = saleable_investments_df
 

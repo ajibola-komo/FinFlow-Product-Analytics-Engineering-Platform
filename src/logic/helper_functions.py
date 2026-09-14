@@ -276,6 +276,7 @@ def plan_ids_allocation(conn:DuckDBPyConnection, context:any, uids:list[int], in
     """
         Returns a dataframe with the following attributes:
             - user_id
+            - unique_id
             - investment_type
             - plan_id
             - plan_name
@@ -287,6 +288,10 @@ def plan_ids_allocation(conn:DuckDBPyConnection, context:any, uids:list[int], in
     savings_plans = conn.execute('''select plan_id, plan_name, plan_weight from dim_plan where plan_category = 'Savings' ''').df()
 
     investment_plans = conn.execute('''select plan_id, plan_name, plan_weight from dim_plan where plan_category = 'Investments' ''').df()
+
+    plan_names_df = conn.execute('''select plan_id, plan_name from dim_plan''').df()
+
+    plan_names_dict = dict(zip(plan_names_df["plan_id"], plan_names_df["plan_name"]))
 
     total_plans = len(uids)
 
@@ -316,6 +321,8 @@ def plan_ids_allocation(conn:DuckDBPyConnection, context:any, uids:list[int], in
     plan_ids_allocation_df.loc[savings_mask,"plan_id"] = np.random.choice(savings_plans["plan_id"], 
                                                                            p = savings_plans["plan_weight"] / savings_plans["plan_weight"].sum(),
                                                                            size=savings_mask.sum())
+
+    print(plan_ids_allocation_df.loc[savings_mask,"plan_id"].value_counts())
                                                                            
 
     plan_ids_allocation_df.loc[savings_mask,"event_type_id"] = context.savings_plan_created_event_type_id
@@ -326,15 +333,16 @@ def plan_ids_allocation(conn:DuckDBPyConnection, context:any, uids:list[int], in
                                                                            p = investment_plans["plan_weight"] / investment_plans["plan_weight"].sum(),
                                                                            size = investment_mask.sum())
 
+    print(plan_ids_allocation_df.loc[investment_mask,"plan_id"].value_counts())
     print('total length of created_df',len(plan_ids_allocation_df))
 
-    conn.register('plan_ids_allocation_df', plan_ids_allocation_df)
+    plan_ids_allocation_df['unique_count'] = np.arange(1, len(plan_ids_allocation_df) + 1)
 
-    plan_names = conn.execute('''SELECT f.user_id, f.plan_id, p.plan_name from dim_plan p inner join plan_ids_allocation_df f on p.plan_id = f.plan_id''').df()
+    plan_ids_allocation_df['unique_id'] = "User:" + plan_ids_allocation_df['user_id'].astype(str) + "_Inv:" + plan_ids_allocation_df['unique_count'].astype(str)
 
-    plan_ids_allocation_df = plan_ids_allocation_df.merge(plan_names, how="inner", on=["user_id","plan_id"])
+    plan_ids_allocation_df['plan_name'] = plan_ids_allocation_df['plan_id'].map(plan_names_dict)
 
-    conn.unregister('plan_ids_allocation_df')
+    print(plan_ids_allocation_df.head(50))
 
     return plan_ids_allocation_df
 
@@ -370,15 +378,14 @@ def investment_creation_events(conn: DuckDBPyConnection, context:any, start_posi
     plan_ids_allocation_df = plan_ids_allocation(conn, context,uids, investment_type, plan_selection_time)
     print("Total plans allocation",len(plan_ids_allocation_df))
     plan_ids_allocation_df["plan_creation_time"] = (plan_ids_allocation_df["plan_selection_time"] + pd.to_timedelta(np.random.randint(3,6),unit="m"))
-    plan_attributes_df = get_plan_attributes(conn, plan_ids_allocation_df["user_id"], plan_ids_allocation_df["plan_id"],plan_ids_allocation_df["plan_creation_time"])
+    plan_attributes_df = get_plan_attributes(conn, plan_ids_allocation_df["user_id"], plan_ids_allocation_df["plan_id"],plan_ids_allocation_df["unique_id"],plan_ids_allocation_df["plan_creation_time"])
+    plan_ids_allocation_df = plan_ids_allocation_df.merge(plan_attributes_df, how="inner", on=["user_id","unique_id"])
+    investment_amount_df = create_investment_amount(conn,plan_ids_allocation_df["user_id"],plan_ids_allocation_df["unique_id"])
+    plan_ids_allocation_df = plan_ids_allocation_df.merge(investment_amount_df,how="inner",on=["user_id","unique_id"])
 
-    plan_ids_allocation_df = plan_ids_allocation_df.merge(plan_attributes_df, how="inner", on=["user_id","plan_id"])
-    investment_amount_df = create_investment_amount(conn,uids)
-    plan_ids_allocation_df = plan_ids_allocation_df.merge(investment_amount_df,how="inner",on=["user_id","plan_id"])
+    print("Space available in investment creation events",end_position - start_position)
 
     plan_ids_allocation_df['expected_maturity_value'] = plan_ids_allocation_df['amount_invested'] * (1 + (plan_ids_allocation_df['interest_rate'] / 100) * plan_ids_allocation_df['tenure_days']/365)
-
-    print("Total plans allocation",len(plan_ids_allocation_df))
     user_ids[start_position:end_position] = plan_ids_allocation_df["user_id"]
     wallet_ids[start_position:end_position] = plan_ids_allocation_df["user_id"]
     event_times[start_position:end_position] = plan_ids_allocation_df["plan_creation_time"]
@@ -450,12 +457,13 @@ def get_customer_behaviour_segment(conn: DuckDBPyConnection, uids: list[int]) ->
 
     return cbs_map
 
-def get_plan_attributes(conn:DuckDBPyConnection, uids:list[int], plan_ids:list[int], plan_creation_time:list[pd.Timestamp]) -> pd.DataFrame:
+def get_plan_attributes(conn:DuckDBPyConnection, uids:list[int], plan_ids:list[int], unique_ids:list[int], plan_creation_time:list[pd.Timestamp]) -> pd.DataFrame:
 
     """
         Returns a dataframe with the following attributes:
 
         - user_id
+        - unique_id
         - wallet_id
         - customer_behaviour_segment
         - plan_id
@@ -468,8 +476,11 @@ def get_plan_attributes(conn:DuckDBPyConnection, uids:list[int], plan_ids:list[i
     plan_ids_df = pd.DataFrame({
         'user_id':uids,
         'plan_id':plan_ids,
+        'unique_id':unique_ids,
         'investment_start_date':plan_creation_time
     })
+
+    print("Plan ids dataframe",plan_ids_df.head(50))
 
     conn.register('plan_ids_df',plan_ids_df)
 
@@ -478,6 +489,7 @@ def get_plan_attributes(conn:DuckDBPyConnection, uids:list[int], plan_ids:list[i
             WITH plan_attributes AS (
                 SELECT
                     f.user_id,
+                    f.unique_id,
                     w.wallet_id,
                     d.customer_behaviour_segment,
                     f.plan_id,
@@ -524,6 +536,13 @@ def get_plan_attributes(conn:DuckDBPyConnection, uids:list[int], plan_ids:list[i
 """).df()
     finally:
         conn.unregister('plan_ids_df')
+
+    
+    print("Plan attributes dataframe columns ",plan_attributes_df.columns)
+
+    print("Plan attributes dataframe with plan_id",plan_attributes_df['plan_id'].notna().sum())
+
+    plan_attributes_df = plan_attributes_df.drop(columns=['plan_id'])
 
     return plan_attributes_df
 
@@ -582,7 +601,7 @@ def build_investment_creation_users_dataframe(conn:DuckDBPyConnection, wallet_ac
 
     return wallet_activated_users_dataframe
     
-def create_investment_amount(conn:DuckDBPyConnection, uids:list[int]) -> pd.DataFrame:
+def create_investment_amount(conn:DuckDBPyConnection, uids:list[int], unique_ids:list[str]) -> pd.DataFrame:
 
     """
     This method is called only when a new investment is created. 
@@ -595,7 +614,8 @@ def create_investment_amount(conn:DuckDBPyConnection, uids:list[int]) -> pd.Data
 
     investments_df = pd.DataFrame({
         'user_id':uids,
-        'customer_behaviour_segment':[cbs_map[uid] for uid in uids]
+        'customer_behaviour_segment':[cbs_map[uid] for uid in uids],
+        'unique_id':unique_ids
     })
 
     investments_df['investment_percentage'] = investments_df['customer_behaviour_segment'].apply(
@@ -839,9 +859,9 @@ def new_investment_creation(conn:DuckDBPyConnection, context:any, start_position
     plan_selection_time = plan_selection_df["plan_selection_time"].tolist()
 
     start_position = end_position
-    end_position = start_position + len(uids)
+    end_position = start_position + len(plan_selection_df)
 
-    investment_creation_dict = investment_creation_events(conn, context, start_position, end_position, user_ids, uids, wallet_ids, event_times,
+    investment_creation_dict = investment_creation_events(conn, context, start_position, end_position, user_ids, plan_selection_df['user_id'], wallet_ids, event_times,
                                                           plan_selection_time, investment_type, device_types, dtypes,
                                                           is_money_movement_activities, transaction_ids, last_transaction_id,
                                                           transaction_type_ids, event_type_ids,
@@ -849,7 +869,7 @@ def new_investment_creation(conn:DuckDBPyConnection, context:any, start_position
 
 
     last_transaction_id = investment_creation_dict['last_transaction_id']
-    all_investments_df = investment_creation_dict['all_investment_df']
+    all_investments_df = investment_creation_dict['all_investments_df']
     updated_end_position = end_position
     last_investment_id = investment_creation_dict['last_investment_id']
 
@@ -866,6 +886,7 @@ def early_withdrawal_requests_events(conn:DuckDBPyConnection,context:any, start_
                                      transaction_amounts:list[float], transaction_statuses:list[str], investment_ids:list[int]) -> dict:
 
 
+    early_withdrawal_requests_df = early_withdrawal_requests_df.copy()
 
     requests_withdrawal_days_before_maturity = [
     int(
@@ -879,12 +900,17 @@ def early_withdrawal_requests_events(conn:DuckDBPyConnection,context:any, start_
         "plan_name"
     ]]
 
-    early_withdrawal_requests_df['withdrawal_request_date'] = ([early_withdrawal_requests_df['investment_maturity_date'] - timedelta(days=ro) for ro in requests_withdrawal_days_before_maturity ])
-
+    early_withdrawal_requests_df['withdrawal_request_date'] = (
+        [
+            early_withdrawal_requests_df['investment_maturity_date']
+            - timedelta(days=ro)
+            for ro in requests_withdrawal_days_before_maturity
+        ]
+    )
 
     #review_current_plans
 
-    early_withdrawal_requests_df['review_current_investment_time'] = (early_withdrawal_requests_df['withdrawal_request_date'] - timedelta(minutes = 8))
+    early_withdrawal_requests_df['review_current_investment_time'] = [rd - timedelta(minutes = 8) for rd in early_withdrawal_requests_df['withdrawal_request_date']]
     early_withdrawal_requests_df['days_held'] = (early_withdrawal_requests_df['withdrawal_request_date'] - early_withdrawal_requests_df['investment_start_date']).dt.days
 
     early_withdrawal_requests_df['expected_total_interest'] = early_withdrawal_requests_df['expected_maturity_value'] - early_withdrawal_requests_df['amount_invested']

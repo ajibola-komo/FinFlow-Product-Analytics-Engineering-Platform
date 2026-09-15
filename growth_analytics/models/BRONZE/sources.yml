@@ -36,3 +36,6 @@ sources:
 
       - name: fact_transaction
         description: "Fact table capturing all financial transactions and money movement activities."
+      
+      - name: fact_wallet_balance
+        description: "Fact table capturing wallet balance for each user wallet."

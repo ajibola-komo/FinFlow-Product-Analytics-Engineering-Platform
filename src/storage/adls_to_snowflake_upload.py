@@ -19,9 +19,7 @@ AZURE_FILE_SYSTEM_NAME = os.getenv(
     "AZURE_FILE_SYSTEM_NAME"
 )
 
-SNOWFLAKE_AZURE_INTEGRATION = os.getenv(
-    "SNOWFLAKE_AZURE_INTEGRATION"
-)
+AZURE_TENANT_ID = os.getenv("AZURE_TENANT_ID")
 
 
 def upload_from_adls_to_snowflake():
@@ -42,10 +40,19 @@ def upload_from_adls_to_snowflake():
             USE_VECTORIZED_SCANNER = TRUE;
         """)
 
+        cursor.execute(f'''CREATE OR REPLACE STORAGE INTEGRATION FINFLOW_AZURE_INTEGRATION
+            TYPE = EXTERNAL_STAGE
+            STORAGE_PROVIDER = AZURE
+    ENABLED = TRUE
+    AZURE_TENANT_ID = '{AZURE_TENANT_ID}'
+    STORAGE_ALLOWED_LOCATIONS = ('azure://{AZURE_STORAGE_ACCOUNT_NAME}.blob.core.windows.net/{AZURE_FILE_SYSTEM_NAME}/'); ''')
+
+        SNOWFLAKE_AZURE_INTEGRATION = "FINFLOW_AZURE_INTEGRATION"
+
         # Create Azure external stage
         cursor.execute(f"""
             CREATE OR REPLACE STAGE {STAGE_NAME}
-            URL = 'azure://{AZURE_STORAGE_ACCOUNT_NAME}.blob.core.windows.net/{AZURE_FILE_SYSTEM_NAME}'
+            URL = 'azure://{AZURE_STORAGE_ACCOUNT_NAME}.blob.core.windows.net/{AZURE_FILE_SYSTEM_NAME}/'
             STORAGE_INTEGRATION = {SNOWFLAKE_AZURE_INTEGRATION}
             FILE_FORMAT = (
                 FORMAT_NAME = '{FILE_FORMAT_NAME}'

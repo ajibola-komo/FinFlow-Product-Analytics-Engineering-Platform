@@ -16,7 +16,5 @@ CREATE OR REPLACE TABLE FACT_INVESTMENT_POSITION(
     early_withdrawal_date timestamp,
     early_withdrawal_date_id int,
     created_at timestamp not null,
-    last_updated_at timestamp not null,
-    check(amount_invested > 0),
-    check (investment_status in ('Active', 'Redeemed', 'Matured', 'Withdrawn_Early'))
+    last_updated_at timestamp not null
 );

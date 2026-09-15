@@ -364,7 +364,7 @@ def generate_facts(conn, num_of_events):
     conn.unregister('all_investments_df')
 
     #let's split into vestable investments and saleable investments
-    vestable_investments_df = all_investments_df[(all_investments_df["tenure_days"].notna()) & (all_investments_df["investment_status"] == "Matured")].copy()
+    vestable_investments_df = all_investments_df[(all_investments_df["tenure_days"].notna()) & (all_investments_df["investment_maturity_date"].notna()) & (all_investments_df["investment_status"] == "Matured")].copy()
 
     saleable_investments = all_investments_df[pd.isna(all_investments_df["tenure_days"]) & (all_investments_df["investment_start_date"] <= MUTUAL_FUNDS_CUTOFF_DATE)].copy()
 
@@ -407,12 +407,14 @@ def generate_facts(conn, num_of_events):
 
     vested_investments_df = (vestable_investments_df.loc[vested_invested_mask].copy())
 
+    print("Vested Investments df columns: ",vested_investments_df.columns)
+
     start_position = end_position
     end_position = start_position + len(vested_investments_df)
 
     dtypes = [device_type_map.get(uid) for uid in vested_investments_df['user_id']]
 
-    vested_investments_events(context, start_position, end_position, user_ids, event_time, event_type_ids, device_types,dtypes, investment_ids, vested_invested_mask)
+    vested_investments_events(context, start_position, end_position, user_ids, event_time, event_type_ids, device_types,dtypes, investment_ids, vested_investments_df)
 
     #model investment proceeds wallet transfer for transactions with matured investments
     start_position = end_position
@@ -463,8 +465,11 @@ def generate_facts(conn, num_of_events):
     start_position = end_position
     end_position = start_position + len(saleable_investments_df)
 
+    dtypes = [device_type_map.get(uid) for uid in saleable_investments_df["user_id"]]
 
-    review_current_investment_events(conn, context, start_position, end_position, user_ids,saleable_investments_df["user_id"].values,saleable_investments_df["review_current_investment_date"],
+
+    review_current_investment_events(conn, context, start_position, end_position, user_ids,saleable_investments_df["user_id"],
+                                     event_time, saleable_investments_df["review_current_investment_date"],
                                       device_types, dtypes, event_type_ids)
 
     start_position = end_position
@@ -506,7 +511,7 @@ def generate_facts(conn, num_of_events):
 
     all_investments_df = pd.concat([active_investments_df, vestable_investments_df, saleable_investments], ignore_index = True)
 
-    all_investments_df = all_investments_df.drop(['plan_name','tenure_days','penalty_rate_pct'])
+    #all_investments_df = all_investments_df.drop(['plan_name','tenure_days','penalty_rate_pct'])
 
     total_events = end_position
     
@@ -558,6 +563,7 @@ def generate_facts(conn, num_of_events):
         "wallet_id":all_investments_df["wallet_id"],
         "plan_id":all_investments_df["plan_id"],
         "amount_invested":all_investments_df["amount_invested"],
+        "expected_maturity_value":all_investments_df["expected_maturity_value"],
         "investment_start_date":all_investments_df["investment_start_date"],
         "investment_start_date_id": all_investments_df["investment_start_date_id"],
         "investment_maturity_date":all_investments_df["investment_maturity_date"],

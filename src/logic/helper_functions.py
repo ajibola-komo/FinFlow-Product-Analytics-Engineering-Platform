@@ -900,15 +900,29 @@ def early_withdrawal_requests_events(conn:DuckDBPyConnection,context:any, start_
         "plan_name"
     ]]
 
-    early_withdrawal_requests_df['withdrawal_request_date'] = (
-        [
-            early_withdrawal_requests_df['investment_maturity_date']
-            - timedelta(days=ro)
-            for ro in requests_withdrawal_days_before_maturity
-        ]
+    #print("Missing Investment Maturity Date",early_withdrawal_requests_df['investment_maturity_date'].isna().value_counts())
+
+    early_withdrawal_requests_df['withdrawal_request_date'] = [
+    maturity_date - timedelta(days=ro)
+    for maturity_date, ro in zip(
+        early_withdrawal_requests_df['investment_maturity_date'],
+        requests_withdrawal_days_before_maturity
     )
+]
+
+    #print("Early withdrawal requests dataframe withdrawal_request_date column",early_withdrawal_requests_df['withdrawal_request_date'].head(5))
+
 
     #review_current_plans
+
+    early_withdrawal_requests_df['withdrawal_request_date'] = pd.to_datetime(
+    early_withdrawal_requests_df['withdrawal_request_date']
+)
+
+
+    early_withdrawal_requests_df['investment_start_date'] = pd.to_datetime(
+    early_withdrawal_requests_df['investment_start_date']
+)
 
     early_withdrawal_requests_df['review_current_investment_time'] = [rd - timedelta(minutes = 8) for rd in early_withdrawal_requests_df['withdrawal_request_date']]
     early_withdrawal_requests_df['days_held'] = (early_withdrawal_requests_df['withdrawal_request_date'] - early_withdrawal_requests_df['investment_start_date']).dt.days
@@ -993,6 +1007,8 @@ def vested_investments_events(context:any, start_position:int, end_position:int,
                               investment_ids:list[int],vestable_investment_df:pd.DataFrame) -> None:
 
 
+    vestable_investment_df = vestable_investment_df.copy()
+
     user_ids[start_position:end_position] = vestable_investment_df['user_id']
     event_type_ids[start_position:end_position] = [context.investment_vests_event_type_id] * len(vestable_investment_df)
     investment_ids[start_position:end_position] = vestable_investment_df['investment_id']
@@ -1007,7 +1023,7 @@ def vested_investments_proceeds_transfer_events(conn:DuckDBPyConnection, context
 
     user_ids[start_position:end_position] = vested_investment_df['user_id']
     wallet_ids[start_position:end_position] = vested_investment_df['user_id']
-    investment_ids[start_position:end_position] = vested_investment_df['invesment_id']
+    investment_ids[start_position:end_position] = vested_investment_df['investment_id']
     is_money_movement_activity[start_position:end_position] = [True] * len(vested_investment_df)
     event_type_ids[start_position:end_position] = [context.investment_proceeds_wallet_transfer_event_type_id] * len(vested_investment_df)
     device_types[start_position:end_position] = dtypes
@@ -1032,7 +1048,7 @@ def vested_investments_proceeds_transfer_events(conn:DuckDBPyConnection, context
 
     return {
         'last_transaction_id':last_transaction_id,
-        'vested_investment_df':vested_investment_df
+        'vested_investments_df':vested_investment_df
     }
         
 def assets_sale_events(context:any, start_position:int, end_position:int, user_ids:list[int], event_time:list[pd.Timestamp], event_type_ids:list[int], device_types:list[str], dtypes:list[str],

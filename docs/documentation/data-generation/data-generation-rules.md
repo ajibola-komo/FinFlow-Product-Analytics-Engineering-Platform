@@ -24,7 +24,7 @@ FinFlow simulates a digital wealth management platform operating in the United K
 
 The platform is built to achieve the following objectives:
 
-- Generate realistic synthetic event streams for a multi-product fintech platform, modeling customer behavior across wallet funding, payments, savings, investments, and other money movement activities.
+- Generate realistic synthetic event streams for a multi-product fintech platform, modeling customer behavior across wallet funding, payments, savings, investments, wallet withdrawals, and other money movement activities.
 - Model end-to-end customer journeys to support product analytics use cases such as retention, funnels, and cross-product engagement
 - Design a scalable data architecture with historical backfills and incremental daily ingestion patterns
 - Implement a partitioned data lake structure and transform raw data into analytics-ready models using dbt
@@ -35,7 +35,7 @@ The platform is built to achieve the following objectives:
 - Demonstrate best practices in analytics engineering including modular modeling, incremental processing, and scalable ELT design
 
 ### Architecture
-![Data Warehouse Architecture](../images/finflow_data_warehouse_architecture.png)
+![Data Warehouse Architecture](/docs/images/finflow_event_flow_diagram.png)
 
 ### Data Volumes
 **Initial Batch Load**

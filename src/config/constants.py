@@ -169,10 +169,10 @@ FIRST_INVESTMENT_TYPE = ['Savings','Investments']
 CUSTOMER_BEHAVIOUR_SEGMENT_MAP = {
 
     'High_Engagement_High_Balance':{
-        'monthly_logins':[20,40],
-        'monthly_wallet_fundings':[2,5],
+        'monthly_logins':[18,35],
+        'monthly_wallet_fundings':[1,4],
         'average_investment_amount': [5000,50000],
-        'monthly_investment_position_creation':[0,3],
+        'monthly_investment_position_creation':[1,4],
         'retention_probability':0.95,
         'early_withdrawal_probability':0.05,
         'avg_wallet_balance_multiplier':2.5,
@@ -185,10 +185,10 @@ CUSTOMER_BEHAVIOUR_SEGMENT_MAP = {
     },
 
     'High_Engagement_Low_Balance':{
-        'monthly_logins':[15,30],
+        'monthly_logins':[12,25],
         'monthly_wallet_fundings':[1,4],
         'average_investment_amount':[250,5000],
-        'monthly_investment_position_creation':[0,3],
+        'monthly_investment_position_creation':[1,3],
         'retention_probability':0.85,
         'early_withdrawal_probability':0.15,
         'avg_wallet_balance_multiplier':0.5,
@@ -201,7 +201,7 @@ CUSTOMER_BEHAVIOUR_SEGMENT_MAP = {
     },
 
     'Moderate_Engagement_High_Balance':{
-        'monthly_logins':[8,15],
+        'monthly_logins':[6,15],
         'monthly_wallet_fundings':[1,3],
         'average_investment_amount':[2500,25000],
         'monthly_investment_position_creation':[0,2],
@@ -233,10 +233,10 @@ CUSTOMER_BEHAVIOUR_SEGMENT_MAP = {
     },
 
     'Low_Engagement_High_Balance':{
-        'monthly_logins':[1,3],
+        'monthly_logins':[1,5],
         'monthly_wallet_fundings':[0,1],
         'average_investment_amount':[10000,100000],
-        'monthly_investment_position_creation':[0,3],
+        'monthly_investment_position_creation':[0,1],
         'retention_probability':0.90,
         'early_withdrawal_probability':0.10,
         'avg_wallet_balance_multiplier':3.0,
@@ -249,10 +249,10 @@ CUSTOMER_BEHAVIOUR_SEGMENT_MAP = {
     },
 
     'Low_Engagement_Low_Balance':{
-        'monthly_logins':[0,2],
+        'monthly_logins':[0,3],
         'monthly_wallet_fundings':[0,1],
         'average_investment_amount':[50,1000],
-        'monthly_investment_position_creation':[0,2],
+        'monthly_investment_position_creation':[0,1],
         'retention_probability':0.50,
         'early_withdrawal_probability':0.30,
         'avg_wallet_balance_multiplier':0.3,

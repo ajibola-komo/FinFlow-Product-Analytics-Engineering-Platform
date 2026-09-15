@@ -264,12 +264,12 @@ The following attributes are influenced by behavioural segment:
 
 | Behaviour Segment | Login Frequency (per Month) | Deposit Frequency (per Month) | Investment Frequency (per Month) | Typical Behaviour |
 |-------------------|----------------------------|------------------------------|----------------------------------|-------------------|
-| High Engagement High Balance | 20 – 40 | 2 – 4 | 1 – 4 | Frequent platform usage, multiple active products, highest balances and retention. |
-| High Engagement Low Balance | 15 – 35 | 1 – 3 | 0 – 1 | Frequent engagement but lower balances and smaller contributions. |
-| Moderate Engagement High Balance | 6 – 15 | 1 – 2 | 1 – 2 | Periodic platform usage with larger balances and long-term investment behaviour. |
-| Moderate Engagement Low Balance | 4 – 12 | 0 – 2 | 0 – 1 | Average users with moderate product adoption and contribution levels. |
+| High Engagement High Balance | 18 – 35 | 1 – 4 | 1 – 4 | Frequent platform usage, multiple active products, highest balances and retention. |
+| High Engagement Low Balance | 12 – 25 | 1 – 4 | 1 – 3 | Frequent engagement but lower balances and smaller contributions. |
+| Moderate Engagement High Balance | 6 – 15 | 1 – 3 | 0 – 2 | Periodic platform usage with larger balances and long-term investment behaviour. |
+| Moderate Engagement Low Balance | 4 – 10 | 0 – 2 | 0 – 2 | Average users with moderate product adoption and contribution levels. |
 | Low Engagement High Balance | 1 – 5 | 0 – 1 | 0 – 1 | Infrequent platform usage but maintains substantial balances and longer holding periods. |
-| Low Engagement Low Balance | 0 – 3 | 0 – 1 | 0 | Minimal platform activity, low balances, and highest churn risk. |
+| Low Engagement Low Balance | 0 – 3 | 0 – 1 | 0 - 1 | Minimal platform activity, low balances, and highest churn risk. |
 
 ### 3.5. Event Generation Rules
 

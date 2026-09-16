@@ -275,10 +275,10 @@ The following attributes are influenced by behavioural segment:
 
 ### signup_completed
 
-Trigger:
+**Trigger**:
 - A  prospective customer successfully completes account registration.
 
-Business Rule:
+**Business Rule**:
 - User must be at least 18 years old.
 - User must be assigned a valid customer persona.
 - User must be assigned an acquisition channel.
@@ -288,7 +288,7 @@ Business Rule:
 - KYC completion and wallet activation are not required at signup.
 - Each user can only complete account registration once.
 
-Generated Tables:
+**Generated Tables**:
 - dim_user
 - dim_wallet
 - fact_user_event
@@ -296,7 +296,7 @@ Generated Tables:
 
 ### app_login
 
-Trigger:
+**Trigger**:
 - A registered user successfully authenticates and logs into the application.
 
 Business Rules:

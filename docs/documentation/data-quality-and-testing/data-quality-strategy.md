@@ -11,6 +11,9 @@
 
 1. [Executive Summary](#1-executive-summary)
 2. [Tools Used](#2-documentation-overview--project-scope)
+3. [Data Architecture](#3-data-architecture)
+4. [Testing Scope](#4-testing-scope)
+5. [Data Quality Dimensions](#5-data-quality-dimensions)
 
 # 1. Executive Summary
 
@@ -63,3 +66,6 @@ This section of the project highlights the testing scope at each layer.
 | Snowflake and dbt Intermediate Layer | Relationships and business logic |
 | Marts | Business Rules and Analytical Correctness |
 | BI | Metric Reconciliation |
+
+# 5. Data Quality Dimensions
+

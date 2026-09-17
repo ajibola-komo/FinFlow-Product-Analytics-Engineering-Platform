@@ -69,16 +69,19 @@ This section of the project highlights the testing scope at each layer.
 
 # 5. Data Quality Dimensions
 
-| DQ Dimension | Dimensions | Facts | Examples |
-|---|---|---|---|
-| Completeness | ✅ | ✅ | Required fields are not null |
-| Uniqueness | ✅ | ✅ | PK uniqueness |
-| Schema/Conformity | ✅ | ✅ | Correct columns and types |
-| Referential Integrity | ✅ | ✅ | All foreign keys must have a parent dimension |
-| Accepted values/domain | ✅ | ✅ | transaction_status, customer_persona, customer_behaviour_segment |
-| Freshness | ✅ | ✅ | Daily for core dimension and fact tables |
-| Temporal Consistency | ✅ | ✅ | wallet_created_at < wallet_activated_at |
-| Range Validation | ✅ | ✅ | amount_invested > 0 |
-| Distribution Validation | ✅ | ✅ | Persona and Channel Distributions |
+| DQ Dimension | Dimensions | Facts | Description | Examples |
+|---|---|---|---|---|
+| Completeness | ✅ | ✅ | The required fields are populated | Required fields are not null |
+| Uniqueness | ✅ | ✅ | PK uniqueness | PK uniqueness |
+| Schema/Conformity | ✅ | ✅ | Primary keys and defined unique keys contain no duplicates | Correct columns and types |
+| Referential Integrity | ✅ | ✅ | Foreign keys resolve to valid parent dimension records | dim_user(user_id) → fact_user_event(user_id) |
+| Accepted values/domain | ✅ | ✅ | Values belong to approved domains, e.g. investment_status | investment_status: Redeemed, Matured, Active |
+| Freshness | ✅ | ✅ | Data arrives within the defined SLA | Daily Incremental Loads |
+| Temporal Consistency | ✅ | ✅ | Related timestamps follow valid chronological relationships | wallet_created_at < wallet_activated_at |
+| Range Validation | ✅ | ✅ | Numeric and date values fall within valid ranges | amount_invested > 0 |
+| Distribution Validation | ✅ | ✅ | Synthetic data distributions remain within expected statistical thresholds | Persona and Channel Distributions |
+| Business Rule Validation | ✅ | ✅ | Domain specfic rules are validated | signup_completed event < kyc_completed event |
+| Cross-Layer Reconciliation | ✅ | ✅ | Counts, amounts and metrics reconcile between pipeline layers | signup_completed event < kyc_completed event |
+| Sequential Validation | - | ✅ | Events occur in valid chronological and lifecycle order | signup_completed event < kyc_completed event |
 
 

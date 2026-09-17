@@ -69,3 +69,16 @@ This section of the project highlights the testing scope at each layer.
 
 # 5. Data Quality Dimensions
 
+| DQ Dimension | Dimensions | Facts | Examples |
+|---|---|---|---|
+| Completeness | ✅ | ✅ | Required fields are not null |
+| Uniqueness | ✅ | ✅ | PK uniqueness |
+| Schema/Conformity | ✅ | ✅ | Correct columns and types |
+| Referential Integrity | ✅ | ✅ | All foreign keys must have a parent dimension |
+| Accepted values/domain | ✅ | ✅ | transaction_status, customer_persona, customer_behaviour_segment |
+| Freshness | ✅ | ✅ | Daily for core dimension and fact tables |
+| Temporal Consistency | ✅ | ✅ | wallet_created_at < wallet_activated_at |
+| Range Validation | ✅ | ✅ | amount_invested > 0 |
+| Distribution Validation | ✅ | ✅ | Persona and Channel Distributions |
+
+

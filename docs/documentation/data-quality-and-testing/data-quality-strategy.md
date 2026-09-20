@@ -83,6 +83,8 @@ This section of the project highlights the testing scope at each layer.
 
 # 6. Data Quality Rules Catalogue
 
+
+
 # 7. Layer Specific Testing Strategy
 
 # 8. dbt Testing Strategy

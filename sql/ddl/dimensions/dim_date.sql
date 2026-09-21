@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS dim_date (
     date_id     INT PRIMARY KEY,
-    date        DATE,
+    full_date        DATE,
     year        INT,
     quarter     INT,
     month       INT,
@@ -25,7 +25,7 @@ WITH dates AS (
 )
 SELECT
     CAST(strftime(date, '%Y%m%d') AS INTEGER) AS date_id,
-    date,
+    full_date,
     year(date),
     quarter(date),
     month(date),

@@ -12,7 +12,7 @@ class fact_transaction_schema(pa.DataFrameSchema):
 
     transaction_amount:Series[float] = pa.Field(ge=1, nullable=False)
 
-    transaction_status:Series[str] = pa.Field(checks=pa.Check.isin(['success','failed']))
+    transaction_status:Series[str] = pa.Field(checks=pa.Check.isin(['success','failed','Success','Failed']))
 
     transaction_timestamp:Series[pd.Timestamp] = pa.Field(nullable=False)
 

@@ -1,14 +1,15 @@
 import duckdb as db
 import pandas as pd
 import pandera as pa
+from pandera.errors import *
 from duckdb import DuckDBPyConnection
-import Tests.contracts.dimensions.dim_date_schema
-import Tests.contracts.dimensions.dim_user_schema
-import Tests.contracts.dimensions.dim_wallet_schema
-import Tests.contracts.facts.fact_investment_position_schema
-import Tests.contracts.facts.fact_transaction_schema
-import Tests.contracts.facts.fact_user_event_schema
-import Tests.contracts.facts.fact_wallet_balance_schema
+from Tests.contracts.dimensions.dim_date_schema import dim_date_schema
+from Tests.contracts.dimensions.dim_user_schema import dim_user_schema
+from Tests.contracts.dimensions.dim_wallet_schema import dim_wallet_schema
+from Tests.contracts.facts.fact_investment_position_schema import fact_investment_position_schema
+from Tests.contracts.facts.fact_transaction_schema import fact_transaction_schema
+from Tests.contracts.facts.fact_user_event_schema import fact_user_event_schema
+from Tests.contracts.facts.fact_wallet_balance_schema import fact_wallet_balance_schema
 
 
 #create the df
@@ -65,3 +66,53 @@ def validate_data_frames(conn:DuckDBPyConnection):
     fact_transaction_df = all_data_frames['fact_transaction']
     fact_user_event_df = all_data_frames['fact_user_event']
     fact_wallet_balance_df = all_data_frames['fact_wallet_balance']
+
+
+    try:
+        dim_user_df_validated = dim_user_schema.validate(dim_user_df)
+    except SchemaError as e:
+        print("dim_user validation failed")
+        print(e)
+        raise
+
+    try:
+        dim_wallet_df_validated = dim_wallet_schema.validate(dim_wallet_df)
+    except SchemaError as e:
+            print("dim_wallet validation failed")
+            print(e)
+            raise
+
+    try:
+        dim_date_df_validated = dim_date_schema.validate(dim_date_df)
+    except SchemaError as e:
+            print("dim_date validation failed")
+            print(e)
+            raise
+
+    try:
+        fact_investment_position_df_validated = fact_investment_position_schema.validate(fact_investment_position_df)
+    except SchemaError as e:
+            print("fact_investment_position validation failed")
+            print(e)
+            raise
+
+    try:
+        fact_transaction_df_validated = fact_transaction_schema.validate(fact_transaction_df)
+    except SchemaError as e:
+                print("fact_transaction validation failed")
+                print(e)
+                raise
+
+    try:
+        fact_user_event_df_validated = fact_user_event_schema.validate(fact_user_event_df)
+    except SchemaError as e:
+                print("fact_user_event validation failed")
+                print(e)
+                raise
+
+    try:
+        fact_wallet_balance_df_validated = fact_wallet_balance_schema.validate(fact_wallet_balance_df)
+    except SchemaError as e:
+                print("fact_wallet_balance validation failed")
+                print(e)
+                raise

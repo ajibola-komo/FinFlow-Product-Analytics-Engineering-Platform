@@ -582,7 +582,7 @@ def generate_facts(conn, num_of_events):
 
     conn.execute('''INSERT INTO FACT_INVESTMENT_POSITION SELECT * FROM INVESTMENT_DF''')
 
-    conn.execute(f'''COPY FACT_INVESTMENT_POSITION TO '{FACT_INVESTMENT_POSITION_PARQUET_PATH}' (FORMAT PARQUET) ''')
+    #conn.execute(f'''COPY FACT_INVESTMENT_POSITION TO '{FACT_INVESTMENT_POSITION_PARQUET_PATH}' (FORMAT PARQUET) ''')
 
     df_raw = pd.DataFrame({
         "user_id":user_ids[:total_events],
@@ -627,15 +627,15 @@ def generate_facts(conn, num_of_events):
 
     conn.execute('''INSERT INTO fact_user_event SELECT * FROM df_raw''')
 
-    conn.execute(f'''COPY FACT_USER_EVENT TO '{FACT_USER_EVENT_PARQUET_PATH}' (FORMAT PARQUET) ''')
+    #conn.execute(f'''COPY FACT_USER_EVENT TO '{FACT_USER_EVENT_PARQUET_PATH}' (FORMAT PARQUET) ''')
 
-    conn.execute(f'''COPY FACT_WALLET_BALANCE TO '{FACT_WALLET_BALANCE_PARQUET_PATH}' (FORMAT PARQUET)''')
+    #conn.execute(f'''COPY FACT_WALLET_BALANCE TO '{FACT_WALLET_BALANCE_PARQUET_PATH}' (FORMAT PARQUET)''')
 
-    conn.execute(f'''COPY (
-                            SELECT user_id, first_name, last_name, country, region, city, email_address, reported_annual_income,
-                            acquisition_channel, device_type, customer_persona, kyc_completed, date_of_birth, birth_date_id, signup_date, signup_date_id, 
-                            customer_behaviour_segment, last_login_at, created_at, last_updated_at
-                            from dim_user )
-                     TO '{USERS_PARQUET_PATH}' (FORMAT PARQUET) ''')
+    #conn.execute(f'''COPY (
+                            #SELECT user_id, first_name, last_name, country, region, city, email_address, reported_annual_income,
+                            #acquisition_channel, device_type, customer_persona, kyc_completed, date_of_birth, birth_date_id, signup_date, signup_date_id, 
+                            #customer_behaviour_segment, last_login_at, created_at, last_updated_at
+                            #from dim_user )
+                     #TO '{USERS_PARQUET_PATH}' (FORMAT PARQUET) ''')
 
-    conn.execute(f'''COPY DIM_WALLET TO '{WALLETS_PARQUET_PATH}' (FORMAT PARQUET)''')
+    #conn.execute(f'''COPY DIM_WALLET TO '{WALLETS_PARQUET_PATH}' (FORMAT PARQUET)''')

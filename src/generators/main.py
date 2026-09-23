@@ -15,6 +15,7 @@ from src.generators.facts.facts_tables import generate_facts
 from src.generators.facts.fact_wallet_balance import generate_wallet_balance
 from src.generators.dimensions.dim_transaction_type import generate_transaction_types
 from src.config.paths import DB_DIR, FINFLOW_DB_PATH
+from src.Tests.validator.validate_raw_data import validate_data_frames
 
 load_dotenv()
 
@@ -31,6 +32,7 @@ def create():
         generate_list_of_wallets(conn)
         generate_wallet_balance(conn)
         generate_facts(conn,10_000_000)
+        validate_data_frames(conn)
 
     
     #upload_parquet_files()

@@ -3,13 +3,13 @@ import pandas as pd
 import pandera as pa
 from pandera.errors import *
 from duckdb import DuckDBPyConnection
-from Tests.contracts.dimensions.dim_date_schema import dim_date_schema
-from Tests.contracts.dimensions.dim_user_schema import dim_user_schema
-from Tests.contracts.dimensions.dim_wallet_schema import dim_wallet_schema
-from Tests.contracts.facts.fact_investment_position_schema import fact_investment_position_schema
-from Tests.contracts.facts.fact_transaction_schema import fact_transaction_schema
-from Tests.contracts.facts.fact_user_event_schema import fact_user_event_schema
-from Tests.contracts.facts.fact_wallet_balance_schema import fact_wallet_balance_schema
+from src.Tests.contracts.dimensions.dim_date_schema import dim_date_schema
+from src.Tests.contracts.dimensions.dim_user_schema import dim_user_schema
+from src.Tests.contracts.dimensions.dim_wallet_schema import dim_wallet_schema
+from src.Tests.contracts.facts.fact_investment_position_schema import fact_investment_position_schema
+from src.Tests.contracts.facts.fact_transaction_schema import fact_transaction_schema
+from src.Tests.contracts.facts.fact_user_event_schema import fact_user_event_schema
+from src.Tests.contracts.facts.fact_wallet_balance_schema import fact_wallet_balance_schema
 from src.config.paths import (DATES_PARQUET_PATH, USERS_PARQUET_PATH, WALLETS_PARQUET_PATH, FACT_WALLET_BALANCE_PARQUET_PATH, 
                               FACT_TRANSACTION_PARQUET_PATH, FACT_USER_EVENT_PARQUET_PATH, FACT_INVESTMENT_POSITION_PARQUET_PATH)
 
@@ -39,7 +39,7 @@ def create_df_from_duckdb(conn:DuckDBPyConnection) -> dict:
     fact_transaction_df = conn.execute(''' SELECT transaction_id, wallet_id, transaction_type_id, transaction_amount, transaction_status, transaction_timestamp, transaction_date_id from fact_transaction
     ''').df()
 
-    fact_wallet_balance_df = conn.execute(''' SELECT wallet_id, user_id, current_balance, last_updated_at, last_updated_date_id, last_transaction_id, created_at, updated_at 
+    fact_wallet_balance_df = conn.execute(''' SELECT wallet_id, user_id, current_balance, last_updated_date, last_updated_date_id, last_transaction_id, created_at, updated_at 
     from fact_wallet_balance ''').df()
 
     extracted_dataframe_dictionary = {

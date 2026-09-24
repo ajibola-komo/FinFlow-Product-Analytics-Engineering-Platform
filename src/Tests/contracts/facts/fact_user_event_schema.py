@@ -1,8 +1,8 @@
 import pandas as pd
-import pandera as pa
+import pandera.pandas as pa
 from pandera.typing import Series
 
-class fact_user_event_schema(pa.DataFrameSchema):
+class fact_user_event_schema(pa.DataFrameModel):
 
     event_id: Series[int] = pa.Field(ge=1)
 
@@ -16,7 +16,7 @@ class fact_user_event_schema(pa.DataFrameSchema):
 
     event_date_id:Series[int] = pa.Field(nullable=False, ge=1)
 
-    device_type:Series[str] = pa.Field(checks=pa.Check.isin(['ios','android']))
+    device_type:Series[str] = pa.Field(isin=['ios','android'])
 
     is_money_movement_activity:Series[bool] = pa.Field(nullable=False)
 

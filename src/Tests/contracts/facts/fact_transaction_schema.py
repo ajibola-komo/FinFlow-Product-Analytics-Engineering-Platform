@@ -1,8 +1,8 @@
 import pandas as pd
-import pandera as pa
+import pandera.pandas as pa
 from pandera.typing import Series
 
-class fact_transaction_schema(pa.DataFrameSchema):
+class fact_transaction_schema(pa.DataFrameModel):
 
     transaction_id:Series[int] = pa.Field(ge=1)
 
@@ -12,7 +12,7 @@ class fact_transaction_schema(pa.DataFrameSchema):
 
     transaction_amount:Series[float] = pa.Field(ge=1, nullable=False)
 
-    transaction_status:Series[str] = pa.Field(checks=pa.Check.isin(['success','failed','Success','Failed']))
+    transaction_status:Series[str] = pa.Field(isin=['success','failed','Success','Failed'])
 
     transaction_timestamp:Series[pd.Timestamp] = pa.Field(nullable=False)
 

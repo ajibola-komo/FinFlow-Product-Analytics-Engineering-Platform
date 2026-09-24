@@ -1,8 +1,8 @@
 import pandas as pd
-import pandera as pa
+import pandera.pandas as pa
 from pandera.typing import Series
 
-class fact_investment_position_schema(pa.DataFrameSchema):
+class fact_investment_position_schema(pa.DataFrameModel):
 
     investment_id:Series[int] = pa.Field(nullable=False, ge=1)
 
@@ -24,7 +24,7 @@ class fact_investment_position_schema(pa.DataFrameSchema):
 
     investment_maturity_date_id:Series[int] = pa.Field(ge=1)
 
-    investment_status:Series[str] = pa.Field(checks=pa.Check.isin(['active','matured','redeemed']))
+    investment_status:Series[str] = pa.Field(isin=['active','matured','redeemed'])
 
     is_withdrawn_early:Series[bool] = pa.Field(nullable=False)
 

@@ -553,9 +553,7 @@ def generate_facts(conn, num_of_events):
 
     conn.execute('''INSERT INTO fact_transaction SELECT * FROM tr_events''')
 
-    conn.execute(f'''
-                    COPY fact_transaction TO '{FACT_TRANSACTION_PARQUET_PATH}' (FORMAT PARQUET)
-    ''')
+    #conn.execute(f'''COPY fact_transaction TO '{FACT_TRANSACTION_PARQUET_PATH}' (FORMAT PARQUET)''')
 
     investment_positions_df = pd.DataFrame({
         "investment_id":all_investments_df["investment_id"],

@@ -8,7 +8,7 @@ class fact_transaction_schema(pa.DataFrameModel):
 
     wallet_id:Series[int] = pa.Field(ge=1, nullable=False)
 
-    transaction_types_id:Series[int] = pa.Field(ge=1,le=4, nullable=False)
+    transaction_type_id:Series[int] = pa.Field(ge=1,le=4, nullable=False)
 
     transaction_amount:Series[float] = pa.Field(ge=1, nullable=False)
 

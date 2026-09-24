@@ -1,6 +1,7 @@
 import pandas as pd
 import pandera.pandas as pa
 from pandera.typing import Series
+import numpy as np
 
 class fact_wallet_balance_schema(pa.DataFrameModel):
 
@@ -12,9 +13,9 @@ class fact_wallet_balance_schema(pa.DataFrameModel):
 
     last_updated_date:Series[pd.Timestamp] = pa.Field(nullable=False)
 
-    last_updated_date_id:Series[int] = pa.Field(ge=1,nullable=False)
+    last_updated_date_id:Series[np.int32] = pa.Field(ge=1,nullable=False)
 
-    last_transaction_id:Series[int] = pa.Field(ge=1)
+    last_transaction_id:Series[np.int64] = pa.Field(ge=1,nullable=True)
 
     created_at:Series[pd.Timestamp] = pa.Field(nullable=False)
 

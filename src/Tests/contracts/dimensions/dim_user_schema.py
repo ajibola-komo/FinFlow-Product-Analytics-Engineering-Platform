@@ -2,6 +2,7 @@ import pandera.pandas as pa
 import pandas as pd
 from pandera.typing import Series
 from datetime import date
+from src.config.constants import CURRENT_DATE, CURRENT_YEAR
 
 
 class dim_user_schema(pa.DataFrameModel):
@@ -48,6 +49,38 @@ class dim_user_schema(pa.DataFrameModel):
     created_at: Series[pd.Timestamp] = pa.Field(coerce=True)
     
     last_updated_at: Series[pd.Timestamp] = pa.Field(coerce=True)
+
+    @pa.dataframe_check
+    def min_age_compliance(cls, df:pd.DataFrame) -> pd.Series:
+
+        dob = pd.to_datetime(df['date_of_birth'])
+        
+        age = (
+        CURRENT_DATE.year - dob.dt.year - (
+            (dob.dt.month > CURRENT_DATE.month)
+            |
+            (
+                (dob.dt.month == CURRENT_DATE.month)
+                & (dob.dt.day > CURRENT_DATE.day)
+            )
+        )
+    )
+        
+        return age >= 18
+
+    @pa.dataframe_check
+    def min_age_at_signup(cls, df:pd.DataFrame) -> pd.Series:
+
+        dob = pd.to_datetime(df['date_of_birth'])
+
+        dos = pd.to_datetime(df['signup_date'])
+
+        age_at_signup = (dos.dt.year - dob.dt.year - (
+            (dos.month, dos.day)
+            < (dob.dt.month, dob.dt.day)
+        ))
+
+        return age_at_signup >= 18
 
 
     class Config:

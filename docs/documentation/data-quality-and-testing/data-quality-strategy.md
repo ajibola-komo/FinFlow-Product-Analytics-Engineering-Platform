@@ -87,7 +87,10 @@ The data quality rules catalogue documentation highlights the expected data qual
 Here is the rules catalogue for the dim_user table.
 | Rule ID | Column(s) | Dimension | Rule | Severity | Validation Layer |
 |---|---|---|---|---|---|
-| DQ_USR_001 | Column(s) | Dimension | Rule | Severity | Validation Layer |
+| DQ_USR_001 | `user_id`, `email_address` | Uniqueness | `user_id` and `email_address` must each be unique | Critical | Pandera |
+| DQ_USR_002 | `user_id`, `email_address`, `first_name`,`last_name` | Completeness | Columns cannot be NULL | Critical | Pandera |
+| DQ_USR_003 | `signup_date`, `birth_date` | Temporal Consistency | User must be at least 18 years old at the time of signup  | High | Pandera |
+| DQ_USR_003 | `signup_date`, `birth_date` | Temporal Consistency | User must be at least 18 years old at the time of signup  | High | Pandera |
 
 The comprehensive rules catalogue documentation for all the tables is available [here](/docs/documentation/data-quality-and-testing/).
 

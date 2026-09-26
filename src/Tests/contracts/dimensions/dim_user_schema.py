@@ -1,3 +1,4 @@
+from duckdb import df
 import pandera.pandas as pa
 import pandas as pd
 from pandera.typing import Series
@@ -18,7 +19,7 @@ class dim_user_schema(pa.DataFrameModel):
 
     city: Series[str] = pa.Field(str_length={"min_value": 2, "max_value": 30})
 
-    email_address: Series[str] = pa.Field(str_length={"min_value": 5, "max_value": 50})
+    email_address: Series[str] = pa.Field(str_length={"min_value": 5, "max_value": 50},unique=True, nullable=False,regex=r"^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$")
 
     reported_annual_income: Series[float] = pa.Field(nullable=True, gt=0)
 
@@ -69,16 +70,23 @@ class dim_user_schema(pa.DataFrameModel):
         return age >= 18
 
     @pa.dataframe_check
-    def min_age_at_signup(cls, df:pd.DataFrame) -> pd.Series:
+    def min_age_at_signup(cls, df: pd.DataFrame) -> pd.Series:
 
-        dob = pd.to_datetime(df['date_of_birth'])
+        dob = pd.to_datetime(df["date_of_birth"])
+        signup_date = pd.to_datetime(df["signup_date"])
 
-        dos = pd.to_datetime(df['signup_date'])
-
-        age_at_signup = (dos.dt.year - dob.dt.year - (
-            (dos.month, dos.day)
-            < (dob.dt.month, dob.dt.day)
-        ))
+        age_at_signup = (
+        signup_date.dt.year
+        - dob.dt.year
+        - (
+            (signup_date.dt.month < dob.dt.month)
+            |
+            (
+                (signup_date.dt.month == dob.dt.month)
+                & (signup_date.dt.day < dob.dt.day)
+            )
+        )
+    )
 
         return age_at_signup >= 18
 

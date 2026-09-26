@@ -82,7 +82,14 @@ This section of the project highlights the testing scope at each layer.
 | Sequential / Event Lifecycle Integrity| - | ✅ | Events occur in valid chronological and lifecycle order | signup_completed event < kyc_completed event |
 
 # 6. Data Quality Rules Catalogue
+The data quality rules catalogue documentation highlights the expected data quality rule and/or business rule for each column in the tables across the project.
 
+Here is the rules catalogue for the dim_user table.
+| Rule ID | Column(s) | Dimension | Rule | Severity | Validation Layer |
+|---|---|---|---|---|---|
+| DQ_USR_001 | Column(s) | Dimension | Rule | Severity | Validation Layer |
+
+The comprehensive rules catalogue documentation for all the tables is available [here](/docs/documentation/data-quality-and-testing/).
 
 
 # 7. Layer Specific Testing Strategy

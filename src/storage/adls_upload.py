@@ -36,7 +36,9 @@ def upload_to_adls():
 
             file_client.upload_data(
                 data,
-                overwrite=True
+                overwrite=True,
+                max_concurrency=1,
+    timeout=300
             )
 
         print(

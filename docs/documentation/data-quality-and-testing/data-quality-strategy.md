@@ -90,7 +90,11 @@ Here is the rules catalogue for the dim_user table.
 | DQ_USR_001 | `user_id`, `email_address` | Uniqueness | `user_id` and `email_address` must each be unique | Critical | Pandera |
 | DQ_USR_002 | `user_id`, `email_address`, `first_name`,`last_name` | Completeness | Columns cannot be NULL | Critical | Pandera |
 | DQ_USR_003 | `signup_date`, `birth_date` | Temporal Consistency | User must be at least 18 years old at the time of signup  | High | Pandera |
-| DQ_USR_003 | `signup_date`, `birth_date` | Temporal Consistency | User must be at least 18 years old at the time of signup  | High | Pandera |
+| DQ_USR_004 | `date_of_birth`,`birth_date_id`,`signup_date`,`signup_date_id` | Consistency | `birth_date_id` must correspond to `date_of_birth` and `signup_date_id` must correspond to `signup_date` | Critical | Pandera |
+| DQ_USR_005 | `customer_behaviour_segment`, `customer_persona`, `acquisition_channel`,`device_type` | Accepted Values | Values must belong to their respective defined lists of accepted values | Critical | Pandera/dbt |
+| DQ_USR_006 | `reported_annual_income` | Range Validation | `reported_annual_income`  may be NULL, but NON-NULL values must be greater than or equal to 0 | High | Pandera |
+
+
 
 The comprehensive rules catalogue documentation for all the tables is available [here](/docs/documentation/data-quality-and-testing/).
 

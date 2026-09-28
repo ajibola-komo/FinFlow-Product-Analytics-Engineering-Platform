@@ -91,12 +91,12 @@ class dim_user_schema(pa.DataFrameModel):
         return age_at_signup >= 18
 
     @pa.dataframe_check
-    def date_id_format_matches_date(cls, df:pd.DataFrame) -> pd.Series[bool]:
+    def date_id_format_matches_date(cls, df:pd.DataFrame) -> pd.Series:
 
-        dob = df['date_of_birth']
+        dob = pd.to_datetime(df['date_of_birth'])
         birth_date_id = df['birth_date_id']
 
-        signup_date = df['signup_date']
+        signup_date = pd.to_datetime(df['signup_date'])
         signup_date_id = df['signup_date_id']
 
         return (birth_date_id == dob.dt.strftime("%Y%m%d").astype(int)) & (signup_date_id == signup_date.dt.strftime("%Y%m%d").astype(int))

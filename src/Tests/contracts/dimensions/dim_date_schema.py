@@ -36,9 +36,9 @@ class dim_date_schema(pa.DataFrameModel):
     def date_id_matches_full_date(cls, df:pd.DataFrame):
 
         d_id = df['date_id']
-        f_date = df['full_date']
+        f_date = pd.to_datetime(df['full_date'])
 
-        return d_id == f_date.df.strftime("%Y%m%d").astype(int)
+        return d_id == f_date.dt.strftime("%Y%m%d").astype(int)
 
 
     class Config:

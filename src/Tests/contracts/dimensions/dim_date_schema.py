@@ -1,6 +1,7 @@
 import pandera.pandas as pa
 from pandera.typing import Series
 from datetime import date
+import pandas as pd
 
 
 class dim_date_schema(pa.DataFrameModel):
@@ -30,6 +31,15 @@ class dim_date_schema(pa.DataFrameModel):
     is_month_start: Series[bool] = pa.Field(nullable=False)
 
     is_month_end: Series[bool] = pa.Field(nullable=False)
+
+    @pa.dataframe_check
+    def date_id_matches_full_date(cls, df:pd.DataFrame):
+
+        d_id = df['date_id']
+        f_date = df['full_date']
+
+        return d_id == f_date.df.strftime("%Y%m%d").astype(int)
+
 
     class Config:
         coerce=True

@@ -13,10 +13,6 @@ from incremental_generator.logic.signup_distribution import get_signup_distribut
 
 def generate_users(conn, num_of_users):
 
-    create_db = DDL_DIM_USER_PATH.read_text()
-
-    conn.execute(create_db)
-
     #generate fake user data using faker library
     fake_gb = fk.Faker('en_GB')
     fake_ie = fk.Faker('en_IE')

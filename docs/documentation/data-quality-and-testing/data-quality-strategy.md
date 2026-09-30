@@ -94,8 +94,6 @@ Here is the rules catalogue for the dim_user table.
 | DQ_USR_005 | `customer_behaviour_segment`, `customer_persona`, `acquisition_channel`,`device_type` | Accepted Values | Values must belong to their respective defined lists of accepted values | Critical | Pandera/dbt |
 | DQ_USR_006 | `reported_annual_income` | Range Validation | `reported_annual_income`  may be NULL, but NON-NULL values must be greater than or equal to 0 | High | Pandera |
 
-
-
 The comprehensive rules catalogue documentation for all the tables is available [here](/docs/documentation/data-quality-and-testing/).
 
 

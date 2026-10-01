@@ -65,7 +65,6 @@ def generate_users(conn, num_of_users):
 )
     email_ids = [f"{first_name[i].lower()}.{last_name[i].lower()}{random_suffix[i]}{email_domains[i]}" for i in range(num_of_users)]
 
-    
 
     demographics = get_age_persona_income_distribution(num_of_users)
 

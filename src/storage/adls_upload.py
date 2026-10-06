@@ -1,6 +1,9 @@
 import os
 from dotenv import load_dotenv
 from azure.storage.filedatalake import DataLakeServiceClient
+from src.config.constants import CURRENT_DATE
+import pandas as pd
+from azure.core.exceptions import ResourceExistsError
 
 from src.config.paths import (
     ADLS_FILE_NAMES,
@@ -12,6 +15,7 @@ load_dotenv()
 AZURE_STORAGE_ACCOUNT_NAME = os.getenv("AZURE_STORAGE_ACCOUNT_NAME")
 AZURE_STORAGE_ACCOUNT_KEY = os.getenv("AZURE_STORAGE_ACCOUNT_KEY")
 AZURE_FILE_SYSTEM_NAME = os.getenv("AZURE_FILE_SYSTEM_NAME")
+BATCH_LOAD_DATE = f'''batch_load_date_{pd.to_datetime(CURRENT_DATE).strftime("%Y%m%d")}'''
 
 
 def upload_to_adls():
@@ -25,12 +29,20 @@ def upload_to_adls():
         file_system=AZURE_FILE_SYSTEM_NAME
     )
 
+    directory_client = file_system_client.get_directory_client(BATCH_LOAD_DATE)
+
+    try:
+        directory_client.create_directory()
+    except ResourceExistsError:
+        pass
+    
+
     for file_name, local_path in zip(
         ADLS_FILE_NAMES,
         LOCAL_FILE_PATHS
     ):
 
-        file_client = file_system_client.get_file_client(file_name)
+        file_client = directory_client.get_file_client(file_name)
 
         with open(local_path, "rb") as data:
 
@@ -45,5 +57,5 @@ def upload_to_adls():
             f"Uploaded {local_path} "
             f"to abfss://{AZURE_FILE_SYSTEM_NAME}@"
             f"{AZURE_STORAGE_ACCOUNT_NAME}.dfs.core.windows.net/"
-            f"{file_name}"
+            f"{BATCH_LOAD_DATE}/{file_name}"
         )

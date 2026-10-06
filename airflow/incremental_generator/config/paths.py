@@ -32,4 +32,4 @@ CURRENT_FACT_WALLET_BALANCE_PARQUET_PATH = CURRENT_PARTITION / "fact_wallet_bala
 CURRENT_PARTITION_FILE_PATHS = [CURRENT_USERS_PARQUET_PATH, CURRENT_WALLETS_PARQUET_PATH, CURRENT_FACT_USER_EVENT_PARQUET_PATH, CURRENT_FACT_INVESTMENT_POSITION_PARQUET_PATH,
                                 CURRENT_FACT_TRANSACTION_PARQUET_PATH, CURRENT_FACT_WALLET_BALANCE_PARQUET_PATH]
 
-TABLE_NAMES = ["dim_user","dim_wallet","fact_user_event","fact_investment_position","fact_transaction","fact_wallet_balance"]
+FILE_NAMES = ["dim_user.parquet","dim_wallet.parquet","fact_user_event.parquet","fact_investment_position.parquet","fact_transaction.parquet","fact_wallet_balance.parquet"]

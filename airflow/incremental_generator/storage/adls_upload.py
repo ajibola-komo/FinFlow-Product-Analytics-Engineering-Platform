@@ -1,8 +1,10 @@
 import os
 from dotenv import load_dotenv
+import pandas as pd
 from azure.storage.filedatalake import DataLakeServiceClient
 from incremental_generator.config.constants import (CURRENT_DATE)
-from incremental_generator.config.paths import (TABLE_NAMES, CURRENT_PARTITION_FILE_PATHS)
+from incremental_generator.config.paths import (FILE_NAMES, CURRENT_PARTITION_FILE_PATHS)
+from azure.core.exceptions import ResourceExistsError
 
 load_dotenv()
 
@@ -22,12 +24,18 @@ def upload_to_adls():
         file_system=AZURE_FILE_SYSTEM_NAME
     )
 
-    for file_name, local_path in zip(
-        TABLE_NAMES,
-        CURRENT_PARTITION_FILE_PATHS
-    ):
+    partition_name = f'''partition_{pd.to_datetime(CURRENT_DATE).strftime("%Y%m%d")}'''
 
-        file_client = file_system_client.get_file_client(file_name)
+    directory_client = file_system_client.get_directory_client(partition_name)
+
+    try:
+        directory_client.create_directory()
+    except ResourceExistsError:
+        pass
+
+    for file_name, local_path in zip(FILE_NAMES,CURRENT_PARTITION_FILE_PATHS):
+
+        file_client = directory_client.get_file_client(file_name)
 
         with open(local_path, "rb") as data:
 
@@ -42,5 +50,6 @@ def upload_to_adls():
             f"Uploaded {local_path} "
             f"to abfss://{AZURE_FILE_SYSTEM_NAME}@"
             f"{AZURE_STORAGE_ACCOUNT_NAME}.dfs.core.windows.net/"
+            f"{partition_name}/"
             f"{file_name}"
         )

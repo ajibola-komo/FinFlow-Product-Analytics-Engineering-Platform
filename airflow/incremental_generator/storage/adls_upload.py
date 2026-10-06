@@ -1,11 +1,8 @@
 import os
 from dotenv import load_dotenv
 from azure.storage.filedatalake import DataLakeServiceClient
-
-from src.config.paths import (
-    ADLS_FILE_NAMES,
-    LOCAL_FILE_PATHS
-)
+from incremental_generator.config.constants import (CURRENT_DATE)
+from incremental_generator.config.paths import (TABLE_NAMES, CURRENT_PARTITION_FILE_PATHS)
 
 load_dotenv()
 
@@ -26,8 +23,8 @@ def upload_to_adls():
     )
 
     for file_name, local_path in zip(
-        ADLS_FILE_NAMES,
-        LOCAL_FILE_PATHS
+        TABLE_NAMES,
+        CURRENT_PARTITION_FILE_PATHS
     ):
 
         file_client = file_system_client.get_file_client(file_name)

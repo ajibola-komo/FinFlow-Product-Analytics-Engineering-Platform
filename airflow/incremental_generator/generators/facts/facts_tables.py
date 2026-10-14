@@ -1,9 +1,8 @@
 import numpy as np
 import pandas as pd
 from incremental_generator.config.paths import (CURRENT_FACT_USER_EVENT_PARQUET_PATH, CURRENT_FACT_INVESTMENT_POSITION_PARQUET_PATH, CURRENT_FACT_TRANSACTION_PARQUET_PATH)
-from incremental_generator.config.constants import (IMMEDIATE_LOGINS_TIME_FRAME, KYC_ACTIVATION_TIMEFRAME, USERS_MAKES_FIRST_INVESTMENT_AFTER_FUNDING,
-                                  CUSTOMER_BEHAVIOUR_SEGMENT_MAP, FIRST_INVESTMENT_TYPE, EARLY_WITHDRAWAL_BEHAVIOUR, INVESTMENT_WITHDRAWAL_PROCESSING_TIME,
-                                  MUTUAL_FUNDS_CUTOFF_DATE, TODAY, GENERATION_START_TIMESTAMP, GENERATION_END_TIMESTAMP, GENERATION_START_DATE)
+from incremental_generator.config.constants import (IMMEDIATE_LOGINS_TIME_FRAME, CUSTOMER_BEHAVIOUR_SEGMENT_MAP, FIRST_INVESTMENT_TYPE, GENERATION_START_TIMESTAMP, 
+                                                    GENERATION_END_TIMESTAMP, GENERATION_START_DATE)
                                   
 from datetime import timedelta
 from dateutil.relativedelta import relativedelta

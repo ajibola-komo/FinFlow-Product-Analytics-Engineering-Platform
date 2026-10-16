@@ -102,7 +102,7 @@ def wallet_activation_events(conn: DuckDBPyConnection, context: any, start_posit
             3) update_wallet_balance() function to update the fact_wallet_balance table with the updated transaction amounts.
             4) activate_wallet() to update the dim_wallet table
         
-        Returns the last_transaction_id after updating the wallet balance for the given users.
+        Returns the last_transaction_id and updated end position after updating the wallet balance for the given users.
     
     """
 

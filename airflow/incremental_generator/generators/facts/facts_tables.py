@@ -9,7 +9,8 @@ from dateutil.relativedelta import relativedelta
 from incremental_generator.generators.facts.helper_functions import (update_last_login_timestamp, update_kyc_completion_status, update_wallet_balance_topup,
 debit_wallet_balance, wallet_activation_funding, get_current_wallet_balance, early_withdrawal_requested_update )
 from incremental_generator.logic.EventContext import load_event_context
-from src.logic.helper_functions import (signup_completion_events, app_login_events, kyc_completion_events, wallet_activation_events, vested_investments_events, vested_investments_proceeds_transfer_events)
+from src.logic.helper_functions import (signup_completion_events, app_login_events, kyc_completion_events, wallet_activation_events, vested_investments_events, 
+                                        vested_investments_proceeds_transfer_events,review_plan_options_events,new_investment_creation)
 
 
 def generate_facts(conn, num_of_events):
@@ -183,136 +184,37 @@ def generate_facts(conn, num_of_events):
 
     uids = customer_subset_1['user_id']
     etime = customer_subset_1['wallet_activated_at'] + pd.to_timedelta(ro for ro in random_offset)
+    dtypes = device_type_map.get(uid for uid in uids)
 
-    app_login_events(conn,context,start_position, end_position,user_ids,uids,event_time, )
+    app_login_events(conn,context,start_position, end_position,user_ids,uids,event_time,etime,device_types,dtypes,event_type_ids )
 
     start_position = end_position
     end_position = start_position + total_customer_subset_1
 
+    uids = customer_subset_1['user_id']
+    dtypes = device_type_map.get(uid for uid in uids)
 
+    review_plan_options_events(conn,context,start_position,end_position,user_ids,uids, event_time, event_type_ids,device_types,dtypes)
 
     total_customer_subset_2 = len(customer_subset_2) 
 
-    first_investment_type = [np.random.choice(
-        FIRST_INVESTMENT_TYPE,
-        p= CUSTOMER_BEHAVIOUR_SEGMENT_MAP[cp][
-            'first_investment_type_probability'
-        ]
-    )
-    for cp in customer_subset_2['customer_behaviour_segment']]
 
-    uids = customer_subset_2['user_id']
-
-    customer_subset_2['first_investment_type'] = first_investment_type
-
-    balances = get_current_wallet_balance(conn,uids)
-
-    customer_subset_2 = customer_subset_2.merge(balances, on='user_id', how='left')
+    start_position = end_position
+    end_position = start_position + total_customer_subset_2
 
     customer_subset_2 = customer_subset_2.copy().reset_index(drop=True)
 
+
+    start_position = end_position
+    end_position = start_position + total_customer_subset_2
+
+    uids = customer_subset_2['user_id']
     random_offset = np.random.randint(0,1200,size=total_customer_subset_2)
+    etime = pd.to_datetime(GENERATION_START_TIMESTAMP) + pd.to_timedelta(ro for ro in random_offset)
 
-    start_position = end_position
-    end_position = start_position + total_customer_subset_2
+    return_dict = new_investment_creation(conn,context, start_position, end_position, user_ids, uids, wallet_ids, event_time,etime)
 
-    user_ids[start_position:end_position] = customer_subset_2["user_id"]
-    event_time[start_position:end_position] = [GENERATION_START_DATE + pd.to_timedelta(ro,unit="m") for ro in random_offset]
-    event_type_ids[start_position:end_position] = event_type_map.get("app_login")
-    device_types[start_position:end_position] = np.array([device_type_map.get(uid) for uid in customer_subset_2["user_id"]])
-    event_ids[start_position:end_position] = np.arange(last_event_id + 1, last_event_id + 1 + total_customer_subset_2 )
-    last_event_id = event_ids[start_position:end_position].max()
-
-    login_time_for_review_plan_options_2 = event_time[start_position:end_position]
-
-    update_last_login_timestamp(conn, customer_subset_2["user_id"],  login_time_for_review_plan_options_2)
-
-    start_position = end_position
-    end_position = start_position + total_customer_subset_2
-
-    user_ids[start_position:end_position] = customer_subset_2["user_id"]
-    event_time[start_position:end_position] = [last_login + timedelta(minutes=np.random.randint(2, 5)) for last_login in login_time_for_review_plan_options_2]
-    event_type_ids[start_position:end_position] = event_type_map.get("review_plan_options")
-    device_types[start_position:end_position] = np.array([device_type_map.get(uid) for uid in customer_subset_2["user_id"]])
-    event_ids[start_position:end_position] = np.arange(last_event_id + 1, last_event_id + 1 + total_customer_subset_2 )
-    last_event_id = event_ids[start_position:end_position].max()
-
-    last_review_time_for_investment = event_time[start_position:end_position]
-
-    start_position = end_position
-    end_position = start_position + total_customer_subset_2
-
-    user_ids[start_position:end_position] = customer_subset_2["user_id"]
-    event_time[start_position:end_position] = [last_review + timedelta(minutes=np.random.randint(1, 3)) for last_review in last_review_time_for_investment]
-    event_type_ids[start_position:end_position] = event_type_map.get("plan_selected")
-    device_types[start_position:end_position] = np.array([device_type_map.get(uid) for uid in customer_subset_2["user_id"]])
-    event_ids[start_position:end_position] = np.arange(last_event_id + 1, last_event_id + 1 + total_customer_subset_2 )
-    last_event_id = event_ids[start_position:end_position].max()
-
-
-    last_plan_selected_time = event_time[start_position:end_position]
-
-    start_position = end_position
-    end_position = start_position + total_customer_subset_2
-
-    user_ids[start_position:end_position] = customer_subset_2["user_id"]
-    event_time[start_position:end_position] = [last_review + timedelta(minutes=np.random.randint(3,6)) for last_review in last_plan_selected_time]
-    device_types[start_position:end_position] = np.array([device_type_map.get(uid) for uid in customer_subset_2["user_id"]])
-
-    investment_type_event_type = [
-    "savings_plan_created"
-    if inv == "Savings"
-    else "investment_plan_created"
-    for inv in customer_subset_2["first_investment_type"]
-    ]
-
-    print("Absent invesment type selections",pd.isna(investment_type_event_type).sum())
     
-    event_type_ids[start_position:end_position] = [event_type_map.get(inv) for inv in investment_type_event_type]
-    is_money_movement_activities[start_position:end_position] = True
-    transaction_ids[start_position:end_position] = np.arange(last_transaction_id + 1, last_transaction_id +  len(customer_subset_2) + 1)
-    transaction_type_ids[start_position:end_position] = [transaction_type_map.get("investment_funding") for _ in range(len(customer_subset_2))]
-    investment_ids[start_position:end_position] = np.arange(last_investment_id+1, last_investment_id+ 1 + len(customer_subset_2))
-    last_investment_id = investment_ids[start_position:end_position].max()
-
-    customer_subset_2['select_plan_ids'] = np.empty(len(customer_subset_2),dtype=object)
-
-    savings_plans = conn.execute('''SELECT * FROM dim_plan WHERE plan_category = 'Savings' ''').df()
-    print("Savings Plans: ",savings_plans["plan_id"])
-    investment_plans = conn.execute('''SELECT * FROM dim_plan WHERE plan_category = 'Investments' ''').df()
-    print("Investement Plans: ",investment_plans["plan_id"])
-
-    savings_mask = customer_subset_2["first_investment_type"] == 'Savings'
-    investments_mask = customer_subset_2["first_investment_type"] == 'Investments'
-    print("First Investment Type Unique Values", customer_subset_2["first_investment_type"].unique())
-
-    customer_subset_2.loc[savings_mask,'select_plan_ids'] = [np.random.choice(savings_plans["plan_id"], 
-                                            p = savings_plans["plan_weight"] / savings_plans["plan_weight"].sum())
-                                     for _ in range(savings_mask.sum())]
-    customer_subset_2.loc[investments_mask,'select_plan_ids'] = [np.random.choice(investment_plans["plan_id"], 
-                                        p = investment_plans["plan_weight"] / investment_plans["plan_weight"].sum())
-                                         for _ in range(investments_mask.sum())]
-
-    plan_ids[start_position:end_position] = customer_subset_2['select_plan_ids']
-    print(customer_subset_2['select_plan_ids'])
-    wallet_ids[start_position:end_position] = [wallet_id_map.get(uid) for uid in customer_subset_2["user_id"]]
-    investment_pct = np.random.uniform(
-    0.5,
-    0.95,
-    len(customer_subset_2)
-)
-    amount_invested[start_position:end_position] = (customer_subset_2["current_balance"] * investment_pct)
-
-    transaction_statuses[start_position:end_position] = ["success" for _ in range(len(customer_subset_2))]
-    transaction_amounts[start_position:end_position] = (customer_subset_2["current_balance"].values * investment_pct)
-    event_ids[start_position:end_position] = np.arange(last_event_id + 1, last_event_id + total_customer_subset_2 + 1)
-
-    last_transaction_id = transaction_ids[start_position:end_position].max()
-
-    debit_wallet_balance(conn,customer_subset_2['user_id'], transaction_amounts[start_position:end_position], event_time[start_position:end_position],
-                         transaction_ids[start_position:end_position], event_ids[start_position:end_position])
-
-
 
     #engagement from users who have existing investments
     users_with_existing_investments = conn.execute('''

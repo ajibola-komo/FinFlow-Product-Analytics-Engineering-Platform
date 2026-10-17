@@ -10,7 +10,7 @@ from incremental_generator.generators.facts.helper_functions import (update_last
 debit_wallet_balance, wallet_activation_funding, get_current_wallet_balance, early_withdrawal_requested_update )
 from incremental_generator.logic.EventContext import load_event_context
 from src.logic.helper_functions import (signup_completion_events, app_login_events, kyc_completion_events, wallet_activation_events, vested_investments_events, 
-                                        vested_investments_proceeds_transfer_events,review_plan_options_events,new_investment_creation)
+                                        vested_investments_proceeds_transfer_events,review_plan_options_events,new_investment_creation,review_current_investment_events)
 
 
 def generate_facts(conn, num_of_events):
@@ -250,33 +250,12 @@ def generate_facts(conn, num_of_events):
     start_position = end_position
     end_position = start_position + total_customer_subset_3
 
-    user_ids[start_position:end_position] = customer_subset_3['user_id'].values
-    event_time[start_position:end_position] = [GENERATION_START_DATE + pd.to_timedelta(ro,unit="m") for ro in random_offset]
-    event_type_ids[start_position:end_position] = [event_type_map.get("app_login")]
-    device_types[start_position:end_position] = [device_type_map.get(uid) for uid in customer_subset_3['user_id']]
-    event_ids[start_position:end_position] = np.random.randint(last_event_id + 1, last_event_id + 1 + total_customer_subset_3)
-    last_event_id = event_ids[start_position:end_position].max()
+    uids = customer_subset_3['user_id']
+    etime = pd.to_datetime(GENERATION_START_DATE) + pd.to_timedelta(random_offset,unit="m")
 
-    customer_subset_3['last_login_at'] = event_time[start_position:end_position]
+    updated_end_position = review_current_investment_events(conn,context,start_position, end_position,user_ids,uids,event_time)
 
-    uids = customer_subset_3['user_id'].values
-    last_login = customer_subset_3['last_login_at']
-
-    update_last_login_timestamp(conn,uids, last_login)
-
-    start_position = end_position
-    end_position = start_position + total_customer_subset_3
-
-    random_offset = np.random.randint(2,4,size=total_customer_subset_3)
-
-    #review current investments
-    user_ids[start_position:end_position] = customer_subset_3['user_id'].values
-    event_time[start_position:end_position] = [last_login + pd.to_timedelta(ro,unit="m") for last_login, ro in zip(last_login,random_offset)]
-    event_type_ids[start_position:end_position] = [event_type_map.get("review_current_investment")]
-    device_types[start_position:end_position] = [device_type_map.get(uid) for uid in customer_subset_3['user_id']]
-    event_ids[start_position:end_position] = np.random.randint(last_event_id + 1, last_event_id + 1 + total_customer_subset_3)
-    last_event_id = event_ids[start_position:end_position].max()
-
+    end_position = updated_end_position
     #let's simulate previous early withdrawals proceeds transfer
 
     #let's simulate early withdrawals
@@ -286,10 +265,10 @@ def generate_facts(conn, num_of_events):
                     partition by user_id
                     order by investment_maturity_date asc
                  ) as rn
-                 from fact_investment_position where investment_status = 'Active' and is_withdrawn_early = False
+                 from fact_investment_position where investment_status = 'Active' and is_withdrawn_early = False and investment_maturity_date is not null
                  ) select user_id, investment_id from get_users where rn = 1 and days_left between 0 and 30 
                  order by random()
-                 limit 5
+                 limit 10
     ''').df()
 
     customer_subset_4 = possible_early_maturity_users

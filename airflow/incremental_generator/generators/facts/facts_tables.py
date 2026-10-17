@@ -211,8 +211,20 @@ def generate_facts(conn, num_of_events):
     uids = customer_subset_2['user_id']
     random_offset = np.random.randint(0,1200,size=total_customer_subset_2)
     etime = pd.to_datetime(GENERATION_START_TIMESTAMP) + pd.to_timedelta(ro for ro in random_offset)
+    dtypes = device_type_map.get(uid for uid in uids)
 
-    return_dict = new_investment_creation(conn,context, start_position, end_position, user_ids, uids, wallet_ids, event_time,etime)
+    inv_type = np.array([
+    np.random.choice(CUSTOMER_BEHAVIOUR_SEGMENT_MAP[cbs])
+    for cbs in customer_subset_2['customer_behaviour_segment']])
+
+    return_dict = new_investment_creation(conn,context, start_position, end_position, user_ids, uids, wallet_ids, event_time,etime,inv_type,device_types,dtypes,is_money_movement_activities,
+                                          transaction_ids, last_transaction_id,transaction_type_ids, event_type_ids, transaction_amounts, transaction_statuses,investment_ids,last_investment_id)
+
+
+    last_transaction_id = return_dict['last_transaction_id']
+    new_investments_df = return_dict['all_investments_df']
+    end_position = return_dict['updated_end_position']
+    last_investment_id = return_dict['last_investment_id']
 
     
 

@@ -10,7 +10,8 @@ from incremental_generator.generators.facts.helper_functions import (update_last
 debit_wallet_balance, wallet_activation_funding, get_current_wallet_balance, early_withdrawal_requested_update )
 from incremental_generator.logic.EventContext import load_event_context
 from src.logic.helper_functions import (signup_completion_events, app_login_events, kyc_completion_events, wallet_activation_events, vested_investments_events, 
-                                        vested_investments_proceeds_transfer_events,review_plan_options_events,new_investment_creation,review_current_investment_events)
+                                        vested_investments_proceeds_transfer_events,review_plan_options_events,new_investment_creation,review_current_investment_events,
+                                        incremental_early_withdrawal_requests_events)
 
 
 def generate_facts(conn, num_of_events):
@@ -261,7 +262,8 @@ def generate_facts(conn, num_of_events):
     #let's simulate early withdrawals
     possible_early_maturity_users = conn.execute(f'''
             with get_users as (
-                 SELECT user_id, investment_id, investment_maturity_date - '{GENERATION_START_DATE}'::DATE as days_left, row_number() over(
+                 SELECT user_id, investment_id, investment_start_date, investment_maturity_date - '{GENERATION_START_DATE}'::DATE as days_left, 
+                 row_number() over(
                     partition by user_id
                     order by investment_maturity_date asc
                  ) as rn

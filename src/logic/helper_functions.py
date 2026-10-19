@@ -1111,9 +1111,7 @@ def incremental_early_withdrawal_requests_events(conn:DuckDBPyConnection,context
     early_withdrawal_requests_df['withdrawal_request_date'] = pd.to_datetime(early_withdrawal_requests_df['withdrawal_request_date'])
 
 
-    early_withdrawal_requests_df['investment_start_date'] = pd.to_datetime(
-    early_withdrawal_requests_df['investment_start_date']
-)
+    early_withdrawal_requests_df['investment_start_date'] = pd.to_datetime(early_withdrawal_requests_df['investment_start_date'])
 
     early_withdrawal_requests_df['review_current_investment_time'] = [rd - timedelta(minutes = 8) for rd in early_withdrawal_requests_df['withdrawal_request_date']]
 

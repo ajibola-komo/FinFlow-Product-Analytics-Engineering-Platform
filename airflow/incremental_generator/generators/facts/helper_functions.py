@@ -1,5 +1,7 @@
 import pandas as pd
 from incremental_generator.config.constants import (GENERATION_START_DATE, INVESTMENT_WITHDRAWAL_PROCESSING_TIME)
+import duckdb as db
+from duckdb import DuckDBPyConnection
 
 
 def update_last_login_timestamp(conn, user_ids, last_login):
@@ -145,3 +147,43 @@ def transfer_early_withdrawals_to_wallets(conn):
     return inv_df
 
 
+def update_early_withdrawal_requests_db(conn:DuckDBPyConnection, event_time:list[pd.Timestamp], early_withdrawal_df:pd.DataFrame) -> None:
+
+    early_withdrawal_df = early_withdrawal_df.copy()
+
+    early_withdrawal_df['withdrawal_request_date'] = event_time
+
+    conn.register('early_withdrawal_df',early_withdrawal_df)
+
+    conn.execute(f'''
+                    UPDATE fact_investment_position f set early_withdrawal_date = e.withdrawal_request_date,
+                    early_withdrawal_date_id = CAST(strftime(e.withdrawal_request_date::DATE, '%Y%m%d') AS INTEGER),
+                    is_withdrawn_early = True,
+                    investment_status = 'withdrawn_early',
+                    last_updated_at = e.withdrawal_request_date
+                    from early_withdrawal_df e
+                    where f.investment_id = e.investment_id 
+                ''')
+
+    conn.unregister('early_withdrawal_df')
+
+def update_investment_vests_db(conn:DuckDBPyConnection,matured_investments_df:pd.DataFrame) -> None:
+
+    matured_investments_df = matured_investments_df.copy()
+
+    conn.register('matured_investments_df',matured_investments_df)
+
+    conn.execute('''
+                    UPDATE fact_investment_position f set investment_status = 'matured',
+                    last_updated_at = m.investment_maturity_date
+
+                    from matured_investments_df m WHERE f.investment_id = m.investment_id
+    ''')
+
+    conn.unregister('matured_investments_df')
+
+def update_asset_sale_events(conn:DuckDBPyConnection,assets_sale_df:pd.DataFrame) -> None:
+
+    assets_sale_df = assets_sale_df.copy()
+
+    

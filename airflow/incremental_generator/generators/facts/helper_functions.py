@@ -1,6 +1,7 @@
 import pandas as pd
 from incremental_generator.config.constants import (GENERATION_START_DATE, INVESTMENT_WITHDRAWAL_PROCESSING_TIME)
 import duckdb as db
+import numpy as np
 from duckdb import DuckDBPyConnection
 from src.logic.helper_functions import (review_current_investment_events, update_wallet_balance)
 
@@ -148,11 +149,9 @@ def transfer_early_withdrawals_to_wallets(conn):
     return inv_df
 
 
-def update_early_withdrawal_requests_db(conn:DuckDBPyConnection, event_time:list[pd.Timestamp], early_withdrawal_df:pd.DataFrame) -> None:
+def update_early_withdrawal_requests_db(conn:DuckDBPyConnection, early_withdrawal_df:pd.DataFrame) -> None:
 
     early_withdrawal_df = early_withdrawal_df.copy()
-
-    early_withdrawal_df['withdrawal_request_date'] = event_time
 
     conn.register('early_withdrawal_df',early_withdrawal_df)
 
@@ -199,103 +198,85 @@ def update_asset_sale_events(conn:DuckDBPyConnection,event_time:list[pd.Timestam
 
     conn.unregister('assets_sale_df')
 
-def request_early_withdrawal_events(context:any, start_position:int, end_position:int, user_ids:list[int],event_times:list[pd.Timestamp],etime:list[pd.Timestamp],
-                                    event_type_ids:list[int],investment_ids:list[int],device_types:list[str],dtypes,early_withdrawal_requests_df:pd.DataFrame) -> None :
+def request_early_withdrawal_events(conn:DuckDBPyConnection,context:any, start_position:int, end_position:int, user_ids:list[int],event_times:list[pd.Timestamp],etime:list[pd.Timestamp],
+                                    event_type_ids:list[int],investment_ids:list[int],device_types:list[str],dtypes,early_withdrawal_requests_df:pd.DataFrame) -> dict :
 
-    
+
+
+        early_withdrawal_requests_df = early_withdrawal_requests_df.copy()
+        
+        early_withdrawal_requests_df['withdrawal_request_date'] = etime
+        
+        early_withdrawal_requests_df['investment_start_date'] = pd.to_datetime(early_withdrawal_requests_df['investment_start_date'])
+        
+        early_withdrawal_requests_df['review_current_investment_time'] = [rd - pd.to_timedelta((np.random.randint(3,9)),unit='m') for rd in early_withdrawal_requests_df['withdrawal_request_date']]
+
+        early_withdrawal_requests_df['days_held'] = (pd.to_datetime(GENERATION_START_DATE) - early_withdrawal_requests_df['investment_start_date']).dt.days
+        
+        
+        updated_end_position = review_current_investment_events(conn, context, start_position, end_position, user_ids, early_withdrawal_requests_df['user_id'], event_times, early_withdrawal_requests_df['review_current_investment_time'],
+                                             device_types, dtypes, event_type_ids)
+        
+        
+            #request withdrawal
+        start_position = updated_end_position
+        end_position = start_position + len(early_withdrawal_requests_df)
+        
         user_ids[start_position:end_position] = early_withdrawal_requests_df['user_id']
         event_times[start_position:end_position] = early_withdrawal_requests_df['withdrawal_request_date']
         investment_ids[start_position:end_position] = early_withdrawal_requests_df['investment_id']
         event_type_ids[start_position:end_position] = [context.request_early_withdrawal_event_type_id] * len(early_withdrawal_requests_df)
         device_types[start_position:end_position] = dtypes
+
+        updated_end_position = end_position
+
+        update_early_withdrawal_requests_db(conn, early_withdrawal_requests_df)
+
+        return updated_end_position
     
 
-def complete_early_withdrawal_requests_events(conn:DuckDBPyConnection,context:any, start_position:int, end_position:int, user_ids:list[int], wallet_ids:list[int], 
+def process_early_withdrawal_requests_events(conn:DuckDBPyConnection,context:any, start_position:int, end_position:int, user_ids:list[int], wallet_ids:list[int], 
                                      is_money_movement_activity:list[bool], last_transaction_id:int, event_times:list[pd.Timestamp], device_types:list[str], dtypes:list[str], 
-                                     early_withdrawal_requests_df:pd.DataFrame, event_type_ids:list[int], transaction_types_ids:list[int],transaction_ids:list[int], 
+                                     pending_early_withdrawal_requests_df:pd.DataFrame, event_type_ids:list[int], transaction_types_ids:list[int],transaction_ids:list[int], 
                                      transaction_amounts:list[float], transaction_statuses:list[str], investment_ids:list[int]) -> dict:
 
 
-    early_withdrawal_requests_df = early_withdrawal_requests_df.copy()
-
-    early_withdrawal_requests_df['withdrawal_request_date'] = pd.to_datetime(early_withdrawal_requests_df['withdrawal_request_date'])
-
-    early_withdrawal_requests_df['investment_start_date'] = pd.to_datetime(early_withdrawal_requests_df['investment_start_date'])
-
-    early_withdrawal_requests_df['review_current_investment_time'] = [rd - pd.to_timedelta(8,unit='m') for rd in early_withdrawal_requests_df['withdrawal_request_date']]
-
-    early_withdrawal_requests_df['expected_total_interest'] = early_withdrawal_requests_df['expected_maturity_value'] - early_withdrawal_requests_df['amount_invested']
-    early_withdrawal_requests_df['interest_accrued'] = early_withdrawal_requests_df['expected_total_interest'] * (early_withdrawal_requests_df['days_held'] / early_withdrawal_requests_df['tenure_days'])
-
-    updated_end_position = review_current_investment_events(conn, context, start_position, end_position, user_ids, early_withdrawal_requests_df['user_id'], event_times, early_withdrawal_requests_df['review_current_investment_time'],
-                                     device_types, dtypes, event_type_ids)
-
-
-    #request withdrawal
-    start_position = updated_end_position
-    end_position = start_position + len(early_withdrawal_requests_df)
-
-    user_ids[start_position:end_position] = early_withdrawal_requests_df['user_id']
-    event_times[start_position:end_position] = early_withdrawal_requests_df['withdrawal_request_date']
-    investment_ids[start_position:end_position] = early_withdrawal_requests_df['investment_id']
-    event_type_ids[start_position:end_position] = [context.request_early_withdrawal_event_type_id] * len(early_withdrawal_requests_df)
-    device_types[start_position:end_position] = dtypes
-
     #investment_proceeds_wallet_transfer
     start_position = end_position
-    end_position = start_position + len(early_withdrawal_requests_df)
+    end_position = start_position + len(pending_early_withdrawal_requests_df)
 
-    user_ids[start_position:end_position] = early_withdrawal_requests_df['user_id']
-    investment_ids[start_position:end_position] = early_withdrawal_requests_df['investment_id']
-    event_times[start_position:end_position] = early_withdrawal_requests_df['withdrawal_request_date'] + timedelta(minutes = INVESTMENT_WITHDRAWAL_PROCESSING_TIME)
-    is_money_movement_activity[start_position:end_position] = [True] * len(early_withdrawal_requests_df)
-    event_type_ids[start_position:end_position] = [context.investment_proceeds_wallet_transfer_event_type_id] * len(early_withdrawal_requests_df)
-    transaction_types_ids[start_position:end_position] = [context.investment_proceeds_transfer_transaction_type_id] * len(early_withdrawal_requests_df)
-    transaction_ids[start_position:end_position] = np.arange(last_transaction_id + 1, last_transaction_id + 1 + len(early_withdrawal_requests_df))    
+    user_ids[start_position:end_position] = pending_early_withdrawal_requests_df['user_id']
+    investment_ids[start_position:end_position] = pending_early_withdrawal_requests_df['investment_id']
+    event_times[start_position:end_position] = pending_early_withdrawal_requests_df['early_withdrawal_date'] + pd.to_timedelta(minutes = INVESTMENT_WITHDRAWAL_PROCESSING_TIME)
+    is_money_movement_activity[start_position:end_position] = [True] * len(pending_early_withdrawal_requests_df)
+    event_type_ids[start_position:end_position] = [context.investment_proceeds_wallet_transfer_event_type_id] * len(pending_early_withdrawal_requests_df)
+    transaction_types_ids[start_position:end_position] = [context.investment_proceeds_transfer_transaction_type_id] * len(pending_early_withdrawal_requests_df)
+    transaction_ids[start_position:end_position] = np.arange(last_transaction_id + 1, last_transaction_id + 1 + len(pending_early_withdrawal_requests_df))    
     device_types[start_position:end_position] = dtypes
     last_transaction_id = transaction_ids[start_position:end_position].max()
-    wallet_ids[start_position:end_position] = early_withdrawal_requests_df['user_id']
-    early_withdrawal_requests_df['penalty_amount'] = (early_withdrawal_requests_df['interest_accrued']  * (early_withdrawal_requests_df['penalty_rate_pct'] / 100))
-    transaction_amounts[start_position:end_position] = ((early_withdrawal_requests_df['amount_invested'] + early_withdrawal_requests_df['interest_accrued'])  - early_withdrawal_requests_df['penalty_amount'])
-    early_withdrawal_requests_df['investment_status'] = "Redeemed"
-    transaction_statuses[start_position:end_position] = ["Success"] * len(early_withdrawal_requests_df)
-
-    early_withdrawal_requests_df['is_withdrawn_early'] = True
-    early_withdrawal_requests_df['amount_paid_out'] = ((early_withdrawal_requests_df['amount_invested'] + early_withdrawal_requests_df['interest_accrued'])  - early_withdrawal_requests_df['penalty_amount'])
-    early_withdrawal_requests_df['early_withdrawal_date'] = early_withdrawal_requests_df['withdrawal_request_date']
-    early_withdrawal_requests_df['early_withdrawal_date_id'] = (early_withdrawal_requests_df['withdrawal_request_date'].dt.strftime("%Y%m%d").astype(int))
-    early_withdrawal_requests_df['last_updated_at'] = event_times[start_position:end_position]
-    early_withdrawal_requests_df['created_at'] = early_withdrawal_requests_df['investment_start_date']
-    early_withdrawal_requests_df['wallet_id'] = early_withdrawal_requests_df['user_id']
-
-    early_withdrawal_df = pd.DataFrame({
-        'investment_id':early_withdrawal_requests_df['investment_id'],
-        'user_id':early_withdrawal_requests_df['user_id'],
-        'wallet_id':early_withdrawal_requests_df['wallet_id'],
-        'plan_id':early_withdrawal_requests_df['plan_id'],
-        'amount_invested':early_withdrawal_requests_df['amount_invested'],
-        'expected_maturity_value':early_withdrawal_requests_df['expected_maturity_value'],
-        'investment_start_date':early_withdrawal_requests_df['investment_start_date'],
-        'investment_start_date_id':early_withdrawal_requests_df['investment_start_date_id'],
-        'investment_maturity_date':early_withdrawal_requests_df['investment_maturity_date'],
-        'investment_maturity_date_id':early_withdrawal_requests_df['investment_maturity_date_id'],
-        'investment_status':early_withdrawal_requests_df['investment_status'],
-        'is_withdrawn_early':early_withdrawal_requests_df['is_withdrawn_early'],
-        'penalty_amount':early_withdrawal_requests_df['penalty_amount'],
-        'amount_paid_out':early_withdrawal_requests_df['amount_paid_out'],
-        'early_withdrawal_date':early_withdrawal_requests_df['early_withdrawal_date'],
-        'early_withdrawal_date_id':early_withdrawal_requests_df['early_withdrawal_date_id'],
-        'created_at':early_withdrawal_requests_df['created_at'],
-        'last_updated_at':early_withdrawal_requests_df['last_updated_at'],
-    })
+    wallet_ids[start_position:end_position] = pending_early_withdrawal_requests_df['user_id']
+    pending_early_withdrawal_requests_df['days_held'] = (pd.to_datetime(pending_early_withdrawal_requests_df['early_withdrawal_date']) - pd.to_datetime(pending_early_withdrawal_requests_df['investment_start_date'])).dt.days
+    pending_early_withdrawal_requests_df['penalty_amount'] = (pending_early_withdrawal_requests_df['interest_accrued']  * (pending_early_withdrawal_requests_df['penalty_rate_pct'] / 100))
+    pending_early_withdrawal_requests_df['expected_total_interest'] = pending_early_withdrawal_requests_df['expected_maturity_value'] - pending_early_withdrawal_requests_df['amount_invested']
+    pending_early_withdrawal_requests_df['interest_accrued'] = pending_early_withdrawal_requests_df['expected_total_interest'] * (pending_early_withdrawal_requests_df['days_held'] / pending_early_withdrawal_requests_df['tenure_days'])
+            
+    transaction_amounts[start_position:end_position] = ((pending_early_withdrawal_requests_df['amount_invested'] + pending_early_withdrawal_requests_df['interest_accrued'])  - pending_early_withdrawal_requests_df['penalty_amount'])
+    pending_early_withdrawal_requests_df['investment_status'] = "Redeemed"
+    transaction_statuses[start_position:end_position] = ["Success"] * len(pending_early_withdrawal_requests_df)
+    pending_early_withdrawal_requests_df['amount_paid_out'] = ((pending_early_withdrawal_requests_df['amount_invested'] + pending_early_withdrawal_requests_df['interest_accrued'])  - pending_early_withdrawal_requests_df['penalty_amount'])
+    pending_early_withdrawal_requests_df['last_updated_at'] = event_times[start_position:end_position]
+    pending_early_withdrawal_requests_df['created_at'] = pending_early_withdrawal_requests_df['investment_start_date']
+    pending_early_withdrawal_requests_df['wallet_id'] = pending_early_withdrawal_requests_df['user_id']
 
     updated_end_position= end_position
 
-    update_wallet_balance(conn, early_withdrawal_requests_df['user_id'], early_withdrawal_requests_df['amount_paid_out'],
-                          transaction_ids[start_position:end_position],event_times[start_position:end_position]  )
+    update_wallet_balance(conn, pending_early_withdrawal_requests_df['user_id'], pending_early_withdrawal_requests_df['amount_paid_out'],
+                          transaction_ids[start_position:end_position],event_times[start_position:end_position])
+
+
+    conn.register()
 
     return {
         'last_transaction_id':last_transaction_id,
-        'updated_end_position':updated_end_position,
-        'early_withdrawal_df':early_withdrawal_df
+        'updated_end_position':updated_end_position
     }

@@ -16,9 +16,7 @@ def generate_wallet_balance(conn):
     current_wallet_balance = np.zeros(len(wallets_data))
     updated_at = wallets_data['wallet_created_at']
     last_transaction_id = np.empty(len(wallets_data), dtype=object)
-    last_event_id = np.empty(len(wallets_data), dtype=object)
     created_at = wallets_data['wallet_created_at']
-    last_updated_at = wallets_data['wallet_created_at']
 
     df_raw = pd.DataFrame({
         'wallet_id':wallet_ids,

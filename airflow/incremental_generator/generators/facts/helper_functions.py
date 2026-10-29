@@ -280,3 +280,47 @@ def process_early_withdrawal_requests_events(conn:DuckDBPyConnection,context:any
         'last_transaction_id':last_transaction_id,
         'updated_end_position':updated_end_position
     }
+
+
+def update_new_investments(conn:DuckDBPyConnection, new_investments_df:pd.DataFrame) -> None :
+
+    new_investments_df = new_investments_df.copy()
+
+    new_investments_df = new_investments_df.drop(columns=['tenure_days'])
+
+    conn.register('new_investments_df',new_investments_df)
+
+    conn.execute('''
+                    INSERT INTO fact_investment_position SELECT * FROM NEW_INVESTMENTS_DF
+                ''')
+
+    conn.unregister('new_investments_df')
+
+def incremental_vested_investment_events(conn:DuckDBPyConnection, context:any, start_position:int, end_position:int, user_ids:list[int],uids:list[int],
+                                         event_time:list[pd.Timestamp],event_type_ids:list[int],investment_ids:list[int],
+                                         device_types:list[str],dtypes:list[str],vested_investments_df:pd.DataFrame):
+
+     vested_investments_df = vested_investments_df.copy()
+
+     user_ids[start_position:end_position] = uids
+     event_type_ids[start_position:end_position] = [context.investment_vests_event_type_id] * len(vested_investments_df)
+     event_time[start_position:end_position] = vested_investments_df['investment_maturity_date']
+     device_types[start_position:end_position] = dtypes
+     investment_ids[start_position:end_position] = vested_investments_df['investment_id']
+
+     conn.register('vested_investments_df',vested_investments_df)
+
+     conn.execute('''
+            UPDATE FACT_INVESTMENT_POSITION as f set investment_status = 'matured', last_updated_at = v.investment_maturity_date
+            FROM vested_investments_df as v WHERE f.investment_id = v.investment_id
+    ''')
+
+    conn.unregister('vested_investments_df')
+
+     
+
+def update_vested_investments(conn:DuckDBPyConnection, vested_investments_df:pd.DataFrame) -> None:
+
+        vested_investments_df = vested_investments_df.copy()
+
+

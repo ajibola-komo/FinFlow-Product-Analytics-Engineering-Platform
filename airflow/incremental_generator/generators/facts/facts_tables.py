@@ -6,12 +6,11 @@ from incremental_generator.config.constants import (IMMEDIATE_LOGINS_TIME_FRAME,
                                   
 from datetime import timedelta
 from dateutil.relativedelta import relativedelta
-from incremental_generator.generators.facts.helper_functions import (update_last_login_timestamp, update_kyc_completion_status, update_wallet_balance_topup,
-debit_wallet_balance, wallet_activation_funding, get_current_wallet_balance, early_withdrawal_requested_update )
+from incremental_generator.generators.facts.helper_functions import (update_new_investments)
 from incremental_generator.logic.EventContext import load_event_context
 from src.logic.helper_functions import (signup_completion_events, app_login_events, kyc_completion_events, wallet_activation_events, vested_investments_events, 
                                         vested_investments_proceeds_transfer_events,review_plan_options_events,new_investment_creation,review_current_investment_events,
-                                        incremental_early_withdrawal_requests_events,assets_sale_events)
+                                        assets_sale_events)
 
 
 def generate_facts(conn, num_of_events):

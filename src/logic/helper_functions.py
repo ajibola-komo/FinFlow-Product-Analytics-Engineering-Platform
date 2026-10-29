@@ -355,6 +355,7 @@ def investment_creation_events(conn: DuckDBPyConnection, context:any, start_posi
 
     """
         Return a dataframe with the following attributes:
+            - investment_id
             - user_id
             - wallet_id
             - plan_id
@@ -374,16 +375,12 @@ def investment_creation_events(conn: DuckDBPyConnection, context:any, start_posi
             - last_updated_at
     
     """
-    print("length of uids in investment creation events",len(uids))
     plan_ids_allocation_df = plan_ids_allocation(conn, context,uids, investment_type, plan_selection_time)
-    print("Total plans allocation",len(plan_ids_allocation_df))
     plan_ids_allocation_df["plan_creation_time"] = (plan_ids_allocation_df["plan_selection_time"] + pd.to_timedelta(np.random.randint(3,6),unit="m"))
     plan_attributes_df = get_plan_attributes(conn, plan_ids_allocation_df["user_id"], plan_ids_allocation_df["plan_id"],plan_ids_allocation_df["unique_id"],plan_ids_allocation_df["plan_creation_time"])
     plan_ids_allocation_df = plan_ids_allocation_df.merge(plan_attributes_df, how="inner", on=["user_id","unique_id"])
     investment_amount_df = create_investment_amount(conn,plan_ids_allocation_df["user_id"],plan_ids_allocation_df["unique_id"])
     plan_ids_allocation_df = plan_ids_allocation_df.merge(investment_amount_df,how="inner",on=["user_id","unique_id"])
-
-    print("Space available in investment creation events",end_position - start_position)
 
     plan_ids_allocation_df['expected_maturity_value'] = plan_ids_allocation_df['amount_invested'] * (1 + (plan_ids_allocation_df['interest_rate'] / 100) * plan_ids_allocation_df['tenure_days']/365)
     user_ids[start_position:end_position] = plan_ids_allocation_df["user_id"]
@@ -822,7 +819,7 @@ def new_investment_creation(conn:DuckDBPyConnection, context:any, start_position
                 - user_id
                 - wallet_id
                 - plan_id
-                - amount_invested,
+                - amount_invested
                 - tenure_days
                 - expected_maturity_value
                 - investment_start_date

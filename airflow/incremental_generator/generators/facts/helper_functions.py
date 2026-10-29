@@ -296,13 +296,13 @@ def update_new_investments(conn:DuckDBPyConnection, new_investments_df:pd.DataFr
 
     conn.unregister('new_investments_df')
 
-def incremental_vested_investment_events(conn:DuckDBPyConnection, context:any, start_position:int, end_position:int, user_ids:list[int],uids:list[int],
+def incremental_vested_investment_events(conn:DuckDBPyConnection, context:any, start_position:int, end_position:int, user_ids:list[int],
                                          event_time:list[pd.Timestamp],event_type_ids:list[int],investment_ids:list[int],
                                          device_types:list[str],dtypes:list[str],vested_investments_df:pd.DataFrame):
 
      vested_investments_df = vested_investments_df.copy()
 
-     user_ids[start_position:end_position] = uids
+     user_ids[start_position:end_position] = vested_investments_df['user_id']
      event_type_ids[start_position:end_position] = [context.investment_vests_event_type_id] * len(vested_investments_df)
      event_time[start_position:end_position] = vested_investments_df['investment_maturity_date']
      device_types[start_position:end_position] = dtypes
@@ -311,16 +311,108 @@ def incremental_vested_investment_events(conn:DuckDBPyConnection, context:any, s
      conn.register('vested_investments_df',vested_investments_df)
 
      conn.execute('''
-            UPDATE FACT_INVESTMENT_POSITION as f set investment_status = 'matured', last_updated_at = v.investment_maturity_date
+            UPDATE FACT_INVESTMENT_POSITION as f set investment_status = 'Matured', last_updated_at = v.investment_maturity_date
             FROM vested_investments_df as v WHERE f.investment_id = v.investment_id
     ''')
 
-    conn.unregister('vested_investments_df')
+     conn.unregister('vested_investments_df')
 
-     
+def incremental_vested_investments_proceeds_transfer_events(conn:DuckDBPyConnection, context:any, start_position:int, end_position:int, user_ids:list[int], event_time:list[pd.Timestamp], 
+                                                wallet_ids:list[int], last_transaction_id:int,is_money_movement_activity:list[bool],transaction_type_ids:list[int], transaction_ids:list[int], 
+                                                transaction_amounts:list[float], transaction_statuses:list[str],
+                                                event_type_ids:list[int], device_types:list[str], dtypes:list[str], investment_ids:list[int],
+                                                matured_investment_df:pd.DataFrame) -> int:
 
-def update_vested_investments(conn:DuckDBPyConnection, vested_investments_df:pd.DataFrame) -> None:
 
-        vested_investments_df = vested_investments_df.copy()
+    if matured_investment_df.empty:
+        return {
+        'last_transaction_id': last_transaction_id
+    }
+
+    user_ids[start_position:end_position] = matured_investment_df['user_id']
+    wallet_ids[start_position:end_position] = matured_investment_df['user_id']
+    investment_ids[start_position:end_position] = matured_investment_df['investment_id']
+    is_money_movement_activity[start_position:end_position] = [True] * len(matured_investment_df)
+    event_type_ids[start_position:end_position] = [context.investment_proceeds_wallet_transfer_event_type_id] * len(matured_investment_df)
+    device_types[start_position:end_position] = dtypes
+    transaction_type_ids[start_position:end_position] = [context.investment_proceeds_transfer_transaction_type_id] * len(matured_investment_df)
+    transaction_ids[start_position:end_position] = np.arange(last_transaction_id + 1, last_transaction_id + 1 + len(matured_investment_df))
+    transaction_amounts[start_position:end_position] = matured_investment_df['expected_maturity_value']
+    transaction_statuses[start_position:end_position] = ["Success"] * len(matured_investment_df)
+    event_time[start_position:end_position] = matured_investment_df['investment_maturity_date'] + pd.to_timedelta(INVESTMENT_WITHDRAWAL_PROCESSING_TIME,unit='m')
+    matured_investment_df['last_updated_at'] = event_time[start_position:end_position]
+    matured_investment_df['amount_paid_out'] = matured_investment_df['expected_maturity_value']
+    
+
+    conn.register('matured_investment_df',matured_investment_df)
+
+    conn.execute(f'''
+                    UPDATE fact_investment_position as f set investment_status = 'Redeemed', amount_paid_out = m.expected_maturity_value, is_withdrawn_early = False,
+                    early_withdrawal_date = NULL, early_withdrawal_date_id = NULL, last_updated_at = m.last_updated_at FROM matured_investment_df as m
+                    WHERE f.investment_id = m.investment_id and investment_status = 'Matured'
+    ''')
+
+    conn.unregister('vested_investment_df')
+
+    last_transaction_id = transaction_ids[start_position:end_position].max()
+
+    update_wallet_balance(conn,matured_investment_df['user_id'], matured_investment_df['amount_paid_out'],
+                          transaction_ids[start_position:end_position],event_time[start_position:end_position]  )
+
+    return last_transaction_id
+
+def upload_newly_created_investments_to_db(conn:DuckDBPyConnection, new_investments_df:pd.DataFrame) -> None :
+
+    new_investments_df = new_investments_df.copy()
+
+    conn.register('new_investments_df', new_investments_df)
+
+    try:
+        conn.execute("""
+        INSERT INTO FACT_INVESTMENT_POSITION (
+            investment_id,
+            user_id,
+            wallet_id,
+            plan_id,
+            amount_invested,
+            expected_maturity_value,
+            investment_start_date,
+            investment_start_date_id,
+            investment_maturity_date,
+            investment_maturity_date_id,
+            investment_status,
+            is_withdrawn_early,
+            penalty_amount,
+            amount_paid_out,
+            early_withdrawal_date,
+            early_withdrawal_date_id,
+            created_at,
+            last_updated_at
+        )
+        SELECT
+            investment_id,
+            user_id,
+            wallet_id,
+            plan_id,
+            amount_invested,
+            expected_maturity_value,
+            investment_start_date,
+            investment_start_date_id,
+            investment_maturity_date,
+            investment_maturity_date_id,
+            investment_status,
+            is_withdrawn_early,
+            penalty_amount,
+            amount_paid_out,
+            early_withdrawal_date,
+            early_withdrawal_date_id,
+            created_at,
+            last_updated_at
+        FROM new_investments_df
+    """)
+    finally:
+        conn.unregister('new_investments_df')
+    
+
 
 

@@ -108,7 +108,7 @@ def wallet_activation_events(conn: DuckDBPyConnection, context: any, start_posit
 
     #first we need to get the customer behaviour segment to generate the transaction amount for each user
 
-    login_times = [et - timedelta(minutes = np.random.randint(4,8)) for et in event_time]
+    login_times = [et - timedelta(minutes = np.random.randint(5,15)) for et in event_time]
 
     app_login_events(conn, context, start_position, end_position, user_ids, uids, event_times, login_times, device_types, dtypes, event_type_ids)
 
@@ -816,6 +816,7 @@ def new_investment_creation(conn:DuckDBPyConnection, context:any, start_position
         This function creates new investment creation events for the given users.
         It returns a dictionary with the following attributes:
             - all_investment_df: A dataframe with the following attributes:
+                - investment_id
                 - user_id
                 - wallet_id
                 - plan_id

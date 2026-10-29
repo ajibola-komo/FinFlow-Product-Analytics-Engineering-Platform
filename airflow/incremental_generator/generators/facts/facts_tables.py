@@ -6,7 +6,8 @@ from incremental_generator.config.constants import (IMMEDIATE_LOGINS_TIME_FRAME,
                                   
 from datetime import timedelta
 from dateutil.relativedelta import relativedelta
-from incremental_generator.generators.facts.helper_functions import (update_new_investments)
+from incremental_generator.generators.facts.helper_functions import (update_new_investments,incremental_vested_investment_events,incremental_vested_investments_proceeds_transfer_events,
+                                                                     upload_newly_created_investments_to_db)
 from incremental_generator.logic.EventContext import load_event_context
 from src.logic.helper_functions import (signup_completion_events, app_login_events, kyc_completion_events, wallet_activation_events, vested_investments_events, 
                                         vested_investments_proceeds_transfer_events,review_plan_options_events,new_investment_creation,review_current_investment_events,
@@ -120,15 +121,15 @@ def generate_facts(conn, num_of_events):
 
 
     #wallet activation
-    wallet_activation_df = conn.execute(f'''SELECT * FROM dim_user where supposed_activation_date::DATE = '{GENERATION_START_DATE}' ''').df()
-    
 
+    all_users_data['supposed_activation_date'] = pd.to_datetime(all_users_data['supposed_activation_date'])
+    wallet_activation_df = all_users_data[all_users_data['supposed_activation_date'].dt.date == GENERATION_START_DATE].copy()
     
     start_position = end_position
     end_position = start_position + len(wallet_activation_df)
 
     uids = wallet_activation_df['user_id']
-    dtypes = device_type_map.get(uid for uid in uids)
+    dtypes = [device_type_map.get(uid for uid in uids)]
     
     
 
@@ -141,29 +142,34 @@ def generate_facts(conn, num_of_events):
     end_position = wallet_activation_dict['updated_end_position']
 
     #let's model investment vesting events
-    vestable_investments = conn.execute(F'''SELECT * from fact_investment_position where investment_maturity_date::DATE = '{GENERATION_START_DATE}' ''').df()
+
+    #first we will start with already vested investments yet to be transferred to the user's wallet
+
+    matured_investments_df = conn.execute(''' SELECT * FROM FACT_INVESTMENT_POSITION WHERE investment_status = 'Matured' ''')
+
+    start_position = end_position
+    end_position = start_position + len(matured_investments_df)
+
+    dtypes = [device_type_map.get(uid for uid in matured_investments_df['user_id'])]
+
+    last_transaction_id = incremental_vested_investments_proceeds_transfer_events(conn, context, start_position, end_position, user_ids, event_time, wallet_ids,
+                                                                                  last_transaction_id, is_money_movement_activities, transaction_type_ids, transaction_ids,
+                                                                                  transaction_amounts, transaction_statuses, event_type_ids, device_types,dtypes,
+                                                                                  investment_ids,matured_investments_df)
+
+
+
+    #then we will have make today's matured investments vest
+    vestable_investments = conn.execute(f'''SELECT * from fact_investment_position where investment_maturity_date::DATE = '{GENERATION_START_DATE}' ''').df()
 
     start_position = end_position
     end_position = start_position + len(vestable_investments)
 
-    dtypes = device_type_map.get(uid for uid in vestable_investments['user_id'])
+    dtypes = [device_type_map.get(uid for uid in vestable_investments['user_id'])]
     inv_ids = vestable_investments['investment_id']
 
-    vested_investments_events(context, start_position, end_position, user_ids, event_time, event_type_ids, device_types,dtypes,inv_ids,vestable_investments)
+    incremental_vested_investment_events(conn,context,start_position,end_position,user_ids,event_time, event_type_ids, investment_ids,device_types, dtypes,vestable_investments)
 
-
-    #investment proceeds wallet transfer
-
-    start_position = end_position
-    end_position = start_position + len(vestable_investments)
-
-    
-    return_dict = vested_investments_proceeds_transfer_events(conn, context, start_position, end_position, user_ids, event_time, wallet_ids, last_transaction_id, is_money_movement_activities, 
-                                                              transaction_type_ids, transaction_ids, transaction_amounts, transaction_statuses, event_type_ids, device_types,dtypes,
-                                                              inv_ids, vestable_investments)
-
-    last_transaction_id = return_dict['last_transaction_id']
-    vestable_investments_df = return_dict['vested_investments_df']
     
     #people that create investments
     all_users = conn.execute(f'''SELECT w.user_id as user_id, u.customer_behaviour_segment, i.user_id as unused, w.wallet_activated_at FROM dim_wallet w join dim_user u on 
@@ -195,12 +201,13 @@ def generate_facts(conn, num_of_events):
     end_position = start_position + total_customer_subset_1
 
     uids = customer_subset_1['user_id']
-    dtypes = device_type_map.get(uid for uid in uids)
+    dtypes = [device_type_map.get(uid for uid in uids)]
 
     review_plan_options_events(conn,context,start_position,end_position,user_ids,uids, event_time, event_type_ids,device_types,dtypes)
 
-    total_customer_subset_2 = len(customer_subset_2) 
 
+    #these users will invest
+    total_customer_subset_2 = len(customer_subset_2) 
 
     start_position = end_position
     end_position = start_position + total_customer_subset_2
@@ -214,10 +221,10 @@ def generate_facts(conn, num_of_events):
     uids = customer_subset_2['user_id']
     random_offset = np.random.randint(0,1200,size=total_customer_subset_2)
     etime = pd.to_datetime(GENERATION_START_TIMESTAMP) + pd.to_timedelta(ro for ro in random_offset)
-    dtypes = device_type_map.get(uid for uid in uids)
+    dtypes = [device_type_map.get(uid for uid in uids)]
 
     inv_type = np.array([
-    np.random.choice(CUSTOMER_BEHAVIOUR_SEGMENT_MAP[cbs])
+    np.random.choice(FIRST_INVESTMENT_TYPE,p=CUSTOMER_BEHAVIOUR_SEGMENT_MAP[cbs]['first_investment_type_probability'])
     for cbs in customer_subset_2['customer_behaviour_segment']])
 
     return_dict = new_investment_creation(conn,context, start_position, end_position, user_ids, uids, wallet_ids, event_time,etime,inv_type,device_types,dtypes,is_money_movement_activities,
@@ -228,6 +235,8 @@ def generate_facts(conn, num_of_events):
     new_investments_df = return_dict['all_investments_df']
     end_position = return_dict['updated_end_position']
     last_investment_id = return_dict['last_investment_id']
+
+    upload_newly_created_investments_to_db(conn,new_investments_df)
 
     
 

@@ -18,13 +18,11 @@ def generate_facts(conn, num_of_events):
     context = load_event_context(conn)
 
     #populate all possible signups within the project duration
-    new_signups_data = conn.execute(f'''SELECT user_id, signup_date, kyc_completed, is_activated_user, 
-                              wallet_activation_timeframe, customer_behaviour_segment, device_type, is_immediate_login
-                              FROM dim_user
+    new_signups_data = conn.execute(f'''SELECT * FROM dim_user
      where signup_date BETWEEN '{GENERATION_START_TIMESTAMP}' AND '{GENERATION_END_TIMESTAMP}' order by signup_date''').df()
     
-    all_users_data = conn.execute('''SELECT user_id, signup_date, customer_behaviour_segment, device_type,supposed_activation_date, kyc_completion_date  FROM dim_user order by signup_date''').df()
-    all_wallets_data = conn.execute('''SELECT user_id, wallet_id, wallet_created_at, wallet_activated_at from dim_wallet order by wallet_created_at''').df()
+    all_users_data = conn.execute('''SELECT * FROM dim_user order by signup_date''').df()
+    all_wallets_data = conn.execute('''SELECT * from dim_wallet order by wallet_created_at''').df()
 
     last_investment_id = conn.execute('''SELECT coalesce(max(investment_id),0) as investment_id from fact_investment_position''').fetchone()[0]
 
@@ -60,10 +58,12 @@ def generate_facts(conn, num_of_events):
     withdrawal_date = np.empty(num_of_events,dtype=object)
     last_event_id = conn.execute('''select max(event_id) from fact_user_event''').fetchone()[0]
     event_ids = np.empty(num_of_events,dtype=object)
+
+    last_transaction_id = conn.execute('''SELECT coalesce(max(transaction_id),0) from fact_transaction''').fetchone()[0]
     # new user signups
     total_signups = len(new_signups_data)
 
-    dtypes = device_type_map.get(uid for uid in new_signups_data['user_id'])
+    dtypes = [device_type_map.get(uid for uid in new_signups_data['user_id'])]
 
     start_position = 0
     end_position = total_signups
@@ -72,33 +72,36 @@ def generate_facts(conn, num_of_events):
 
     #new user logins
 
-    new_users_logins = conn.execute(f'''SELECT user_id, signup_date, kyc_completed, is_activated_user, customer_behaviour_segment,
-                                    is_immediate_login FROM dim_user where signup_date 
-                                    BETWEEN '{GENERATION_START_TIMESTAMP}' AND '{GENERATION_END_TIMESTAMP}' AND 
-                                    is_immediate_login = True order by signup_date''').df()
+    new_users_logins = new_signups_data[new_signups_data['is_immediate_login'] == True]
 
-    total_new_users = len(new_users_logins)
+    total_new_users_logins = len(new_users_logins)
 
     
     start_position = end_position
-    end_position = start_position + total_new_users
+    end_position = start_position + total_new_users_logins
     
-    #post signup immediate logins 
-    immediate_login_timeframe = np.random.randint(IMMEDIATE_LOGINS_TIME_FRAME[0],IMMEDIATE_LOGINS_TIME_FRAME[1], size=len(new_users_logins))
+    #post signup immediate logins - login timeframe is between 1 and 5 minutes
+    immediate_login_timeframe = np.random.randint(IMMEDIATE_LOGINS_TIME_FRAME[0],IMMEDIATE_LOGINS_TIME_FRAME[1], size=total_new_users_logins)
 
-    etime = pd.to_datetime(new_users_logins['signup_date']) + pd.to_timedelta(immediate_login_timeframe,unit='m')
-    dtypes = device_type_map.get(uid for uid in new_users_logins['user_id'])
+    etime = pd.to_datetime(new_users_logins['signup_date']) + pd.to_timedelta(immediate_login_timeframe,unit='s')
+    dtypes = [device_type_map.get(uid for uid in new_users_logins['user_id'])]
     
     app_login_events(conn,context, start_position, end_position, user_ids, new_users_logins['user_id'], event_time, etime, device_types,dtypes, event_type_ids)
 
-    #kyc_completed_users
-    sure_kyc_completed_users = conn.execute(f'''SELECT user_id, kyc_completed, device_type, kyc_completion_date from dim_user 
-                                            where kyc_completion_date::DATE = '{GENERATION_START_DATE}' ''').df()
 
+
+    #kyc_completed_users
+
+    all_users_data['kyc_completion_date'] = pd.to_datetime(all_users_data['kyc_completion_date'],errors='coerce')
+
+    
+    sure_kyc_completed_users = all_users_data[all_users_data['kyc_completion_date'].dt.date == GENERATION_START_DATE].copy()
     
     kyc_activation_time =  sure_kyc_completed_users["kyc_completion_date"]#assuming wallet activation happens after KYC completion, we can set the KYC activation timeframe to be slightly less than the wallet activation timeframe for those users
 
-    kyc_logins_time = kyc_activation_time - pd.to_timedelta(10,unit="m") #assuming KYC completion happens after the last login, we can set the KYC activation timeframe to be slightly more than the last login timeframe
+    ro = np.random.randint(5,16,size=len(sure_kyc_completed_users))
+
+    kyc_logins_time = kyc_activation_time - pd.to_timedelta(ro,unit="m") #assuming KYC completion happens after the last login, we can set the KYC activation timeframe to be slightly more than the last login timeframe
 
     
     start_position = end_position
@@ -106,7 +109,7 @@ def generate_facts(conn, num_of_events):
 
     
     uids = sure_kyc_completed_users['user_id']
-    dtypes = device_type_map.get(uid for uid in sure_kyc_completed_users['user_id'])
+    dtypes = [device_type_map.get(uid for uid in sure_kyc_completed_users['user_id'])]
 
     app_login_events(conn, context, start_position, end_position, user_ids, uids, event_time, kyc_logins_time, device_types, dtypes, event_type_ids)
 
@@ -127,7 +130,7 @@ def generate_facts(conn, num_of_events):
     uids = wallet_activation_df['user_id']
     dtypes = device_type_map.get(uid for uid in uids)
     
-    last_transaction_id = conn.execute('''SELECT coalesce(max(transaction_id),0) from fact_transaction''').fetchone()[0]
+    
 
     wallet_activation_dict = wallet_activation_events(conn,context,start_position,end_position,user_ids,uids, event_time, wallet_activation_df['supposed_activation_date'],device_types, dtypes,
                                                       event_type_ids, wallet_ids, uids, is_money_movement_activities, transaction_type_ids, transaction_ids, transaction_amounts,

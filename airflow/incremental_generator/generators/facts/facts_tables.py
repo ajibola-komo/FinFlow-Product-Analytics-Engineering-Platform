@@ -6,8 +6,9 @@ from incremental_generator.config.constants import (IMMEDIATE_LOGINS_TIME_FRAME,
                                   
 from datetime import timedelta
 from dateutil.relativedelta import relativedelta
-from incremental_generator.generators.facts.helper_functions import (update_new_investments,incremental_vested_investment_events,incremental_vested_investments_proceeds_transfer_events,
-                                                                     upload_newly_created_investments_to_db)
+from incremental_generator.generators.facts.helper_functions import (incremental_vested_investment_events,incremental_vested_investments_proceeds_transfer_events,
+                                                                     upload_newly_created_investments_to_db,incremental_early_withdrawal_investments_proceeds_transfer,
+                                                                     request_early_withdrawal_events)
 from incremental_generator.logic.EventContext import load_event_context
 from src.logic.helper_functions import (signup_completion_events, app_login_events, kyc_completion_events, wallet_activation_events, vested_investments_events, 
                                         vested_investments_proceeds_transfer_events,review_plan_options_events,new_investment_creation,review_current_investment_events,
@@ -269,6 +270,21 @@ def generate_facts(conn, num_of_events):
 
     end_position = updated_end_position
     #let's simulate previous early withdrawals proceeds transfer
+    pending_early_withdrawals_df = conn.execute(f'''
+                SELECT * FACT_INVESTMENT_POSITION WHERE investment_status = 'withdrawn_early'
+    ''').df()
+
+    start_position = end_position
+    end_position = start_position + len(pending_early_withdrawals_df)
+
+    dtypes = [device_type_map.get(uid for uid in uids)]
+
+    return_dict = incremental_early_withdrawal_investments_proceeds_transfer(conn, context, start_position, end_position, user_ids, wallet_ids, is_money_movement_activities, last_transaction_id, event_time, device_types, dtypes,
+                                                                             pending_early_withdrawals_df, event_type_ids, transaction_type_ids, transaction_ids, transaction_amounts, transaction_statuses, investment_ids)
+
+
+    last_transaction_id = return_dict['last_transaction_id']
+    end_position = return_dict['updated_end_position']
 
     #let's simulate early withdrawals
     possible_early_maturity_users = conn.execute(f'''
@@ -292,7 +308,7 @@ def generate_facts(conn, num_of_events):
     end_position = start_position + total_customer_subset_4
 
     random_offset = np.random.randint(10,1000,size = total_customer_subset_4)
-    customer_subset_4['withdrawal_request_date'] = GENERATION_START_DATE + pd.to_timedelta(random_offset )
+    customer_subset_4['withdrawal_request_date'] = GENERATION_START_DATE + pd.to_timedelta(random_offset,unit='m')
 
     start_position = end_position
     end_position = start_position + total_customer_subset_4
@@ -302,16 +318,11 @@ def generate_facts(conn, num_of_events):
 
 
     #we are logging in first, then reviewing current investments, then making an early withdrawal request
-    return_dict = incremental_early_withdrawal_requests_events(conn, context, start_position, end_position, user_ids, uids, is_money_movement_activity,last_transaction_id, event_time,
-                                                               device_types,dtypes,customer_subset_4,event_type_ids, transaction_type_ids,transaction_ids,transaction_amounts,
-                                                                transaction_statuses,investment_ids )
+    updated_end_position = request_early_withdrawal_events(conn, context, start_position, end_position, user_ids, event_time, event_type_ids, investment_ids, device_types, dtypes, customer_subset_4)
+
+    end_position = updated_end_position
 
 
-    last_transaction_id = return_dict['last_transaction_id']
-    updated_end_position = return_dict['updated_end_position']
-    early_withdrawal_df = return_dict['early_withdrawal_df']
-
-     
 
     possible_asset_sale_users = conn.execute(f'''
             with get_users as (

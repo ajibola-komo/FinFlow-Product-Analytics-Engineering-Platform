@@ -21,7 +21,6 @@ def update_last_login_timestamp(conn, user_ids, last_login):
 
     conn.unregister('logins_df')
 
-
 def update_kyc_completion_status(conn, user_ids):
 
     kyc_df = pd.DataFrame({
@@ -37,7 +36,6 @@ def update_kyc_completion_status(conn, user_ids):
     ''')
 
     conn.unregister('kyc_df')
-
 
 def wallet_activation_funding(conn, user_ids, transaction_amounts, updated_at, transaction_ids, event_ids):
 
@@ -57,8 +55,7 @@ def wallet_activation_funding(conn, user_ids, transaction_amounts, updated_at, t
                  from wallet_updation a where d.user_id = a.user_id ''')
         
     conn.unregister('wallet_updation')
-        
-    
+         
 def update_wallet_balance_topup(conn, user_ids, transaction_amounts, updated_at, transaction_ids, event_ids):
 
     df_current_wallet_updation = pd.DataFrame({
@@ -126,7 +123,6 @@ def early_withdrawal_requested_update(conn, investment_ids, request_timestamps):
 
     conn.unregister('inv_ids')
 
-
 def transfer_early_withdrawals_to_wallets(conn):
 
     eligible_investments = conn.execute('''
@@ -141,13 +137,12 @@ def transfer_early_withdrawals_to_wallets(conn):
     conn.register('inv_df',inv_df)
 
     conn.execute('''
-        update fact_investment_position f set investment_status = 'Redeemed' from inv_df i where f.investment_id = i.investment_id
+        update fact_investment_position f set investment_status = 'redeemed' from inv_df i where f.investment_id = i.investment_id
     ''')
 
     conn.unregister('inv_df')
 
     return inv_df
-
 
 def update_early_withdrawal_requests_db(conn:DuckDBPyConnection, early_withdrawal_df:pd.DataFrame) -> None:
 
@@ -233,7 +228,6 @@ def request_early_withdrawal_events(conn:DuckDBPyConnection,context:any, start_p
 
         return updated_end_position
     
-
 def incremental_early_withdrawal_investments_proceeds_transfer(conn:DuckDBPyConnection,context:any, start_position:int, end_position:int, user_ids:list[int], wallet_ids:list[int], 
                                      is_money_movement_activity:list[bool], last_transaction_id:int, event_times:list[pd.Timestamp], device_types:list[str], dtypes:list[str], 
                                      pending_early_withdrawal_requests_df:pd.DataFrame, event_type_ids:list[int], transaction_types_ids:list[int],transaction_ids:list[int], 
@@ -269,7 +263,7 @@ def incremental_early_withdrawal_investments_proceeds_transfer(conn:DuckDBPyConn
     pending_early_withdrawal_requests_df['penalty_amount'] = (pending_early_withdrawal_requests_df['interest_accrued']  * (pending_early_withdrawal_requests_df['penalty_rate_pct'] / 100))
 
     transaction_amounts[start_position:end_position] = ((pending_early_withdrawal_requests_df['amount_invested'] + pending_early_withdrawal_requests_df['interest_accrued'])  - pending_early_withdrawal_requests_df['penalty_amount'])
-    pending_early_withdrawal_requests_df['investment_status'] = "Redeemed"
+    pending_early_withdrawal_requests_df['investment_status'] = "redeemed"
     transaction_statuses[start_position:end_position] = ["Success"] * len(pending_early_withdrawal_requests_df)
     pending_early_withdrawal_requests_df['amount_paid_out'] = ((pending_early_withdrawal_requests_df['amount_invested'] + pending_early_withdrawal_requests_df['interest_accrued'])  - pending_early_withdrawal_requests_df['penalty_amount'])
     pending_early_withdrawal_requests_df['last_updated_at'] = event_times[start_position:end_position]
@@ -283,8 +277,8 @@ def incremental_early_withdrawal_investments_proceeds_transfer(conn:DuckDBPyConn
     conn.register('pending_transactions',pending_early_withdrawal_requests_df)
 
     conn.execute('''
-                    UPDATE FACT_INVESTMENT_POSITION f set investment_status = 'Redeemed', penalty_amount = p.penalty_amount, amount_paid_out = p.amount_paid_out, last_updated_at = p.last_updated_at
-                    FROM pending_transactions p WHERE f.investment_id = p.investment_id and investment_status = 'Withdrawn Early'
+                    UPDATE FACT_INVESTMENT_POSITION f set investment_status = 'redeemed', penalty_amount = p.penalty_amount, amount_paid_out = p.amount_paid_out, last_updated_at = p.last_updated_at
+                    FROM pending_transactions p WHERE f.investment_id = p.investment_id and investment_status = 'withdrawn_early'
     ''')
 
     conn.unregister('pending_transactions')
@@ -293,7 +287,6 @@ def incremental_early_withdrawal_investments_proceeds_transfer(conn:DuckDBPyConn
         'last_transaction_id':last_transaction_id,
         'updated_end_position':updated_end_position
     }
-
 
 def update_new_investments(conn:DuckDBPyConnection, new_investments_df:pd.DataFrame) -> None :
 
@@ -360,9 +353,9 @@ def incremental_vested_investments_proceeds_transfer_events(conn:DuckDBPyConnect
     conn.register('matured_investment_df',matured_investment_df)
 
     conn.execute(f'''
-                    UPDATE fact_investment_position as f set investment_status = 'Redeemed', amount_paid_out = m.expected_maturity_value, is_withdrawn_early = False,
+                    UPDATE fact_investment_position as f set investment_status = 'redeemed', amount_paid_out = m.expected_maturity_value, is_withdrawn_early = False,
                     early_withdrawal_date = NULL, early_withdrawal_date_id = NULL, last_updated_at = m.last_updated_at FROM matured_investment_df as m
-                    WHERE f.investment_id = m.investment_id and investment_status = 'Matured'
+                    WHERE f.investment_id = m.investment_id and investment_status = 'matured'
     ''')
 
     conn.unregister('vested_investment_df')
@@ -426,6 +419,60 @@ def upload_newly_created_investments_to_db(conn:DuckDBPyConnection, new_investme
     finally:
         conn.unregister('new_investments_df')
     
+def incremental_assets_sale_investment_proceeds_wallet_transfer_events(conn:DuckDBPyConnection, context:any, start_position:int, end_position:int, user_ids:list[int], wallet_ids:list[int],
+                                                    event_time:list[pd.Timestamp], device_types:list[str], dtypes, transaction_type_ids:list[int], transaction_ids:list[int],
+                                                    last_transaction_id:int, event_type_ids, is_money_movement_activity:list[bool], transaction_amounts:list[float], transaction_statuses:list[str],
+                                                    investment_ids:list[int],
+                                                    saleable_investment_df:pd.DataFrame) -> int:
 
+
+    ''''
+    This function creates the investment proceeds wallet transfer events for the saleable investments.
+    It returns the last transaction id after creating the events.
+    '''
+
+    if saleable_investment_df.empty:
+        return last_transaction_id
+
+    saleable_investment_df = saleable_investment_df.copy()
+
+    user_ids[start_position:end_position] = saleable_investment_df['user_id']
+    event_time[start_position:end_position] = (saleable_investment_df['redemption_request_date'] + pd.to_timedelta(INVESTMENT_WITHDRAWAL_PROCESSING_TIME, unit='m'))
+    is_money_movement_activity[start_position:end_position] = [True] * len(saleable_investment_df)
+    device_types[start_position:end_position] = dtypes
+    investment_ids[start_position:end_position] = saleable_investment_df['investment_id']
+    event_type_ids[start_position:end_position] = [context.investment_proceeds_wallet_transfer_event_type_id] * len(saleable_investment_df)
+    transaction_type_ids[start_position:end_position] = [context.investment_proceeds_transfer_transaction_type_id] * len(saleable_investment_df)
+    transaction_ids[start_position:end_position] = np.arange(last_transaction_id + 1, last_transaction_id + 1 + len(saleable_investment_df))
+    last_transaction_id = transaction_ids[start_position:end_position].max()
+    wallet_ids[start_position:end_position] = saleable_investment_df['user_id']
+
+    #get interest rate
+    saleable_investment_df['interest_rate'] = np.random.randint(8,19,size=len(saleable_investment_df))
+    saleable_investment_df['amount_paid_out'] = (saleable_investment_df['amount_invested'] * (1 + (saleable_investment_df['interest_rate']/100))).round(2)
+    transaction_amounts[start_position:end_position] = saleable_investment_df['amount_paid_out']
+    transaction_statuses[start_position:end_position] = ["success"] * len(saleable_investment_df)
+    saleable_investment_df['investment_status'] = ["redeemed"] * len(saleable_investment_df)
+    saleable_investment_df['is_withdrawn_early'] = False
+    saleable_investment_df['penalty_amount'] = 0.0
+    saleable_investment_df['early_withdrawal_date'] = None
+    saleable_investment_df['early_withdrawal_date_id'] = None
+    saleable_investment_df['last_updated_at'] = event_time[start_position:end_position]
+
+    update_wallet_balance(conn, saleable_investment_df['user_id'], transaction_amounts[start_position:end_position], transaction_ids[start_position:end_position], event_time[start_position:end_position])
+
+    conn.register('saleable_investment_df', saleable_investment_df)
+
+    conn.execute('''
+                    UPDATE FACT_INVESTMENT_POSITION f SET investment_status = 'redeemed', 
+                    is_withdrawn_early = FALSE, 
+                    penalty_amount = 0.0, 
+                    amount_paid_out = s.amount_paid_out, early_withdrawal_date = NULL, early_withdrawal_date_id = NULL, last_updated_at = s.last_updated_at
+                    FROM saleable_investment_df s WHERE f.investment_id = s.investment_id and f.investment_status = 'sale_processing'
+    ''')
+
+    conn.unregister('saleable_investment_df')
+
+    return last_transaction_id
 
 

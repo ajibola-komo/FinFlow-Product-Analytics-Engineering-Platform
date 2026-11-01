@@ -346,7 +346,6 @@ def plan_ids_allocation(conn:DuckDBPyConnection, context:any, uids:list[int], in
 
     return plan_ids_allocation_df
 
-
 def investment_creation_events(conn: DuckDBPyConnection, context:any, start_position:int, end_position:int, user_ids:list[int],uids:list[int], wallet_ids:list[int], event_times:list[pd.Timestamp], 
                                plan_selection_time:list[pd.Timestamp], investment_type:list[str], device_types:list[str], dtypes:list[str], 
                                is_money_movement_activities:list[bool], transaction_ids:list[int], last_transaction_id:int, 
@@ -429,7 +428,6 @@ def investment_creation_events(conn: DuckDBPyConnection, context:any, start_posi
         'all_investments_df':all_investments_df, 'last_transaction_id':last_transaction_id,'last_investment_id':last_investment_id
     }
     
-
 def get_customer_behaviour_segment(conn: DuckDBPyConnection, uids: list[int]) -> dict[int,str]:
 
     """

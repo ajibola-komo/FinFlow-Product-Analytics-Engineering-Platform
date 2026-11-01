@@ -8,7 +8,7 @@ from datetime import timedelta
 from dateutil.relativedelta import relativedelta
 from incremental_generator.generators.facts.helper_functions import (incremental_vested_investment_events,incremental_vested_investments_proceeds_transfer_events,
                                                                      upload_newly_created_investments_to_db,incremental_early_withdrawal_investments_proceeds_transfer,
-                                                                     request_early_withdrawal_events)
+                                                                     request_early_withdrawal_events,incremental_assets_sale_investment_proceeds_wallet_transfer_events)
 from incremental_generator.logic.EventContext import load_event_context
 from src.logic.helper_functions import (signup_completion_events, app_login_events, kyc_completion_events, wallet_activation_events, vested_investments_events, 
                                         vested_investments_proceeds_transfer_events,review_plan_options_events,new_investment_creation,review_current_investment_events,
@@ -322,6 +322,18 @@ def generate_facts(conn, num_of_events):
 
     end_position = updated_end_position
 
+    pending_sales_df = conn.execute(''' SELECT * FROM FACT_INVESTMENT_POSITION WHERE investment_status = 'sale_processing' ''').df()
+
+    start_position = end_position
+    end_position = start_position + len(pending_sales_df)
+
+    dtypes = [device_type_map.get(uid for uid in pending_sales_df['user_id'])]
+
+    last_transaction_id = incremental_assets_sale_investment_proceeds_wallet_transfer_events(conn, context, start_position, end_position, user_ids, wallet_ids,event_time, device_types,
+                                                                                             dtypes, transaction_type_ids, transaction_ids, last_transaction_id, event_type_ids,
+                                                                                             is_money_movement_activities, transaction_amounts, transaction_statuses,investment_ids,
+                                                                                             pending_sales_df)
+    
 
 
     possible_asset_sale_users = conn.execute(f'''

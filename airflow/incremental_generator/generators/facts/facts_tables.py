@@ -8,7 +8,8 @@ from datetime import timedelta
 from dateutil.relativedelta import relativedelta
 from incremental_generator.generators.facts.helper_functions import (incremental_vested_investment_events,incremental_vested_investments_proceeds_transfer_events,
                                                                      upload_newly_created_investments_to_db,incremental_early_withdrawal_investments_proceeds_transfer,
-                                                                     request_early_withdrawal_events,incremental_assets_sale_investment_proceeds_wallet_transfer_events)
+                                                                     request_early_withdrawal_events,incremental_assets_sale_investment_proceeds_wallet_transfer_events,
+                                                                     update_asset_sale_events)
 from incremental_generator.logic.EventContext import load_event_context
 from src.logic.helper_functions import (signup_completion_events, app_login_events, kyc_completion_events, wallet_activation_events, vested_investments_events, 
                                         vested_investments_proceeds_transfer_events,review_plan_options_events,new_investment_creation,review_current_investment_events,
@@ -342,13 +343,13 @@ def generate_facts(conn, num_of_events):
                     partition by user_id
                     order by investment_start_date asc
                  ) as rn
-                 from fact_investment_position where investment_status = 'Active' and investment_maturity_date is null
+                 from fact_investment_position where investment_status = 'active' and investment_maturity_date is null
                  ) select * from get_users where rn = 1 and days_since_registration > 90 
                  order by random()
                  limit 5
     ''').df()
 
-    customer_subset_5 = possible_asset_sale_users
+    customer_subset_5 = possible_asset_sale_users.copy()
 
     total_customer_subset_5 = len(customer_subset_5)
 
@@ -360,8 +361,10 @@ def generate_facts(conn, num_of_events):
 
     uids = customer_subset_5['user_id']
     dtypes = device_type_map.get(uid for uid in uids)
+    customer_subset_5['redemption_request_date'] = pd.to_datetime(GENERATION_START_DATE) + pd.to_timedelta(random_offset,unit='m')
 
     assets_sale_events(context, start_position, end_position,user_ids, event_time, event_type_ids, device_types,dtypes,investment_ids,customer_subset_5)
+    update_asset_sale_events(conn,customer_subset_5['redemption_request_date'],customer_subset_5)
 
 
     total_events = end_position

@@ -475,4 +475,3 @@ def incremental_assets_sale_investment_proceeds_wallet_transfer_events(conn:Duck
 
     return last_transaction_id
 
-

@@ -3,7 +3,7 @@ from incremental_generator.config.constants import (GENERATION_START_DATE, INVES
 import duckdb as db
 import numpy as np
 from duckdb import DuckDBPyConnection
-from src.logic.helper_functions import (review_current_investment_events, update_wallet_balance)
+from src.logic.helper_functions import (review_current_investment_events, update_wallet_balance,app_login_events,activate_wallet,generate_wallet_funding_amounts)
 
 
 def update_last_login_timestamp(conn, user_ids, last_login):
@@ -283,6 +283,11 @@ def incremental_early_withdrawal_investments_proceeds_transfer(conn:DuckDBPyConn
 
     conn.unregister('pending_transactions')
 
+    update_fact_transaction_table(
+            conn, transaction_ids[start_position:end_position], wallet_ids[start_position:end_position],transaction_types_ids[start_position:end_position], transaction_amounts[start_position:end_position],
+            transaction_statuses[start_position:end_position], event_times[start_position:end_position]
+        )
+
     return {
         'last_transaction_id':last_transaction_id,
         'updated_end_position':updated_end_position
@@ -364,6 +369,11 @@ def incremental_vested_investments_proceeds_transfer_events(conn:DuckDBPyConnect
 
     update_wallet_balance(conn,matured_investment_df['user_id'], matured_investment_df['amount_paid_out'],
                           transaction_ids[start_position:end_position],event_time[start_position:end_position]  )
+
+    update_fact_transaction_table(
+        conn, transaction_ids[start_position:end_position], wallet_ids[start_position:end_position],transaction_type_ids[start_position:end_position], transaction_amounts[start_position:end_position],
+        transaction_statuses[start_position:end_position], event_time[start_position:end_position]
+    )
 
     return last_transaction_id
 
@@ -473,5 +483,111 @@ def incremental_assets_sale_investment_proceeds_wallet_transfer_events(conn:Duck
 
     conn.unregister('saleable_investment_df')
 
+    update_fact_transaction_table(
+            conn, transaction_ids[start_position:end_position], wallet_ids[start_position:end_position],transaction_type_ids[start_position:end_position], transaction_amounts[start_position:end_position],
+            transaction_statuses[start_position:end_position], event_time[start_position:end_position]
+        )
+
     return last_transaction_id
+
+def update_fact_transaction_table(conn:DuckDBPyConnection, tran_ids:list[int], wids:list[int],tran_type_ids:list[int],tran_amount:list[float], tran_status:list[str],
+                                  tran_time:list[pd.Timestamp]):
+
+    transaction_df = pd.DataFrame({
+        'transaction_id':tran_ids,
+        'wallet_id':wids,
+        'transaction_type_id':tran_type_ids,
+        'transaction_amount':tran_amount,
+        'transaction_status':tran_status,
+        'transaction_timestamp':pd.to_datetime(tran_time),
+        'transaction_date_id':pd.to_datetime(tran_time).strftime("%Y%m%d")
+    })
+
+    conn.register('transaction_df',transaction_df)
+
+    conn.execute('''
+                    INSERT INTO FACT_TRANSACTION(transaction_id,wallet_id, transaction_type_id, transaction_amount, transaction_status, transaction_timestamp, transaction_date_id)
+                    SELECT * FROM transaction_df
+                    WHERE NOT EXISTS (
+    SELECT 1
+    FROM FACT_TRANSACTION f
+    WHERE f.transaction_id = transaction_df.transaction_id
+)
+    ''')
+
+    conn.unregister('transaction_df')
+
+def incremental_wallet_activation_events(conn: DuckDBPyConnection, context: any, start_position:int, end_position:int, 
+                             user_ids:list[int], uids:list[int], event_times:list[pd.Timestamp], event_time:list[pd.Timestamp], device_types:list[str],dtypes:list[str],
+                             event_type_ids:list[int], wallet_ids:list[int], wids:list[int], is_money_movement_activity:list[bool],
+                            transaction_type_ids:list[int], transaction_ids:list[int], transaction_amounts:list[float], 
+                            transaction_statuses:list[str], last_transaction_id:int) -> dict:
+
+    """
+        This method creates the wallet activation events i.e. a registered user's first funding.
+        This methods calls:
+            1) app_login_events() function to login first
+            2) generate_wallet_funding_amount() function to create the funding amounts based on the user's customer behaviour segment.
+            3) update_wallet_balance() function to update the fact_wallet_balance table with the updated transaction amounts.
+            4) activate_wallet() to update the dim_wallet table
+        
+        Returns the last_transaction_id and updated end position after updating the wallet balance for the given users.
+    
+    """
+
+    #first we need to get the customer behaviour segment to generate the transaction amount for each user
+
+    login_times = [et - pd.to_timedelta(minutes = np.random.randint(5,15)) for et in event_time]
+
+    app_login_events(conn, context, start_position, end_position, user_ids, uids, event_times, login_times, device_types, dtypes, event_type_ids)
+
+    start_position = end_position
+    end_position = start_position + len(uids)
+
+    tran_amount = generate_wallet_funding_amounts(conn, uids)
+    
+    user_ids[start_position:end_position] = uids
+    event_times[start_position:end_position] = event_time
+    device_types[start_position:end_position] = dtypes
+
+    
+    event_type_ids[start_position:end_position] = [context.wallet_funded_event_type_id] * len(uids)
+
+    
+    transaction_type_ids[start_position:end_position] = [context.wallet_funding_transaction_type_id] * len(uids)
+
+    wallet_ids[start_position:end_position] = wids
+
+    is_money_movement_activity[start_position:end_position] = [True]*len(uids)
+
+    transaction_ids[start_position:end_position] = np.arange(last_transaction_id + 1, last_transaction_id + len(uids) + 1)
+
+    tran_ids = transaction_ids[start_position:end_position]
+
+    transaction_amounts[start_position:end_position] = tran_amount
+
+    transaction_statuses[start_position:end_position] = ["success"] * len(uids)
+
+    last_transaction_id = transaction_ids[start_position:end_position].max()
+
+    update_wallet_balance(conn, uids, tran_amount, tran_ids, event_time)
+
+    activate_wallet(conn, uids, event_time)
+
+    update_fact_transaction_table(
+        conn,
+        tran_ids,
+        wids,
+        transaction_type_ids[start_position:end_position],
+        transaction_amounts[start_position:end_position],
+        transaction_statuses[start_position:end_position],
+        event_times[start_position:end_position]
+    )
+
+    updated_end_position = end_position
+
+    return {
+        'last_transaction_id':last_transaction_id,
+        'updated_end_position':updated_end_position
+        }
 

@@ -9,10 +9,9 @@ from dateutil.relativedelta import relativedelta
 from incremental_generator.generators.facts.helper_functions import (incremental_vested_investment_events,incremental_vested_investments_proceeds_transfer_events,
                                                                      upload_newly_created_investments_to_db,incremental_early_withdrawal_investments_proceeds_transfer,
                                                                      request_early_withdrawal_events,incremental_assets_sale_investment_proceeds_wallet_transfer_events,
-                                                                     update_asset_sale_events)
+                                                                     update_asset_sale_events,incremental_wallet_activation_events,update_fact_transaction_table)
 from incremental_generator.logic.EventContext import load_event_context
-from src.logic.helper_functions import (signup_completion_events, app_login_events, kyc_completion_events, wallet_activation_events, vested_investments_events, 
-                                        vested_investments_proceeds_transfer_events,review_plan_options_events,new_investment_creation,review_current_investment_events,
+from src.logic.helper_functions import (signup_completion_events, app_login_events, kyc_completion_events, wallet_activation_events, review_plan_options_events,new_investment_creation,review_current_investment_events,
                                         assets_sale_events)
 
 
@@ -63,7 +62,7 @@ def generate_facts(conn, num_of_events):
     event_ids = np.empty(num_of_events,dtype=object)
 
     last_transaction_id = conn.execute('''SELECT coalesce(max(transaction_id),0) from fact_transaction''').fetchone()[0]
-    # new user signups
+    # today's new user signups
     total_signups = len(new_signups_data)
 
     dtypes = [device_type_map.get(uid for uid in new_signups_data['user_id'])]
@@ -135,7 +134,7 @@ def generate_facts(conn, num_of_events):
     
     
 
-    wallet_activation_dict = wallet_activation_events(conn,context,start_position,end_position,user_ids,uids, event_time, wallet_activation_df['supposed_activation_date'],device_types, dtypes,
+    wallet_activation_dict = incremental_wallet_activation_events(conn,context,start_position,end_position,user_ids,uids, event_time, wallet_activation_df['supposed_activation_date'],device_types, dtypes,
                                                       event_type_ids, wallet_ids, uids, is_money_movement_activities, transaction_type_ids, transaction_ids, transaction_amounts,
                                                       transaction_statuses, last_transaction_id)
 
@@ -239,8 +238,13 @@ def generate_facts(conn, num_of_events):
     last_investment_id = return_dict['last_investment_id']
 
     upload_newly_created_investments_to_db(conn,new_investments_df)
-
-    
+    update_fact_transaction_table(conn, 
+                                  transaction_ids[start_position:end_position],
+                                  wallet_ids[start_position:end_position],
+                                  transaction_type_ids[start_position:end_position],
+                                  transaction_amounts[start_position:end_position],
+                                  transaction_statuses[start_position:end_position],
+                                  event_time[start_position:end_position])
 
     #engagement from users who have existing investments
     users_with_existing_investments = conn.execute('''
@@ -366,6 +370,13 @@ def generate_facts(conn, num_of_events):
     assets_sale_events(context, start_position, end_position,user_ids, event_time, event_type_ids, device_types,dtypes,investment_ids,customer_subset_5)
     update_asset_sale_events(conn,customer_subset_5['redemption_request_date'],customer_subset_5)
 
+    #let's model withdrawals based on recently redeemed investments
+    recently_redeemed_investments_wallets = conn.execute(f'''
+                        select wallet_id
+                        from fact_transaction where transaction_type_id = 4 and transaction_timestamp::DATE between '{GENERATION_START_DATE}' - interval 7 day and '{GENERATION_START_DATE}' - interval 1 day
+    ''').df()
+
+    
 
     total_events = end_position
     

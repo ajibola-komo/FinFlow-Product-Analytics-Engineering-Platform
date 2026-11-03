@@ -591,3 +591,18 @@ def incremental_wallet_activation_events(conn: DuckDBPyConnection, context: any,
         'updated_end_position':updated_end_position
         }
 
+def incremental_wallet_withdrawal_events(conn:DuckDBPyConnection, context:any, start_position:int, end_position:int, user_ids:list[int], wallet_ids:list[int], 
+                                     is_money_movement_activity:list[bool], last_transaction_id:int, event_times:list[pd.Timestamp], device_types:list[str], dtypes:list[str], 
+                                     transaction_type_ids:list[int], transaction_ids:list[int], transaction_amounts:list[float], transaction_statuses:list[str]) -> dict:
+
+    """
+        This method creates the wallet withdrawal events i.e. a registered user's withdrawal from their wallet.
+        This methods calls:
+            1) Generate the percentage of the current wallet balance to be withdrawn for each user.
+            2) update_wallet_balance() function to update the fact_wallet_balance table with the updated transaction amounts
+            3) update_fact_transaction_table() function to update the fact_transaction table with the updated transaction amounts.
+    """
+
+
+    
+    

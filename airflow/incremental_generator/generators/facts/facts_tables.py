@@ -372,11 +372,25 @@ def generate_facts(conn, num_of_events):
 
     #let's model withdrawals based on recently redeemed investments
     recently_redeemed_investments_wallets = conn.execute(f'''
-                        select wallet_id
-                        from fact_transaction where transaction_type_id = 4 and transaction_timestamp::DATE between '{GENERATION_START_DATE}' - interval 7 day and '{GENERATION_START_DATE}' - interval 1 day
+                    with get_eligible_wallets as (
+                        select wallet_id, transaction_type_id, row_number() over(
+                            partition by wallet_id
+                            order by transaction_timestamp desc, transaction_id desc
+                        ) as rn
+                        from fact_transaction where transaction_timestamp::DATE between '{GENERATION_START_DATE}' - interval 7 day and '{GENERATION_START_DATE}' - interval 2 day
+                        
+                    ) select wallet_id from get_eligible_wallets where rn = 1 and transaction_type_id = 4 order by random()
     ''').df()
 
+    withdrawals_df = recently_redeemed_investments_wallets.sample(frac=0.5,random_state=1)
+
+    possible_reinvestments_users = recently_redeemed_investments_wallets.drop(withdrawals_df.index).copy().reset_index(drop=True)
+
+    reinvestments_df = possible_reinvestments_users.sample(frac=0.5,random_state=1)
+
     
+
+
 
     total_events = end_position
     

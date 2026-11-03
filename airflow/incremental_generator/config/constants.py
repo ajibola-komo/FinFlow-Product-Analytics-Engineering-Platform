@@ -188,7 +188,6 @@ CUSTOMER_BEHAVIOUR_SEGMENT_MAP = {
         'device_type':[0.65,0.35],
         'investment_type_probability':[0.2,0.8]
     },
-
     'High_Engagement_Low_Balance':{
         'monthly_logins':[15,30],
         'monthly_wallet_fundings':[1,4],

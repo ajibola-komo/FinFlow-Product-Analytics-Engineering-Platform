@@ -377,18 +377,42 @@ def generate_facts(conn, num_of_events):
                             partition by wallet_id
                             order by transaction_timestamp desc, transaction_id desc
                         ) as rn
-                        from fact_transaction where transaction_timestamp::DATE between '{GENERATION_START_DATE}' - interval 7 day and '{GENERATION_START_DATE}' - interval 2 day
+                        from fact_transaction where transaction_timestamp::DATE between '{GENERATION_START_DATE}' - interval 10 day and '{GENERATION_START_DATE}' - interval 2 day
                         
-                    ) select wallet_id from get_eligible_wallets where rn = 1 and transaction_type_id = 4 order by random()
+                    ) select u.user_id, w.wallet_id,u.customer_behaviour_segment from get_eligible_wallets w inner join dim_user u on w.wallet_id = u.user_id
+                    where rn = 1 and transaction_type_id = 4 
+                    order by random()
     ''').df()
 
-    withdrawals_df = recently_redeemed_investments_wallets.sample(frac=0.5,random_state=1)
+    #let's build a dataframe of users who will make withdrawals and reinvestments based on their behaviour segment.
+    recently_redeemed_investments_wallets['withdraws_returns'] = [np.random.rand() <= CUSTOMER_BEHAVIOUR_SEGMENT_MAP[cbs]['withdrawal_probability'] for cbs in recently_redeemed_investments_wallets['customer_behaviour_segment']]
+    recently_redeemed_investments_wallets['reinvests_returns'] = (~recently_redeemed_investments_wallets['withdraws_returns'])
 
-    possible_reinvestments_users = recently_redeemed_investments_wallets.drop(withdrawals_df.index).copy().reset_index(drop=True)
+    withdrawal_fraction = np.random.uniform(0.85,0.95)
+    reinvestment_fraction = np.random.uniform(0.75,0.95)
 
-    reinvestments_df = possible_reinvestments_users.sample(frac=0.5,random_state=1)
+    withdrawals_df = recently_redeemed_investments_wallets[recently_redeemed_investments_wallets['withdraws_returns'] == True].sample(frac=withdrawal_fraction)
 
-    
+    reinvestments_df = recently_redeemed_investments_wallets[recently_redeemed_investments_wallets['reinvests_returns'] == True].sample(frac=reinvestment_fraction)
+
+    withdrawals_df['withdrawal_percentage'] = [np.random.uniform(CUSTOMER_BEHAVIOUR_SEGMENT_MAP[cbs]['wallet_proceeds_withrawal_percentage'][0],CUSTOMER_BEHAVIOUR_SEGMENT_MAP[cbs]['wallet_proceeds_withrawal_percentage'][1]) for cbs in withdrawals_df['customer_behaviour_segment']]
+    reinvestments_df['reinvestment_percentage'] = [np.random.uniform(CUSTOMER_BEHAVIOUR_SEGMENT_MAP[cbs]['wallet_proceeds_reinvestment_percentage'][0],CUSTOMER_BEHAVIOUR_SEGMENT_MAP[cbs]['wallet_proceeds_reinvestment_percentage'][1]) for cbs in reinvestments_df['customer_behaviour_segment']]
+
+
+    withdrawals_df['withdrawal_request_date'] = pd.to_datetime(GENERATION_START_DATE) + pd.to_timedelta(np.random.randint(10,1350,size=len(withdrawals_df)),unit='m')
+    reinvestments_df['reinvestment_request_date'] = pd.to_datetime(GENERATION_START_DATE) + pd.to_timedelta(np.random.randint(10,1350,size=len(reinvestments_df)),unit='m')
+
+    #withdrawal events
+
+    start_position = end_position
+    end_position = start_position + len(withdrawals_df)
+
+    dtypes = [device_type_map.get(uid for uid in withdrawals_df['user_id'])]
+
+
+
+
+
 
 
 

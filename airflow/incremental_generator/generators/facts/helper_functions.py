@@ -91,17 +91,7 @@ def debit_wallet_balance(conn, user_ids, transaction_amounts, updated_at, transa
 
     conn.unregister('wallet_updation')
 
-def get_current_wallet_balance(conn, user_ids):
 
-    conn.register('uids',user_ids)
-
-    balances = conn.execute('''
-                SELECT u.user_id, w.current_balance from fact_wallet_balance w inner join uids u on w.user_id = u.user_id
-        ''').df()
-    
-    conn.unregister('uids')
-
-    return balances
 
 def early_withdrawal_requested_update(conn, investment_ids, request_timestamps):
 
@@ -609,41 +599,51 @@ def incremental_wallet_withdrawal_events(conn:DuckDBPyConnection, context:any, s
 
     withdrawal_df = withdrawal_df.copy()
 
-    login_times = [et - pd.to_timedelta(minutes = np.random.randint(2,15)) for et in withdrawal_df['withdrawal_request_date']]
+    withdrawal_df = withdrawal_df.sort_values(by=['withdrawal_request_date','user_id'], ascending=True).reset_index(drop=True)
 
-    
+    random_offset = np.random.randint(2,15,size=len(withdrawal_df))
 
-    app_login_events(conn, context, start_position, end_position, user_ids, withdrawal_df['user_id'], event_times, login_times, device_types, dtypes, event_type_ids)
+    withdrawal_df['login_time'] = (pd.to_datetime(withdrawal_df['withdrawal_request_date']) - pd.to_timedelta(random_offset, unit='m'))
 
-    current_balance_map = get_current_wallet_balance(conn, withdrawal_df['user_id'])
-
-    withdrawal_df['current_balance'] = [current_balance_map.get(uid)for uid in withdrawal_df['user_id']]
-
-    withdrawal_df['amount_withdrawn'] = (withdrawal_df['current_balance'] * withdrawal_df['withdrawal_percentage'])
-
-    updated_end_position = end_position + len(withdrawal_df)
-
-    start_position = updated_end_position
-    end_position = start_position + len(withdrawal_df)
-
-    user_ids[start_position:end_position] = withdrawal_df['user_id']
-    event_times[start_position:end_position] = pd.to_datetime(withdrawal_df['withdrawal_request_date'])
-    wallet_ids[start_position:end_position] = withdrawal_df['wallet_id']
-    is_money_movement_activity[start_position:end_position] = [True] * len(withdrawal_df)
-    transaction_ids[start_position:end_position] = np.arange(last_transaction_id + 1, last_transaction_id + 1 + len(withdrawal_df))
-    transaction_type_ids[start_position:end_position] = [context.wallet_withdrawal_transaction_type_id] * len(withdrawal_df)
-    event_type_ids[start_position:end_position] = [context.wallet_withdrawal_event_type_id] * len(withdrawal_df)
-    transaction_amounts[start_position:end_position] = withdrawal_df['amount_withdrawn']
-    transaction_statuses[start_position:end_position] = ["Success"] * len(withdrawal_df)
-
-    debit_wallet_balance(conn, withdrawal_df['user_id'],transaction_amounts[start_position:end_position], event_times[start_position:end_position], 
-                         transaction_ids[start_position:end_position])
+    for index,row in withdrawal_df.iterrows():
 
 
-    update_fact_transaction_table(conn, transaction_ids[start_position:end_position], wallet_ids[start_position:end_position],transaction_type_ids[start_position:end_position],
-                                  transaction_amounts[start_position:end_position], transaction_statuses[start_position:end_position], event_times[start_position:end_position])
+        start_position = start_position
+        end_position = start_position + 1
 
-    last_transaction_id = max(transaction_ids[start_position:end_position])
+        dtype = get_user_device_type(conn,row['user_id'])
+
+        app_login_events(conn,context,start_position, end_position,user_ids,row['user_id'], event_times,row['login_time'],device_types,dtype, event_type_ids)
+
+        current_balance_map = get_current_wallet_balance(conn, row['user_id'])
+        
+        row['current_balance'] = current_balance_map.get(row['user_id'])
+        
+        row['amount_withdrawn'] = (row['current_balance'] * row['withdrawal_percentage']).round(2)
+
+        start_position = end_position
+        end_position = start_position + 1
+
+        user_ids[start_position:end_position] = row['user_id']
+        event_times[start_position:end_position] = pd.to_datetime(row['withdrawal_request_date'])
+        wallet_ids[start_position:end_position] = row['wallet_id']
+        is_money_movement_activity[start_position:end_position] = True
+        transaction_ids[start_position:end_position] = np.arange(last_transaction_id + 1, last_transaction_id + 1 + len(row))
+        transaction_type_ids[start_position:end_position] = context.wallet_withdrawal_transaction_type_id
+        event_type_ids[start_position:end_position] = context.wallet_withdrawal_event_type_id
+        transaction_amounts[start_position:end_position] = row['amount_withdrawn']
+        transaction_statuses[start_position:end_position] = "Success"
+
+        debit_wallet_balance(conn, row['user_id'],transaction_amounts[start_position:end_position], event_times[start_position:end_position], 
+                                 transaction_ids[start_position:end_position])
+
+        update_fact_transaction_table(conn, transaction_ids[start_position:end_position], wallet_ids[start_position:end_position],transaction_type_ids[start_position:end_position],
+                                          transaction_amounts[start_position:end_position], transaction_statuses[start_position:end_position], event_times[start_position:end_position])
+
+        last_transaction_id = max(transaction_ids[start_position:end_position])
+
+        start_position = end_position
+
     updated_end_position = end_position
 
     return {
@@ -651,7 +651,11 @@ def incremental_wallet_withdrawal_events(conn:DuckDBPyConnection, context:any, s
         'updated_end_position':updated_end_position
     }
 
+def get_user_device_type(conn,user_id):
 
+    dtype = conn.execute(f'''SELECT device_type from dim_user where user_id = ? ''',[user_id]).fetchone()
+
+    return dtype[0]
 
 
 

@@ -579,10 +579,9 @@ def incremental_wallet_activation_events(conn: DuckDBPyConnection, context: any,
         }
 
 def incremental_wallet_withdrawal_events(conn:DuckDBPyConnection, context:any, start_position:int, user_ids:list[int], wallet_ids:list[int], 
-                                     is_money_movement_activity:list[bool], last_transaction_id:int, event_times:list[pd.Timestamp], device_types:list[str], dtypes:list[str],
-                                     event_type_ids:list[int],
-                                     transaction_type_ids:list[int], transaction_ids:list[int], transaction_amounts:list[float], transaction_statuses:list[str],
-                                     withdrawal_df:pd.DataFrame) -> dict:
+                                     is_money_movement_activity:list[bool], last_transaction_id:int, event_times:list[pd.Timestamp], device_types:list[str],
+                                     event_type_ids:list[int], transaction_type_ids:list[int], transaction_ids:list[int], transaction_amounts:list[float], 
+                                     transaction_statuses:list[str], withdrawal_df:pd.DataFrame) -> dict:
 
     """
         This method creates the wallet withdrawal events i.e. a registered user's withdrawal from their wallet.

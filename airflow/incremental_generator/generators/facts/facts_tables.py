@@ -9,7 +9,8 @@ from dateutil.relativedelta import relativedelta
 from incremental_generator.generators.facts.helper_functions import (incremental_vested_investment_events,incremental_vested_investments_proceeds_transfer_events,
                                                                      upload_newly_created_investments_to_db,incremental_early_withdrawal_investments_proceeds_transfer,
                                                                      request_early_withdrawal_events,incremental_assets_sale_investment_proceeds_wallet_transfer_events,
-                                                                     update_asset_sale_events,incremental_wallet_activation_events,update_fact_transaction_table)
+                                                                     update_asset_sale_events,incremental_wallet_activation_events,update_fact_transaction_table,
+                                                                     incremental_wallet_withdrawal_events)
 from incremental_generator.logic.EventContext import load_event_context
 from src.logic.helper_functions import (signup_completion_events, app_login_events, kyc_completion_events, wallet_activation_events, review_plan_options_events,new_investment_creation,review_current_investment_events,
                                         assets_sale_events)
@@ -405,11 +406,18 @@ def generate_facts(conn, num_of_events):
     #withdrawal events
 
     start_position = end_position
-    end_position = start_position + len(withdrawals_df)
 
-    dtypes = [device_type_map.get(uid for uid in withdrawals_df['user_id'])]
+    return_dict = incremental_wallet_withdrawal_events(
+        conn, context, start_position, user_ids, wallet_ids, is_money_movement_activities, last_transaction_id, event_time, device_types, event_type_ids, 
+        transaction_type_ids, transaction_ids, transaction_amounts, transaction_statuses, withdrawals_df
+    )
 
+    last_transaction_id = return_dict['last_transaction_id']
+    end_position = return_dict['updated_end_position']
 
+    start_position = end_position
+
+    
 
 
 

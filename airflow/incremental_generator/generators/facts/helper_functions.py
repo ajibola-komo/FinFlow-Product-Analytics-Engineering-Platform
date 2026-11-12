@@ -1,10 +1,11 @@
 import pandas as pd
-from incremental_generator.config.constants import (GENERATION_START_DATE, INVESTMENT_WITHDRAWAL_PROCESSING_TIME)
+from incremental_generator.config.constants import (GENERATION_START_DATE, INVESTMENT_WITHDRAWAL_PROCESSING_TIME,FIRST_INVESTMENT_TYPE, CUSTOMER_BEHAVIOUR_SEGMENT_MAP)
 import duckdb as db
 import numpy as np
 from duckdb import DuckDBPyConnection
 from src.logic.helper_functions import (review_current_investment_events, update_wallet_balance,app_login_events,activate_wallet,generate_wallet_funding_amounts,
-                                        get_current_wallet_balance,deduct_wallet_balance)
+                                        get_current_wallet_balance,deduct_wallet_balance, review_plan_options_events, plan_selection_events, plan_ids_allocation,
+                                        get_plan_attributes)
 
 
 def update_last_login_timestamp(conn, user_ids, last_login):
@@ -90,8 +91,6 @@ def debit_wallet_balance(conn, user_ids, transaction_amounts, updated_at, transa
                      from wallet_updation a where d.user_id = a.user_id ''')
 
     conn.unregister('wallet_updation')
-
-
 
 def early_withdrawal_requested_update(conn, investment_ids, request_timestamps):
 
@@ -665,7 +664,169 @@ def get_user_device_type(conn,user_id):
 
     return dtype[0]
 
+def incremental_reinvestment_events(conn:DuckDBPyConnection, context:any, start_position:int, end_position:int, user_ids:list[int],wallet_ids:list[int], is_money_movement_activities:list[bool],
+                                    event_type_ids:list[int],transaction_type_ids:list[int],transaction_ids:list[int], transaction_amounts:list[float],transaction_statuses:list[str],
+                                    device_types:list[str],dtype, event_time:list[pd.Timestamp], investment_ids:list[int],
+                                    last_transaction_id:int,last_investment_id:int, reinvestments_df:pd.DataFrame):
 
 
-
+    if reinvestments_df.empty:
+        return {
+            'last_transaction_id':last_transaction_id,
+            'end_position':start_position,
+            'last_investment_id':last_investment_id
+        }
     
+    reinvestments_df = reinvestments_df.copy()
+
+
+    random_offset = np.random.randint(15,21,size=len(reinvestments_df))
+    review_random_offset = np.random.randint(3,5,size=len(reinvestments_df))
+
+    reinvestments_df['login_time'] = reinvestments_df['reinvestment_date'] - pd.to_timedelta(random_offset,unit='m')
+
+    reinvestments_df['plan_review_time'] = reinvestments_df['login_time'] + pd.to_timedelta(review_random_offset,unit='m')
+
+    reinvestments_df['investment_type'] = None
+    
+    for index,row in reinvestments_df.iterrows():
+
+
+        segment = row['customer_behaviour_segment']
+
+        probability = CUSTOMER_BEHAVIOUR_SEGMENT_MAP[segment]['investment_type_probability']
+
+        investment_type = np.random.choice(FIRST_INVESTMENT_TYPE,p=probability)
+
+        reinvestments_df.loc[index, 'investment_type'] = investment_type
+
+
+    app_login_events(
+        conn,context, start_position, end_position, user_ids, reinvestments_df['user_id'], event_time, reinvestments_df['login_time'], device_types, dtype, event_type_ids
+    )
+
+    start_position = end_position
+    end_position = start_position + len(reinvestments_df)
+
+    review_plan_options_events(conn, context, start_position, end_position, user_ids, reinvestments_df['user_id'], event_time, reinvestments_df['plan_review_time'], event_type_ids,
+                               device_types, dtype  )
+
+    start_position = end_position
+    end_position = start_position + len(reinvestments_df)
+    
+
+    plan_selection_df = plan_selection_events(context, start_position, end_position, user_ids, reinvestments_df['user_id'], event_time, reinvestments_df['plan_review_time'],
+                                              event_type_ids, device_types, dtype )
+
+    reinvestments_df['plan_selection_time'] = plan_selection_df['plan_selection_time']
+
+    plan_ids_allocation_df = plan_ids_allocation(
+        conn,
+        context,
+        reinvestments_df['user_id'],
+        reinvestments_df['investment_type'],
+        reinvestments_df['plan_selection_time']
+    )
+
+    reinvestments_df['plan_id'] = plan_ids_allocation_df['plan_id']
+    reinvestments_df['plan_name'] = plan_ids_allocation_df['plan_name']
+    reinvestments_df['event_type_ids'] = plan_ids_allocation_df['event_type_ids']
+    reinvestments_df['transaction_type_ids'] = plan_ids_allocation_df['transaction_type_ids']
+    reinvestments_df['unique_id'] = plan_ids_allocation_df['unique_id']
+
+    plan_attributes_df = get_plan_attributes(conn, reinvestments_df['user_id'], reinvestments_df['plan_id'], reinvestments_df['unique_id'], reinvestments_df['reinvestment_date'])
+
+    allocation_columns = ['wallet_id','tenure_days','interest_rate','investment_start_date','investment_maturity_date']
+
+    reinvestments_df[allocation_columns] = plan_attributes_df[allocation_columns]
+
+    position = end_position
+
+    investment_records = []
+
+    for index, row in reinvestments_df.iterrows():
+
+        uid = row['user_id']
+
+        try:
+
+            balance_result = conn.execute('''SELECT current_balance from FACT_WALLET_BALANCE where user_id = ?''',[uid]).fetchone()
+
+            balance = balance_result[0]
+
+            dtype = get_user_device_type(conn, uid)
+
+            amount_invested = round(balance * row['reinvestment_percentage'],2)
+
+            expected_maturity_value = amount_invested * (1 + (row['interest_rate'] / 100) * row['tenure_days']/365)
+
+            
+
+            user_ids[position] = row["user_id"]
+            wallet_ids[position] = row["user_id"]
+            event_time[position] = row["reinvestment_date"]
+            device_types[position] = dtype
+            is_money_movement_activities[position] = True
+            transaction_ids[position] = last_transaction_id + 1
+            transaction_type_ids[position] = row["transaction_type_ids"]
+            event_type_ids[position] = row["event_type_ids"]
+            transaction_amounts[position] = amount_invested
+            transaction_statuses[position] = "Success"
+            investment_ids[position] = last_investment_id + 1
+
+            debit_wallet_balance(conn, [row['user_id']], [transaction_amounts[position]], [event_time[position]], [transaction_ids[position]])
+            update_fact_transaction_table(conn, [transaction_ids[position]], [wallet_ids[position]], [transaction_type_ids[position]], [transaction_amounts[position]],
+                                          [transaction_statuses[position]],[event_time[position]])
+
+            investment_records.append({
+                'investment_id':investment_ids[position],
+                'user_id':row['user_id'],
+                'wallet_id':row['wallet_id'],
+                'plan_id': row['plan_id'],
+                'amount_invested':amount_invested,
+                'expected_maturity_value':expected_maturity_value,
+                'investment_start_date':row['investment_start_date'],
+                'investment_start_date_id':pd.to_datetime(row['investment_start_date']).strftime("%Y%m%d"),
+                'investment_maturity_date':row['investment_maturity_date'],
+                'investment_maturity_date_id': (
+        pd.to_datetime(row['investment_maturity_date']).strftime("%Y%m%d")
+        if pd.notna(row['investment_maturity_date']) else None
+    ),
+                'investment_status':"Active",
+                'is_withdrawn_early':False,
+                'penalty_amount':None,
+                'amount_paid_out':None,
+                'redemption_request_date':None,
+                'early_withdrawal_date':None,
+                'early_withdrawal_date_id':None,
+                'created_at': row['investment_start_date'],
+                'last_updated_at': row['investment_start_date']
+            })
+
+            last_investment_id = investment_ids[position]
+            last_transaction_id = transaction_ids[position]
+
+            position += 1
+
+        except Exception as e:
+            print('Value not found exception')
+
+
+    invesment_df = pd.DataFrame(
+                investment_records
+            )
+    
+    try:
+        upload_newly_created_investments_to_db(conn, invesment_df)
+    
+    except Exception as e:
+        print("Unable to pass newly created investments to database")
+    
+    return {
+        'last_transaction_id':last_transaction_id,
+        'updated_end_position':position,
+        'last_investment_id':last_investment_id
+    }
+
+
+

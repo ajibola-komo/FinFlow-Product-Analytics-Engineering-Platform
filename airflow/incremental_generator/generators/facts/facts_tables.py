@@ -10,7 +10,7 @@ from incremental_generator.generators.facts.helper_functions import (incremental
                                                                      upload_newly_created_investments_to_db,incremental_early_withdrawal_investments_proceeds_transfer,
                                                                      request_early_withdrawal_events,incremental_assets_sale_investment_proceeds_wallet_transfer_events,
                                                                      update_asset_sale_events,incremental_wallet_activation_events,update_fact_transaction_table,
-                                                                     incremental_wallet_withdrawal_events)
+                                                                     incremental_wallet_withdrawal_events, incremental_reinvestment_events)
 from incremental_generator.logic.EventContext import load_event_context
 from src.logic.helper_functions import (signup_completion_events, app_login_events, kyc_completion_events, wallet_activation_events, review_plan_options_events,new_investment_creation,review_current_investment_events,
                                         assets_sale_events)
@@ -401,7 +401,7 @@ def generate_facts(conn, num_of_events):
 
 
     withdrawals_df['withdrawal_request_date'] = pd.to_datetime(GENERATION_START_DATE) + pd.to_timedelta(np.random.randint(10,1350,size=len(withdrawals_df)),unit='m')
-    reinvestments_df['reinvestment_request_date'] = pd.to_datetime(GENERATION_START_DATE) + pd.to_timedelta(np.random.randint(10,1350,size=len(reinvestments_df)),unit='m')
+    reinvestments_df['reinvestment_date'] = pd.to_datetime(GENERATION_START_DATE) + pd.to_timedelta(np.random.randint(10,1350,size=len(reinvestments_df)),unit='m')
 
     #withdrawal events
 
@@ -416,6 +416,13 @@ def generate_facts(conn, num_of_events):
     end_position = return_dict['updated_end_position']
 
     start_position = end_position
+    end_position = start_position + len(reinvestments_df)
+
+    dtypes = [device_type_map.get(uid for uid in reinvestments_df['user_id'])]
+
+    return_dict = incremental_reinvestment_events(conn, context, start_position,end_position,user_ids, wallet_ids, is_money_movement_activities, event_type_ids, transaction_type_ids,
+                                                  transaction_ids, transaction_amounts, transaction_statuses, device_types,dtypes,
+                                                  event_time, investment_ids, last_transaction_id, last_investment_id, reinvestments_df)
 
     
 

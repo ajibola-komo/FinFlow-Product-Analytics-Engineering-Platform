@@ -236,12 +236,10 @@ def get_current_wallet_balance(conn:DuckDBPyConnection, uids:list[int]) -> dict[
 
     return current_balance_map
 
-def review_plan_options_events(conn, context, start_position, end_position, user_ids, uids, event_times, event_type_ids, device_types, dtypes):
-
-    login_info = get_last_login(conn, uids)
+def review_plan_options_events(conn, context, start_position, end_position, user_ids, uids, event_times, plan_review_time, event_type_ids, device_types, dtypes):
 
     user_ids[start_position:end_position] = uids
-    event_times[start_position:end_position] = [last_login + timedelta(minutes=np.random.randint(2, 5)) for last_login in login_info["last_login_at"]]
+    event_times[start_position:end_position] = plan_review_time
     device_types[start_position:end_position] = dtypes
     event_type_ids[start_position:end_position] = [context.review_plan_options_event_type_id] * len(uids)
 
@@ -804,7 +802,8 @@ def create_wallet_funding_events(conn:DuckDBPyConnection, context:any, start_pos
         "last_transaction_id": last_transaction_id,
         "updated_end_position": end_position}
 
-def new_investment_creation(conn:DuckDBPyConnection, context:any, start_position:int, end_position:int, user_ids:list[int], uids:list[int], wallet_ids:list[int], event_times:list[pd.Timestamp],
+def new_investment_creation(conn:DuckDBPyConnection, context:any, start_position:int, end_position:int, user_ids:list[int], uids:list[int], wallet_ids:list[int], 
+                            event_times:list[pd.Timestamp],
                                plan_creation_time:list[pd.Timestamp], investment_type:list[str], device_types:list[str], dtypes:list[str], 
                                is_money_movement_activities:list[bool], transaction_ids:list[int], last_transaction_id:int, 
                                transaction_type_ids:list[int], event_type_ids:list[int], transaction_amounts:list[float],transaction_statuses,

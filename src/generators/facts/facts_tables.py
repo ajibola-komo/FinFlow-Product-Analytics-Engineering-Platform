@@ -192,7 +192,11 @@ def generate_facts(conn, num_of_events):
     uids = customer_subset_1["user_id"]
     dtypes = np.array([device_type_map.get(uid) for uid in customer_subset_1["user_id"]])
 
-    review_plan_options_events(conn,context,start_position, end_position, user_ids, uids, event_time, event_type_ids, device_types, dtypes)
+    random_offset = np.random.randint(1,5,size=total_customer_subset_1)
+
+    review_time = etime + pd.to_timedelta(random_offset,unit='m')
+
+    review_plan_options_events(conn,context,start_position, end_position, user_ids, uids, event_time,review_time, event_type_ids, device_types, dtypes)
 
     # These are the users who will make an investment
 
@@ -222,7 +226,11 @@ def generate_facts(conn, num_of_events):
     uids = customer_subset_2["user_id"]
     dtypes = np.array([device_type_map.get(uid) for uid in customer_subset_2["user_id"]])
 
-    review_plan_options_events(conn,context, start_position, end_position, user_ids, uids, event_time, event_type_ids, device_types, dtypes)
+    random_offset = np.random.randint(1,4,size=total_customer_subset_2)
+
+    review_time = etime + pd.to_timedelta(random_offset, unit='m')
+
+    review_plan_options_events(conn,context, start_position, end_position, user_ids, uids, event_time,review_time, event_type_ids, device_types, dtypes)
 
     plan_review_time = event_time[start_position:end_position]
 

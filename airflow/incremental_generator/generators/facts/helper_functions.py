@@ -669,6 +669,14 @@ def incremental_reinvestment_events(conn:DuckDBPyConnection, context:any, start_
                                     device_types:list[str],dtype, event_time:list[pd.Timestamp], investment_ids:list[int],
                                     last_transaction_id:int,last_investment_id:int, reinvestments_df:pd.DataFrame):
 
+    
+    """
+        This function processes incremental reinvestment events and returns:
+        - last_transaction_id: The last transaction ID after processing the reinvestments.
+        - end_position: The updated end position after processing the reinvestments.
+        - last_investment_id: The last investment ID after processing the reinvestments.
+    """
+
 
     if reinvestments_df.empty:
         return {

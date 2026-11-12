@@ -1,8 +1,9 @@
 import numpy as np
 import pandas as pd
-from incremental_generator.config.paths import (CURRENT_FACT_USER_EVENT_PARQUET_PATH, CURRENT_FACT_INVESTMENT_POSITION_PARQUET_PATH, CURRENT_FACT_TRANSACTION_PARQUET_PATH)
+from incremental_generator.config.paths import (CURRENT_FACT_USER_EVENT_PARQUET_PATH, CURRENT_FACT_INVESTMENT_POSITION_PARQUET_PATH, CURRENT_FACT_TRANSACTION_PARQUET_PATH,
+                                                CURRENT_USERS_PARQUET_PATH, CURRENT_WALLETS_PARQUET_PATH, CURRENT_FACT_WALLET_BALANCE_PARQUET_PATH)
 from incremental_generator.config.constants import (IMMEDIATE_LOGINS_TIME_FRAME, CUSTOMER_BEHAVIOUR_SEGMENT_MAP, FIRST_INVESTMENT_TYPE, GENERATION_START_TIMESTAMP, 
-                                                    GENERATION_END_TIMESTAMP, GENERATION_START_DATE)
+                                                    GENERATION_END_TIMESTAMP, GENERATION_START_DATE )
                                   
 from datetime import timedelta
 from dateutil.relativedelta import relativedelta
@@ -424,93 +425,14 @@ def generate_facts(conn, num_of_events):
                                                   transaction_ids, transaction_amounts, transaction_statuses, device_types,dtypes,
                                                   event_time, investment_ids, last_transaction_id, last_investment_id, reinvestments_df)
 
-    
-
-
-
-
-
+    last_transaction_id = return_dict['last_transaction_id']
+    last_investment_id = return_dict['last_investment_id']
+    end_position = return_dict['updated_end_position']
 
     total_events = end_position
     
 
     #invesment df
-    main_df = pd.DataFrame({
-        "user_id":user_ids[:total_events],
-        "event_type_id":event_type_ids[:total_events],
-        "wallet_id":wallet_ids[:total_events],
-        "plan_id":plan_ids[:total_events],
-        "event_time":event_time[:total_events],
-        "device_type":device_types[:total_events],
-        "is_money_movement_activity":is_money_movement_activities[:total_events],
-        "transaction_type_id":transaction_type_ids[:total_events],
-        "transaction_id":transaction_ids[:total_events],
-        "investment_id":investment_ids[:total_events],
-        "transaction_status":transaction_statuses[:total_events],
-        "transaction_amount":transaction_amounts[:total_events],
-        "is_withdrawn_early":is_withdrawn_early[:total_events],
-        "early_withdrawal_date":withdrawal_date[:total_events]
-    })
-
-    main_df["event_date_id"] = np.array([
-    int(pd.Timestamp(ts).strftime('%Y%m%d'))
-    for ts in main_df["event_time"]
-    ], dtype=np.int32)
-
-    print("Missing event_time:", np.sum(pd.isna(event_time[:total_events])))
-
-    missing_idx = np.where(pd.isna(event_time[:total_events]))[0]
-    print(missing_idx[:20])
-
-    bad_rows = main_df[
-    main_df["event_time"].map(lambda x: not isinstance(x, pd.Timestamp))
-]
-
-    print(bad_rows[[
-    "event_time",
-    "event_type_id",
-    "user_id",
-    "investment_id",
-    "transaction_id"
-]])
-
-    print(main_df["event_time"].map(type).value_counts())
-
-    print(
-    main_df.loc[
-        main_df["event_time"].map(lambda x: not isinstance(x, pd.Timestamp)),
-        ["event_type_id", "event_time", "transaction_id", "investment_id"]
-    ]
-)
-    main_df = main_df.sort_values(by='event_time').reset_index(drop=True)
-
-    money_mov_mask = main_df["transaction_id"].notna()
-
-    main_df.loc[money_mov_mask,"transaction_id"] = np.arange(968, money_mov_mask.sum() + 968)
-    
-    transactions_df = main_df[main_df["transaction_id"].notna()].copy()
-
-    transaction_events_df = pd.DataFrame({
-        "transaction_id":transactions_df["transaction_id"],
-        "wallet_id":transactions_df["wallet_id"],
-        "transaction_type_id":transactions_df["transaction_type_id"],
-        "transaction_amount":transactions_df["transaction_amount"],
-        "transaction_status": transactions_df["transaction_status"],
-        "transaction_timestamp":transactions_df["event_time"],
-        "transaction_date_id":transactions_df["event_date_id"]
-    })
-
-    conn.register("tr_events",transaction_events_df)
-
-    conn.execute('''INSERT INTO fact_transaction SELECT * FROM tr_events''')
-
-    conn.execute(f'''
-                    COPY fact_transaction TO '{CURRENT_FACT_TRANSACTION_PARQUET_PATH}' (FORMAT PARQUET)
-    ''')
-
-    conn.execute('''INSERT INTO FACT_INVESTMENT_POSITION SELECT * FROM INVESTMENT_DF''')
-
-    conn.execute(f'''COPY FACT_INVESTMENT_POSITION TO '{CURRENT_FACT_INVESTMENT_POSITION_PARQUET_PATH}' (FORMAT PARQUET) ''')
 
     df_raw = pd.DataFrame({
         "user_id":user_ids[:total_events],
@@ -557,4 +479,33 @@ def generate_facts(conn, num_of_events):
 
     conn.execute('''INSERT INTO fact_user_event SELECT * FROM df_raw''')
 
-    conn.execute(f'''COPY FACT_USER_EVENT TO '{CURRENT_FACT_USER_EVENT_PARQUET_PATH}' (FORMAT PARQUET) ''')
+    conn.execute(f'''COPY SELECT * FROM FACT_USER_EVENT WHERE event_time::DATE = '{GENERATION_START_DATE}' TO '{CURRENT_FACT_USER_EVENT_PARQUET_PATH}' (FORMAT PARQUET) ''')
+
+    conn.execute(f'''COPY (
+                            SELECT user_id, first_name, last_name, country, region, city, email_address, reported_annual_income,
+                            acquisition_channel, device_type, customer_persona, kyc_completed, date_of_birth, birth_date_id, signup_date, signup_date_id, 
+                            customer_behaviour_segment
+                            from dim_user where last_updated_at::DATE = '{GENERATION_START_DATE}' )
+                     TO '{CURRENT_USERS_PARQUET_PATH}' (FORMAT PARQUET) ''')
+
+    conn.execute(f'''
+                COPY ( SELECT wallet_id, user_id, wallet_currency, wallet_created_at, wallet_activated_at, wallet_created_date_id, wallet_activated_date_id, created_at, last_updated_at
+                FROM dim_wallet WHERE last_updated_at::DATE = '{GENERATION_START_DATE}' ) TO '{CURRENT_WALLETS_PARQUET_PATH}' (FORMAT PARQUET)
+    ''')
+
+    conn.execute(f'''
+                COPY (SELECT * FROM FACT_WALLET_BALANCE WHERE last_updated_date::DATE = '{GENERATION_START_DATE}') TO '{CURRENT_FACT_WALLET_BALANCE_PARQUET_PATH}' (FORMAT PARQUET)
+    ''')
+
+    conn.execute(f'''
+                COPY (SELECT * FROM FACT_TRANSACTION WHERE transaction_timestamp::DATE = '{GENERATION_START_DATE}' TO '{CURRENT_FACT_TRANSACTION_PARQUET_PATH}' (FORMAT PARQUET) )
+    ''')
+
+    conn.execute(f'''
+                COPY (SELECT * FROM FACT_INVESTMENT_POSITION WHERE last_updated_at::DATE = '{GENERATION_START_DATE}' TO '{CURRENT_FACT_INVESTMENT_POSITION_PARQUET_PATH}' (FORMAT PARQUET) )
+    ''')
+
+    
+
+
+

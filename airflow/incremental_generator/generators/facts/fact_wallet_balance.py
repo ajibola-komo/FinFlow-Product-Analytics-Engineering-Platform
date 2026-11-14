@@ -23,7 +23,7 @@ def generate_wallet_balance(conn):
         'user_id':user_ids,
         'current_balance':current_wallet_balance,
         'last_updated_date':updated_at,
-        'last_upated_date_id':pd.to_datetime(updated_at).dt.strftime("%Y%m%d").astype(int),
+        'last_updated_date_id':pd.to_datetime(updated_at).dt.strftime("%Y%m%d").astype(int),
         'last_transaction_id':last_transaction_id,
         'created_at':created_at,
         'updated_at':updated_at

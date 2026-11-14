@@ -5,7 +5,7 @@ import re
 from incremental_generator.config.constants import (CUSTOMER_PERSONA_MAP, EMAIL_DOMAIN, GENDER, GENDER_WEIGHTS, 
                                   ACQUISITION_CHANNELS, CUSTOMER_BEHAVIOUR_SEGMENT, CUSTOMER_BEHAVIOUR_SEGMENT_MAP, 
                                   DEVICE_TYPES, CURRENT_DATE)
-from incremental_generator.config.paths import (CURRENT_USERS_PARQUET_PATH, DDL_DIM_USER_PATH)
+from incremental_generator.config.paths import (CURRENT_USERS_PARQUET_PATH)
 from incremental_generator.logic.location_distribution import get_location_distribution
 from incremental_generator.logic.persona_age_income_distribution import get_age_persona_income_distribution
 from incremental_generator.logic.signup_distribution import get_signup_distribution

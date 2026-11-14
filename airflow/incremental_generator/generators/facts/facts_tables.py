@@ -148,10 +148,12 @@ def generate_facts(conn, num_of_events):
 
     #first we will start with already vested investments yet to be transferred to the user's wallet
 
-    matured_investments_df = conn.execute(''' SELECT * FROM FACT_INVESTMENT_POSITION WHERE investment_status = 'Matured' ''')
+    matured_investments_df = conn.execute(''' SELECT * FROM FACT_INVESTMENT_POSITION WHERE investment_status = 'Matured' ''').df()
+
+    total_matured_investments = len(matured_investments_df)
 
     start_position = end_position
-    end_position = start_position + len(matured_investments_df)
+    end_position = start_position + total_matured_investments
 
     dtypes = [device_type_map.get(uid for uid in matured_investments_df['user_id'])]
 
@@ -177,7 +179,7 @@ def generate_facts(conn, num_of_events):
     #people that create investments
     all_users = conn.execute(f'''SELECT w.user_id as user_id, u.customer_behaviour_segment, i.user_id as unused, w.wallet_activated_at FROM dim_wallet w join dim_user u on 
                              w.user_id = u.user_id left join fact_investment_position i on i.user_id = u.user_id where w.wallet_activated_at::DATE 
-    between '{GENERATION_START_DATE}' - interval 7 day and '{GENERATION_START_DATE}' - interval 1 day and i.user_id is null ''').df()
+    between CAST('{GENERATION_START_DATE}' AS DATE) - interval 7 day and CAST('{GENERATION_START_DATE}' AS DATE) - interval 1 day and i.user_id is null ''').df()
     
     #these users will just login and review plan options, but will not make an investment. We will create a new dataframe to hold the users who made an investment and their corresponding investment details.
     customer_subset_1 = all_users.sample(frac = 0.7, random_state=1)
@@ -206,7 +208,10 @@ def generate_facts(conn, num_of_events):
     uids = customer_subset_1['user_id']
     dtypes = [device_type_map.get(uid for uid in uids)]
 
-    review_plan_options_events(conn,context,start_position,end_position,user_ids,uids, event_time, event_type_ids,device_types,dtypes)
+    random_offset = np.random.randint(3,6,size=total_customer_subset_1)
+    review_time = etime + pd.to_timedelta(ro for ro in random_offset)
+
+    review_plan_options_events(conn,context,start_position,end_position,user_ids,uids, event_time,review_time, event_type_ids,device_types,dtypes)
 
 
     #these users will invest
@@ -239,8 +244,12 @@ def generate_facts(conn, num_of_events):
     end_position = return_dict['updated_end_position']
     last_investment_id = return_dict['last_investment_id']
 
-    upload_newly_created_investments_to_db(conn,new_investments_df)
-    update_fact_transaction_table(conn, 
+
+    if new_investments_df.empty:
+        print("No new investments were created today.")
+    else:
+        upload_newly_created_investments_to_db(conn,new_investments_df)
+        update_fact_transaction_table(conn, 
                                   transaction_ids[start_position:end_position],
                                   wallet_ids[start_position:end_position],
                                   transaction_type_ids[start_position:end_position],
@@ -273,12 +282,14 @@ def generate_facts(conn, num_of_events):
     uids = customer_subset_3['user_id']
     etime = pd.to_datetime(GENERATION_START_DATE) + pd.to_timedelta(random_offset,unit="m")
 
-    updated_end_position = review_current_investment_events(conn,context,start_position, end_position,user_ids,uids,event_time)
+    dtypes = [device_type_map.get(uid for uid in uids)]
+
+    updated_end_position = review_current_investment_events(conn,context,start_position, end_position,user_ids,uids,event_time,etime,device_types,dtypes, event_type_ids)
 
     end_position = updated_end_position
     #let's simulate previous early withdrawals proceeds transfer
     pending_early_withdrawals_df = conn.execute(f'''
-                SELECT * FACT_INVESTMENT_POSITION WHERE investment_status = 'withdrawn_early'
+                SELECT * FROM FACT_INVESTMENT_POSITION WHERE investment_status = 'Withdrawn_Early'
     ''').df()
 
     start_position = end_position
@@ -286,8 +297,10 @@ def generate_facts(conn, num_of_events):
 
     dtypes = [device_type_map.get(uid for uid in uids)]
 
-    return_dict = incremental_early_withdrawal_investments_proceeds_transfer(conn, context, start_position, end_position, user_ids, wallet_ids, is_money_movement_activities, last_transaction_id, event_time, device_types, dtypes,
-                                                                             pending_early_withdrawals_df, event_type_ids, transaction_type_ids, transaction_ids, transaction_amounts, transaction_statuses, investment_ids)
+    return_dict = incremental_early_withdrawal_investments_proceeds_transfer(conn, context, start_position, end_position, user_ids, wallet_ids, 
+                    is_money_movement_activities, last_transaction_id, event_time, device_types, dtypes,
+                    pending_early_withdrawals_df, event_type_ids, transaction_type_ids, transaction_ids, 
+                    transaction_amounts, transaction_statuses, investment_ids)
 
 
     last_transaction_id = return_dict['last_transaction_id']
@@ -296,13 +309,13 @@ def generate_facts(conn, num_of_events):
     #let's simulate early withdrawals
     possible_early_maturity_users = conn.execute(f'''
             with get_users as (
-                 SELECT *, investment_maturity_date - '{GENERATION_START_DATE}'::DATE as days_held, 
+                 SELECT *, DATE_DIFF('day',investment_maturity_date,'{GENERATION_START_DATE}'::DATE) as days_held, 
                  row_number() over(
                     partition by user_id
                     order by investment_maturity_date asc
                  ) as rn
                  from fact_investment_position where investment_status = 'Active' and is_withdrawn_early = False and investment_maturity_date is not null
-                 ) select * from get_users where rn = 1 and days_held between 0 and 30 
+                 ) select * from get_users where rn = 1 and cast(days_held as INTEGER) between 0 and 30 
                  order by random()
                  limit 10
     ''').df()
@@ -329,7 +342,7 @@ def generate_facts(conn, num_of_events):
 
     end_position = updated_end_position
 
-    pending_sales_df = conn.execute(''' SELECT * FROM FACT_INVESTMENT_POSITION WHERE investment_status = 'sale_processing' ''').df()
+    pending_sales_df = conn.execute(''' SELECT * FROM FACT_INVESTMENT_POSITION WHERE investment_status = 'Sale_Processing' ''').df()
 
     start_position = end_position
     end_position = start_position + len(pending_sales_df)
@@ -345,11 +358,11 @@ def generate_facts(conn, num_of_events):
 
     possible_asset_sale_users = conn.execute(f'''
             with get_users as (
-                 SELECT *, '{GENERATION_START_DATE}'::DATE - investment_start_date as days_since_registration, row_number() over(
+                 SELECT *, DATE_DIFF('day','{GENERATION_START_DATE}'::DATE, investment_start_date) as days_since_registration, row_number() over(
                     partition by user_id
                     order by investment_start_date asc
                  ) as rn
-                 from fact_investment_position where investment_status = 'active' and investment_maturity_date is null
+                 from fact_investment_position where investment_status = 'Active' and investment_maturity_date is null
                  ) select * from get_users where rn = 1 and days_since_registration > 90 
                  order by random()
                  limit 5
@@ -505,7 +518,7 @@ def generate_facts(conn, num_of_events):
                 COPY (SELECT * FROM FACT_INVESTMENT_POSITION WHERE last_updated_at::DATE = '{GENERATION_START_DATE}' TO '{CURRENT_FACT_INVESTMENT_POSITION_PARQUET_PATH}' (FORMAT PARQUET) )
     ''')
 
-    
+
 
 
 

@@ -19,8 +19,8 @@ def create():
     CURRENT_PARTITION.mkdir(parents=True, exist_ok=True)
     DB_DIR.mkdir(parents=True, exist_ok=True)
     with db.connect(FINFLOW_DB_PATH) as conn:
-        generate_users(conn,100)
-        generate_list_of_wallets(conn)
+        #generate_users(conn,100)
+        #generate_list_of_wallets(conn)
         generate_wallet_balance(conn)
         generate_facts(conn, 100_000)
 

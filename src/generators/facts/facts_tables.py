@@ -172,7 +172,7 @@ def generate_facts(conn, num_of_events):
     
     customer_subset_1 = wallet_activated_users.sample(frac = 0.55, random_state=1)
     last_login_df = get_last_login(conn, customer_subset_1['user_id'])
-    customer_subset_1 = customer_subset_1.merge(last_login_df,how="inner",on="user_id")
+    customer_subset_1['last_login_at'] = last_login_df['last_login_at']
 
     total_customer_subset_1 = len(customer_subset_1)
 
@@ -181,7 +181,9 @@ def generate_facts(conn, num_of_events):
 
     uids = customer_subset_1["user_id"]
 
-    etime = [last_login + timedelta(minutes=np.random.randint(5, 80)) for last_login in customer_subset_1["last_login_at"]]
+    random_offset = np.random.randint(5, 80,size=len(customer_subset_1))
+
+    etime = customer_subset_1['last_login_at'] + pd.to_timedelta(random_offset, unit='m')
     dtypes = np.array([device_type_map.get(uid) for uid in customer_subset_1["user_id"]])
     app_login_events(conn, context, start_position, end_position, user_ids, uids, event_time,etime, device_types, dtypes, event_type_ids)
 
@@ -194,7 +196,7 @@ def generate_facts(conn, num_of_events):
 
     random_offset = np.random.randint(1,5,size=total_customer_subset_1)
 
-    review_time = etime + pd.to_timedelta(random_offset,unit='m')
+    review_time = pd.to_datetime(etime) + pd.to_timedelta(random_offset,unit='m')
 
     review_plan_options_events(conn,context,start_position, end_position, user_ids, uids, event_time,review_time, event_type_ids, device_types, dtypes)
 
@@ -228,7 +230,7 @@ def generate_facts(conn, num_of_events):
 
     random_offset = np.random.randint(1,4,size=total_customer_subset_2)
 
-    review_time = etime + pd.to_timedelta(random_offset, unit='m')
+    review_time = pd.to_datetime(etime) + pd.to_timedelta(random_offset, unit='m')
 
     review_plan_options_events(conn,context, start_position, end_position, user_ids, uids, event_time,review_time, event_type_ids, device_types, dtypes)
 

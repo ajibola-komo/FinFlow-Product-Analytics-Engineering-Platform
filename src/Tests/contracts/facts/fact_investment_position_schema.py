@@ -24,7 +24,7 @@ class fact_investment_position_schema(pa.DataFrameModel):
 
     investment_maturity_date_id:Series[int] = pa.Field(ge=1,nullable=True)
 
-    investment_status:Series[str] = pa.Field(isin=['Active','Matured','Redeemed'])
+    investment_status:Series[str] = pa.Field(isin=['Active','Matured','Redeemed','Withdrawn_Early','Sale_Processing'],nullable=False)
 
     is_withdrawn_early:Series[bool] = pa.Field(nullable=False)
 

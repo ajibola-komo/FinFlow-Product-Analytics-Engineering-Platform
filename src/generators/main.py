@@ -23,6 +23,16 @@ def create():
     create_snowflake_bronze_tables()
     DB_DIR.mkdir(parents=True, exist_ok=True)
     with db.connect(FINFLOW_DB_PATH) as conn:
+        tables = conn.execute("""
+    SELECT table_name
+    FROM information_schema.tables
+    WHERE table_schema = 'main'
+      AND table_type = 'BASE TABLE'
+""").fetchall()
+
+        for (table_name,) in tables:
+            conn.execute(f'DROP TABLE IF EXISTS "{table_name}" CASCADE')
+    
         generate_dates(conn)
         generate_products(conn)
         generate_event_types(conn)

@@ -373,7 +373,8 @@ def investment_creation_events(conn: DuckDBPyConnection, context:any, start_posi
     
     """
     plan_ids_allocation_df = plan_ids_allocation(conn, context,uids, investment_type, plan_selection_time)
-    plan_ids_allocation_df["plan_creation_time"] = (plan_ids_allocation_df["plan_selection_time"] + pd.to_timedelta(np.random.randint(3,6),unit="m"))
+    random_offset = np.random.randint(3,6,size=len(plan_ids_allocation_df))
+    plan_ids_allocation_df["plan_creation_time"] = (plan_ids_allocation_df["plan_selection_time"] + pd.to_timedelta(random_offset,unit="m"))
     plan_attributes_df = get_plan_attributes(conn, plan_ids_allocation_df["user_id"], plan_ids_allocation_df["plan_id"],plan_ids_allocation_df["unique_id"],plan_ids_allocation_df["plan_creation_time"])
     plan_ids_allocation_df = plan_ids_allocation_df.merge(plan_attributes_df, how="inner", on=["user_id","unique_id"])
     investment_amount_df = create_investment_amount(conn,plan_ids_allocation_df["user_id"],plan_ids_allocation_df["unique_id"])
@@ -809,6 +810,15 @@ def new_investment_creation(conn:DuckDBPyConnection, context:any, start_position
                                transaction_type_ids:list[int], event_type_ids:list[int], transaction_amounts:list[float],transaction_statuses,
                                investment_ids:list[int], last_investment_id:int) -> dict:
 
+
+    if len(uids) == 0:
+        return {
+            'last_transaction_id':last_transaction_id,
+            'all_investments_df':pd.DataFrame(),
+            'updated_end_position':end_position,
+            'last_investment_id':last_investment_id
+        }
+
     """
         This function creates new investment creation events for the given users.
         It returns a dictionary with the following attributes:
@@ -844,7 +854,7 @@ def new_investment_creation(conn:DuckDBPyConnection, context:any, start_position
 
     review_time = [lt + timedelta(minutes = np.random.randint(2,5)) for lt in login_time]
 
-    review_plan_options_events(conn, context, start_position, end_position, user_ids, uids, event_times, event_type_ids, device_types, dtypes)
+    review_plan_options_events(conn, context, start_position, end_position, user_ids, uids, event_times,review_time, event_type_ids, device_types, dtypes)
 
     start_position = end_position
     end_position = start_position + len(uids)

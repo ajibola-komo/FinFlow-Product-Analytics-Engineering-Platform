@@ -373,6 +373,9 @@ def investment_creation_events(conn: DuckDBPyConnection, context:any, start_posi
     
     """
     plan_ids_allocation_df = plan_ids_allocation(conn, context,uids, investment_type, plan_selection_time)
+
+    print("Null values in plan_ids_allocation_df plan_selection_time", pd.isna(plan_ids_allocation_df['plan_selection_time']).sum())
+
     random_offset = np.random.randint(3,6,size=len(plan_ids_allocation_df))
     plan_ids_allocation_df["plan_creation_time"] = (plan_ids_allocation_df["plan_selection_time"] + pd.to_timedelta(random_offset,unit="m"))
     plan_attributes_df = get_plan_attributes(conn, plan_ids_allocation_df["user_id"], plan_ids_allocation_df["plan_id"],plan_ids_allocation_df["unique_id"],plan_ids_allocation_df["plan_creation_time"])
@@ -394,7 +397,9 @@ def investment_creation_events(conn: DuckDBPyConnection, context:any, start_posi
     investment_ids[start_position:end_position] = np.arange(last_investment_id + 1, last_investment_id + 1 + len(plan_ids_allocation_df))
     last_investment_id = investment_ids[start_position:end_position].max()
 
-    deduct_wallet_balance(conn, plan_ids_allocation_df["user_id"], plan_ids_allocation_df['amount_invested'], transaction_ids[start_position:end_position], plan_ids_allocation_df["plan_creation_time"])
+
+    deduct_wallet_balance(conn, plan_ids_allocation_df["user_id"], plan_ids_allocation_df['amount_invested'], 
+                          transaction_ids[start_position:end_position], event_times[start_position:end_position])
 
     # build dataframe
 

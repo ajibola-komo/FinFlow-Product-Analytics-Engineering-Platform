@@ -9,8 +9,8 @@ from src.config.constants import (DEFAULT_TRANSACTION_START_DATE, DEFAULT_TRANSA
                                   )
 from datetime import timedelta
 from dateutil.relativedelta import relativedelta
-from src.logic.helper_functions import (update_last_login_timestamp, signup_completion_events, app_login_events, get_last_login, kyc_completion_events,
-                                        wallet_activation_events, get_current_wallet_balance, review_plan_options_events, plan_selection_events, plan_ids_allocation, build_investment_creation_users_dataframe,
+from src.logic.helper_functions import (signup_completion_events, app_login_events, get_last_login, kyc_completion_events,
+                                        wallet_activation_events, review_plan_options_events, plan_selection_events, plan_ids_allocation, build_investment_creation_users_dataframe,
                                         investment_creation_events, get_customer_behaviour_segment, create_engagement_events, review_current_investment_events, create_wallet_funding_events,
                                         new_investment_creation, early_withdrawal_requests_events, vested_investments_events, vested_investments_proceeds_transfer_events,
                                          assets_sale_events, assets_sale_investment_proceeds_wallet_transfer_events )
@@ -219,6 +219,8 @@ def generate_facts(conn, num_of_events):
 
     uids = customer_subset_2["user_id"]
     etime = [last_login + timedelta(minutes=np.random.randint(0, mtft)) for last_login,mtft in zip(customer_subset_2["last_login_at"],customer_subset_2["mins_to_first_investment"])]
+
+    print("Missing last login values:", pd.isna(customer_subset_2["last_login_at"]).sum())
     dtypes = np.array([device_type_map.get(uid) for uid in customer_subset_2["user_id"]])
     app_login_events(conn, context, start_position, end_position, user_ids, uids, event_time, etime, device_types, dtypes, event_type_ids)
 
@@ -231,6 +233,8 @@ def generate_facts(conn, num_of_events):
     random_offset = np.random.randint(1,4,size=total_customer_subset_2)
 
     review_time = pd.to_datetime(etime) + pd.to_timedelta(random_offset, unit='m')
+
+    print("Missing review time values:", pd.isna(review_time).sum())
 
     review_plan_options_events(conn,context, start_position, end_position, user_ids, uids, event_time,review_time, event_type_ids, device_types, dtypes)
 
@@ -250,7 +254,7 @@ def generate_facts(conn, num_of_events):
 
     plan_selected_df = plan_selection_events(context, start_position, end_position, user_ids, uids, event_time, plan_review_time, event_type_ids, device_types, dtypes)
 
-    plan_selected_df = plan_selected_df.merge(investment_type_df, how="inner", on="user_id")
+    plan_selected_df['first_investment_type'] = investment_type_df['first_investment_type']
 
     # investment creation events
 
@@ -262,6 +266,8 @@ def generate_facts(conn, num_of_events):
     uids = plan_selected_df["user_id"]
     first_inv_type = plan_selected_df["first_investment_type"]
     plan_selection_time = plan_selected_df["plan_selection_time"]
+
+    print("Missing plan selection time values:", pd.isna(plan_selection_time).sum())
     dtypes = [device_type_map.get(uid) for uid in uids]
 
     investment_creation_dict = investment_creation_events(conn, context, start_position, end_position, user_ids, uids,wallet_ids, event_time, plan_selection_time, first_inv_type,

@@ -4,7 +4,7 @@ import faker as fk
 import re
 from src.config.constants import (CUSTOMER_PERSONA_MAP, EMAIL_DOMAIN, GENDER, GENDER_WEIGHTS, ACQUISITION_CHANNELS,
                                   CHANNEL_WEIGHTS, IS_ACTIVATED_USER, CUSTOMER_BEHAVIOUR_SEGMENT, 
-                                  CUSTOMER_BEHAVIOUR_SEGMENT_MAP, DEVICE_TYPES
+                                  CUSTOMER_BEHAVIOUR_SEGMENT_MAP, DEVICE_TYPES, DEFAULT_SIGNUP_START_DATE, DEFAULT_TRANSACTION_START_DATE
                                   )
 from src.config.paths import (DDL_DIM_USER_PATH, USERS_PARQUET_PATH)
 from src.logic.location_distribution import get_location_distribution
@@ -118,10 +118,10 @@ def generate_users(conn, num_of_users):
     kyc_completed_mask = (kyc_completed == True) & (is_activated_user == False)
 
     kyc_completion_timeframe[active_mask] = [np.random.randint(120,  activation_timeframe - 100) for activation_timeframe in wallet_activation_timeframe[active_mask]]
-    kyc_completion_dates[active_mask] = signup_date[active_mask] + pd.to_timedelta(kyc_completion_timeframe[active_mask],unit="m")
+    kyc_completion_dates[active_mask] = pd.to_datetime(signup_date[active_mask]) + pd.to_timedelta(kyc_completion_timeframe[active_mask],unit="m")
 
     kyc_completion_timeframe[kyc_completed_mask] = [np.random.randint(120,  800) for _ in range(kyc_completed_mask.sum())]
-    kyc_completion_dates[kyc_completed_mask] = signup_date[kyc_completed_mask] + pd.to_timedelta(kyc_completion_timeframe[kyc_completed_mask],unit="m")
+    kyc_completion_dates[kyc_completed_mask] = pd.to_datetime(signup_date[kyc_completed_mask] )+ pd.to_timedelta(kyc_completion_timeframe[kyc_completed_mask],unit="m")
 
     last_login_at = signup_date
     created_at = signup_date
@@ -195,5 +195,29 @@ def generate_users(conn, num_of_users):
     #write the generated data to a parquet file
     conn.register('df_raw', df_raw)
     conn.execute('''INSERT INTO dim_user SELECT * FROM df_raw''')
+
+    conn.execute(f'''UPDATE dim_user set last_updated_at = kyc_completion_date where kyc_completion_date::DATE between '{DEFAULT_SIGNUP_START_DATE}' and '{DEFAULT_TRANSACTION_START_DATE}' ''')
+
+    conn.execute(f'''UPDATE dim_user set last_updated_at = supposed_activation_date where supposed_activation_date::DATE between '{DEFAULT_SIGNUP_START_DATE}' and '{DEFAULT_TRANSACTION_START_DATE}'
+            and is_activated_user = True
+      ''')
+
+    users_df = conn.execute(f'''SELECT * FROM dim_user where supposed_activation_date > last_updated_at and supposed_activation_date::DATE between '{DEFAULT_SIGNUP_START_DATE}' and '{DEFAULT_TRANSACTION_START_DATE}' 
+    ''').df()
+
+    assert(not users_df.empty,"supposed_activation_date should not be greater that the last_updated_at at the dim_user level")
+
+    kyc_df = conn.execute(f'''SELECT * FROM dim_user where kyc_completion_date > supposed_activation_date and is_activated_user = True
+    ''').df()
+
+    assert (not kyc_df.empty,"kyc_completion_date should not be greater than supposed_activation_date")
+
+    #users_df = conn.execute('''SELECT user_id, signup_date, kyc_completed, kyc_completion_date, is_activated_user, supposed_activation_date, last_login_at, last_updated_at FROM DIM_USER
+        
+    #''').df()
+
+    print(users_df.head(50))
+
+    print("kyc_df",kyc_df.head(50))
 
     

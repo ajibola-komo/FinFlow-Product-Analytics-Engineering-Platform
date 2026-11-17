@@ -20,36 +20,32 @@ from src.Tests.validator.validate_raw_data import validate_data_frames
 load_dotenv()
 
 def create():
-    create_snowflake_bronze_tables()
+    #create_snowflake_bronze_tables()
     DB_DIR.mkdir(parents=True, exist_ok=True)
     with db.connect(FINFLOW_DB_PATH) as conn:
-        tables = conn.execute("""
-    SELECT table_name
-    FROM information_schema.tables
-    WHERE table_schema = 'main'
-      AND table_type = 'BASE TABLE'
-""").fetchall()
+        #tables = conn.execute("""SELECT table_name FROM information_schema.tables WHERE table_schema = 'main' AND table_type = 'BASE TABLE' """).fetchall()
 
-        for (table_name,) in tables:
-            conn.execute(f'DROP TABLE IF EXISTS "{table_name}" CASCADE')
+        #for (table_name,) in tables:
+            #conn.execute(f'DROP TABLE IF EXISTS "{table_name}" CASCADE')
+        
+        
     
-        generate_dates(conn)
-        generate_products(conn)
-        generate_event_types(conn)
-        generate_transaction_types(conn)
-        generate_dim_plan(conn)
+        #generate_dates(conn)
+        #generate_products(conn)
+        #generate_event_types(conn)
+        #generate_transaction_types(conn)
+        #generate_dim_plan(conn)
         generate_users(conn,5_000)
         generate_list_of_wallets(conn)
-        generate_wallet_balance(conn)
-        generate_facts(conn,10_000_000)
-        validate_data_frames(conn)
+        #generate_wallet_balance(conn)
+        #generate_facts(conn,10_000_000)
+        #validate_data_frames(conn)
 
     
-    #upload_parquet_files()
-    #upload_from_s3_to_snowflake()
-    upload_to_adls()
-    upload_from_adls_to_snowflake()
-    run_dbt_models()
+    
+    #upload_to_adls()
+    #upload_from_adls_to_snowflake()
+    #run_dbt_models()
 
 
 create()

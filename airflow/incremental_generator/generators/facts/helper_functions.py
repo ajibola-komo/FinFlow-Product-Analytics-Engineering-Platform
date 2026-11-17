@@ -243,10 +243,15 @@ def incremental_early_withdrawal_investments_proceeds_transfer(conn:DuckDBPyConn
     wallet_ids[start_position:end_position] = pending_early_withdrawal_requests_df['wallet_id']
     pending_early_withdrawal_requests_df['days_held'] = (pd.to_datetime(pending_early_withdrawal_requests_df['early_withdrawal_date']) - pd.to_datetime(pending_early_withdrawal_requests_df['investment_start_date'])).dt.days
     pending_early_withdrawal_requests_df['tenure_days'] = (pd.to_datetime(pending_early_withdrawal_requests_df['investment_maturity_date']) - pd.to_datetime(pending_early_withdrawal_requests_df['investment_start_date'])).dt.days
+
+    conn.register('pending_early_withdrawal_requests_df',pending_early_withdrawal_requests_df)
+    penalty_rate_df = conn.execute('''SELECT e.user_id, interest_rate_min from pending_early_withdrawal_requests_df e inner join dim_plan p on e.plan_id = p.plan_id ''').df()
+
+    penalty_rate_pct = penalty_rate_df['interest_rate_min']
     
     pending_early_withdrawal_requests_df['expected_total_interest'] = pending_early_withdrawal_requests_df['expected_maturity_value'] - pending_early_withdrawal_requests_df['amount_invested']
     pending_early_withdrawal_requests_df['interest_accrued'] = pending_early_withdrawal_requests_df['expected_total_interest'] * (pending_early_withdrawal_requests_df['days_held'] / pending_early_withdrawal_requests_df['tenure_days'])
-    pending_early_withdrawal_requests_df['penalty_amount'] = (pending_early_withdrawal_requests_df['interest_accrued']  * (pending_early_withdrawal_requests_df['penalty_rate_pct'] / 100))
+    pending_early_withdrawal_requests_df['penalty_amount'] = (pending_early_withdrawal_requests_df['interest_accrued']  * (penalty_rate_pct / 100))
 
     transaction_amounts[start_position:end_position] = ((pending_early_withdrawal_requests_df['amount_invested'] + pending_early_withdrawal_requests_df['interest_accrued'])  - pending_early_withdrawal_requests_df['penalty_amount'])
     pending_early_withdrawal_requests_df['investment_status'] = "Redeemed"
@@ -264,7 +269,7 @@ def incremental_early_withdrawal_investments_proceeds_transfer(conn:DuckDBPyConn
 
     conn.execute('''
                     UPDATE FACT_INVESTMENT_POSITION f set investment_status = 'Redeemed', penalty_amount = p.penalty_amount, amount_paid_out = p.amount_paid_out, last_updated_at = p.last_updated_at
-                    FROM pending_transactions p WHERE f.investment_id = p.investment_id and investment_status = 'Withdrawn_Early'
+                    FROM pending_transactions p WHERE f.investment_id = p.investment_id and f.investment_status = 'Withdrawn_Early'
     ''')
 
     conn.unregister('pending_transactions')

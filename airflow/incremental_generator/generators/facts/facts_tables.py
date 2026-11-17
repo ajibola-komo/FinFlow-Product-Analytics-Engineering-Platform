@@ -180,6 +180,8 @@ def generate_facts(conn, num_of_events):
     all_users = conn.execute(f'''SELECT w.user_id as user_id, u.customer_behaviour_segment, i.user_id as unused, w.wallet_activated_at FROM dim_wallet w join dim_user u on 
                              w.user_id = u.user_id left join fact_investment_position i on i.user_id = u.user_id where w.wallet_activated_at::DATE 
     between CAST('{GENERATION_START_DATE}' AS DATE) - interval 7 day and CAST('{GENERATION_START_DATE}' AS DATE) - interval 1 day and i.user_id is null ''').df()
+
+    print(f"Total users that have activated their wallets in the last 7 days and have not made an investment yet: {len(all_users)}")
     
     #these users will just login and review plan options, but will not make an investment. We will create a new dataframe to hold the users who made an investment and their corresponding investment details.
     customer_subset_1 = all_users.sample(frac = 0.7, random_state=1)
@@ -197,7 +199,9 @@ def generate_facts(conn, num_of_events):
     end_position = start_position + total_customer_subset_1
 
     uids = customer_subset_1['user_id']
-    etime = customer_subset_1['wallet_activated_at'] + pd.to_timedelta(ro for ro in random_offset)
+
+    print(customer_subset_1['wallet_activated_at'])
+    etime = customer_subset_1['wallet_activated_at'] + pd.to_timedelta(random_offset, unit='m')
     dtypes = device_type_map.get(uid for uid in uids)
 
     app_login_events(conn,context,start_position, end_position,user_ids,uids,event_time,etime,device_types,dtypes,event_type_ids )
@@ -209,7 +213,7 @@ def generate_facts(conn, num_of_events):
     dtypes = [device_type_map.get(uid for uid in uids)]
 
     random_offset = np.random.randint(3,6,size=total_customer_subset_1)
-    review_time = etime + pd.to_timedelta(ro for ro in random_offset)
+    review_time = etime + pd.to_timedelta(random_offset,unit='m')
 
     review_plan_options_events(conn,context,start_position,end_position,user_ids,uids, event_time,review_time, event_type_ids,device_types,dtypes)
 
@@ -228,7 +232,7 @@ def generate_facts(conn, num_of_events):
 
     uids = customer_subset_2['user_id']
     random_offset = np.random.randint(0,1200,size=total_customer_subset_2)
-    etime = pd.to_datetime(GENERATION_START_TIMESTAMP) + pd.to_timedelta(ro for ro in random_offset)
+    etime = pd.to_datetime(GENERATION_START_TIMESTAMP) + pd.to_timedelta(random_offset, unit='m')
     dtypes = [device_type_map.get(uid for uid in uids)]
 
     inv_type = np.array([

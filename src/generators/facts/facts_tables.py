@@ -86,64 +86,51 @@ def generate_facts(conn, num_of_events):
     start_position = total_signups
     end_position = start_position + total_new_users
 
-    etime = [pd.Timestamp(sd) + timedelta(seconds=int(ro)) for sd, ro in zip(new_users_logins["signup_date"], immediate_login_timeframe)]
+    etime = pd.to_datetime(new_users_logins["signup_date"]) + pd.to_timedelta(immediate_login_timeframe, unit = 's')
     uids = new_users_logins["user_id"]
     dtypes=[device_type_map.get(uid) for uid in uids]
 
     app_login_events(conn,context,start_position, end_position, user_ids, uids, event_time, etime, device_types, dtypes, event_type_ids)
+
+    print("Missing event time values line 95:", pd.isna(event_time[start_position:end_position]).sum())
     
     #kyc_completed_users
-    kyc_completed_users = users_data[users_data["kyc_completed"] == True].copy()
+    kyc_completed_users = conn.execute(f'''
+            SELECT * FROM dim_user where kyc_completed = True AND kyc_completion_date between '{DEFAULT_TRANSACTION_START_DATE}' and '{DEFAULT_TRANSACTION_END_DATE}' order by signup_date
+''').df()
 
-    signup_map = dict(zip(users_data["user_id"],users_data["signup_date"]))
-
-    last_login_df = get_last_login(conn,kyc_completed_users["user_id"])
-    uids = last_login_df["user_id"]
-    last_login_time = last_login_df["last_login_at"]
-
-    last_login_map  = dict(zip(
-        uids,
-        last_login_time
-    ))
-
-    kyc_activation_timeframe = np.empty(len(kyc_completed_users), dtype=object)
     
-    unactivated_users_with_kyc = np.where(pd.isna(kyc_completed_users["wallet_activation_timeframe"]))[0]
-
-    activated_users_with_kyc = np.where(~pd.isna(kyc_completed_users["wallet_activation_timeframe"]))[0]
-
-    wallet_activation_timeframe = kyc_completed_users["wallet_activation_timeframe"].values
-
-    kyc_activation_timeframe[unactivated_users_with_kyc] = np.random.randint(KYC_ACTIVATION_TIMEFRAME[0], KYC_ACTIVATION_TIMEFRAME[1], size=len(unactivated_users_with_kyc))
-    random_offset = np.random.randint(800,1000, size=len(activated_users_with_kyc))
-
-    kyc_activation_timeframe[activated_users_with_kyc] = wallet_activation_timeframe[activated_users_with_kyc] - random_offset #assuming wallet activation happens after KYC completion, we can set the KYC activation timeframe to be slightly less than the wallet activation timeframe for those users
-
-    kyc_logins_timeframe = kyc_activation_timeframe - 5 #assuming KYC completion happens after the last login, we can set the KYC activation timeframe to be slightly more than the last login timeframe
-
     # start activation by logging in
     start_position = end_position
     end_position = start_position + len(kyc_completed_users)
 
+    random_offset = np.random.randint(10,30, size=len(kyc_completed_users))
+
     dtypes = [device_type_map.get(uid) for uid in kyc_completed_users["user_id"]]
-    etime = [last_login_map.get(uid,signup_map.get(uid)) + timedelta(minutes=int(ro)) for uid, ro in zip(kyc_completed_users["user_id"], kyc_logins_timeframe)]
+    etime = kyc_completed_users["kyc_completion_date"] - pd.to_timedelta(random_offset, unit='m')
 
     app_login_events(conn, context, start_position, end_position, user_ids,kyc_completed_users["user_id"],event_time,etime,device_types,dtypes,event_type_ids)
+
+    print("Missing event time values line 114:", pd.isna(event_time[start_position:end_position]).sum())
 
 
     #activate kyc
     start_position = end_position
     end_position = start_position + len(kyc_completed_users)
     
-    etime = [signup_map.get(uid) + timedelta(minutes=int(ro)) for uid, ro in zip(kyc_completed_users["user_id"], kyc_activation_timeframe)]
-    dtypes = np.array([device_type_map.get(uid) for uid in kyc_completed_users["user_id"]])
+    etime = pd.to_datetime(kyc_completed_users["kyc_completion_date"])
+    dtypes = [device_type_map.get(uid) for uid in kyc_completed_users["user_id"]]
 
     kyc_completion_events(conn, context, start_position, end_position, user_ids, kyc_completed_users["user_id"], 
                           event_time, etime, device_types, dtypes, event_type_ids)
 
+    print("Missing event time values line 127:", pd.isna(event_time[start_position:end_position]).sum())
+
 
     #wallet activation
-    wallet_activated_users = kyc_completed_users[~pd.isna(kyc_completed_users["wallet_activation_timeframe"])].copy()
+    wallet_activated_users = conn.execute(f'''
+            SELECT * FROM dim_user where supposed_activation_date between '{DEFAULT_TRANSACTION_START_DATE}' and '{DEFAULT_TRANSACTION_END_DATE}' AND is_activated_user = True order by signup_date
+    ''').df()
 
     total_wallet_activated_users = len(wallet_activated_users)
 
@@ -151,8 +138,8 @@ def generate_facts(conn, num_of_events):
     end_position = start_position + total_wallet_activated_users
 
     uids = wallet_activated_users["user_id"]
-    etime = [signup_map.get(uid,None) + timedelta(minutes=int(ro)) for uid, ro in zip(wallet_activated_users["user_id"], wallet_activated_users["wallet_activation_timeframe"])]
-    dtypes = np.array([device_type_map.get(uid) for uid in wallet_activated_users["user_id"]])
+    etime = wallet_activated_users["supposed_activation_date"]
+    dtypes = [device_type_map.get(uid) for uid in wallet_activated_users["user_id"]]
     wids = [wallet_id_map.get(uid) for uid in wallet_activated_users["user_id"]]
     
     return_dict = wallet_activation_events(
@@ -163,6 +150,8 @@ def generate_facts(conn, num_of_events):
 
     last_transaction_id = return_dict['last_transaction_id']
     end_position = return_dict['updated_end_position']
+
+    print("Missing event time values line 154:", pd.isna(event_time[start_position:end_position]).sum())
     
 
     #let's create the initial investment -- login, review_plan_options then drop off for some users, and for others, they will make an investment after reviewing the plan options. We will create a new dataframe to hold the users who made an investment and their corresponding investment details.
@@ -172,7 +161,13 @@ def generate_facts(conn, num_of_events):
     
     customer_subset_1 = wallet_activated_users.sample(frac = 0.55, random_state=1)
     last_login_df = get_last_login(conn, customer_subset_1['user_id'])
+
+    print("last login df",last_login_df.head(10))
     customer_subset_1['last_login_at'] = last_login_df['last_login_at']
+
+    print("customer subset 1 ", customer_subset_1.head(10))
+
+    print("The customer subset 1 user_id and last_login_at ",customer_subset_1[['user_id','supposed_activation_date','last_login_at']])
 
     total_customer_subset_1 = len(customer_subset_1)
 
@@ -181,24 +176,28 @@ def generate_facts(conn, num_of_events):
 
     uids = customer_subset_1["user_id"]
 
-    random_offset = np.random.randint(5, 80,size=len(customer_subset_1))
+    random_offset = np.random.randint(1800, 5000,size=len(customer_subset_1))
 
-    etime = customer_subset_1['last_login_at'] + pd.to_timedelta(random_offset, unit='m')
-    dtypes = np.array([device_type_map.get(uid) for uid in customer_subset_1["user_id"]])
+    etime = pd.to_datetime(customer_subset_1['last_login_at']) + pd.to_timedelta(random_offset, unit='m')
+    dtypes = [device_type_map.get(uid) for uid in customer_subset_1["user_id"]]
     app_login_events(conn, context, start_position, end_position, user_ids, uids, event_time,etime, device_types, dtypes, event_type_ids)
+
+    print("Missing event time values line 179:", pd.isna(event_time[start_position:end_position]).sum())
 
 
     start_position = end_position
     end_position = start_position + total_customer_subset_1
 
     uids = customer_subset_1["user_id"]
-    dtypes = np.array([device_type_map.get(uid) for uid in customer_subset_1["user_id"]])
+    dtypes = [device_type_map.get(uid) for uid in customer_subset_1["user_id"]]
 
-    random_offset = np.random.randint(1,5,size=total_customer_subset_1)
+    random_offset = np.random.randint(2, 6, size=total_customer_subset_1)
 
     review_time = pd.to_datetime(etime) + pd.to_timedelta(random_offset,unit='m')
 
-    review_plan_options_events(conn,context,start_position, end_position, user_ids, uids, event_time,review_time, event_type_ids, device_types, dtypes)
+    review_plan_options_events(context,start_position, end_position, user_ids, uids, event_time,review_time, event_type_ids, device_types, dtypes)
+
+    print("Missing event time values line 194:", pd.isna(event_time[start_position:end_position]).sum())
 
     # These are the users who will make an investment
 
@@ -218,25 +217,25 @@ def generate_facts(conn, num_of_events):
     end_position = start_position + total_customer_subset_2
 
     uids = customer_subset_2["user_id"]
-    etime = [last_login + timedelta(minutes=np.random.randint(0, mtft)) for last_login,mtft in zip(customer_subset_2["last_login_at"],customer_subset_2["mins_to_first_investment"])]
+    etime = pd.to_datetime(customer_subset_2["wallet_activated_at"]) + pd.to_timedelta(customer_subset_2["mins_to_first_investment"], unit='m')
 
-    print("Missing last login values:", pd.isna(customer_subset_2["last_login_at"]).sum())
-    dtypes = np.array([device_type_map.get(uid) for uid in customer_subset_2["user_id"]])
+    print("Missing last login values:", pd.isna(customer_subset_2["wallet_activated_at"]).sum())
+    dtypes = [device_type_map.get(uid) for uid in customer_subset_2["user_id"]]
     app_login_events(conn, context, start_position, end_position, user_ids, uids, event_time, etime, device_types, dtypes, event_type_ids)
 
     start_position = end_position
     end_position = start_position + total_customer_subset_2
 
     uids = customer_subset_2["user_id"]
-    dtypes = np.array([device_type_map.get(uid) for uid in customer_subset_2["user_id"]])
+    dtypes = [device_type_map.get(uid) for uid in customer_subset_2["user_id"]]
 
     random_offset = np.random.randint(1,4,size=total_customer_subset_2)
 
     review_time = pd.to_datetime(etime) + pd.to_timedelta(random_offset, unit='m')
 
-    print("Missing review time values:", pd.isna(review_time).sum())
+    print("Missing review time values line 230:", pd.isna(review_time).sum())
 
-    review_plan_options_events(conn,context, start_position, end_position, user_ids, uids, event_time,review_time, event_type_ids, device_types, dtypes)
+    review_plan_options_events(context, start_position, end_position, user_ids, uids, event_time,review_time, event_type_ids, device_types, dtypes)
 
     plan_review_time = event_time[start_position:end_position]
 
@@ -267,12 +266,14 @@ def generate_facts(conn, num_of_events):
     first_inv_type = plan_selected_df["first_investment_type"]
     plan_selection_time = plan_selected_df["plan_selection_time"]
 
-    print("Missing plan selection time values:", pd.isna(plan_selection_time).sum())
+    print("Missing plan selection time values line 263:", pd.isna(plan_selection_time).sum())
     dtypes = [device_type_map.get(uid) for uid in uids]
 
     investment_creation_dict = investment_creation_events(conn, context, start_position, end_position, user_ids, uids,wallet_ids, event_time, plan_selection_time, first_inv_type,
                                                           device_types, dtypes, is_money_movement_activities, transaction_ids, last_transaction_id, transaction_type_ids,
                                                           event_type_ids, transaction_amounts, transaction_statuses, investment_ids, last_investment_id)
+
+    print("Missing event time values line 270:", pd.isna(event_time[start_position:end_position]).sum())
 
     last_transaction_id = investment_creation_dict["last_transaction_id"]
     all_investments_df = investment_creation_dict["all_investments_df"]
@@ -328,6 +329,8 @@ def generate_facts(conn, num_of_events):
 
     app_login_events(conn, context, start_position, end_position, user_ids, uids, event_time, etime, device_types, dtypes, event_type_ids)
 
+    print("Missing event time values line 326:", pd.isna(event_time[start_position:end_position]).sum())
+
     start_position = end_position
     end_position = start_position + len(engagement_events)
 
@@ -340,6 +343,8 @@ def generate_facts(conn, num_of_events):
     start_position = updated_end_position
     end_position = start_position + len(wallet_funding_events)
 
+    print("Missing event time values line 340:", pd.isna(event_time[start_position:end_position]).sum())
+
     uids = wallet_funding_events['user_id']
 
     return_dict = create_wallet_funding_events(conn, context, start_position, end_position, user_ids,uids,wallet_ids, event_time, wallet_funding_events['event_time'], last_transaction_id,
@@ -348,6 +353,8 @@ def generate_facts(conn, num_of_events):
 
     last_transaction_id = return_dict['last_transaction_id']
     updated_end_position = return_dict['updated_end_position']
+
+    print("Missing event time values line 351:", pd.isna(event_time[start_position:end_position]).sum())
 
     start_position = updated_end_position
     end_position = start_position + len(new_investment_creation_events)
@@ -360,6 +367,8 @@ def generate_facts(conn, num_of_events):
     return_dict = new_investment_creation(conn, context, start_position, end_position, user_ids, uids,wallet_ids, event_time, etime, inv_type, device_types, dtypes, 
                                           is_money_movement_activities, transaction_ids, last_transaction_id, transaction_type_ids, event_type_ids, transaction_amounts, 
                                           transaction_statuses, investment_ids, last_investment_id)
+
+    print("Missing event time values line 365:", pd.isna(event_time[start_position:end_position]).sum())
 
     
     last_transaction_id = return_dict["last_transaction_id"]
@@ -415,6 +424,8 @@ def generate_facts(conn, num_of_events):
                                                    device_types, dtypes, early_withrawal_df, event_type_ids, transaction_type_ids, transaction_ids, transaction_amounts, 
                                                    transaction_statuses, investment_ids)
 
+    print("Missing event time values line 421:", pd.isna(event_time[start_position:end_position]).sum())
+
     last_transaction_id = return_dict['last_transaction_id']
     end_position = return_dict['updated_end_position']
     early_withrawal_dataframe = return_dict['early_withdrawal_df']
@@ -432,6 +443,8 @@ def generate_facts(conn, num_of_events):
 
     vested_investments_events(context, start_position, end_position, user_ids, event_time, event_type_ids, device_types,dtypes, investment_ids, vested_investments_df)
 
+    print("Missing event time values line 440:", pd.isna(event_time[start_position:end_position]).sum())
+
     #model investment proceeds wallet transfer for transactions with matured investments
     start_position = end_position
     end_position = start_position + len(vested_investments_df)
@@ -441,6 +454,8 @@ def generate_facts(conn, num_of_events):
     return_dict = vested_investments_proceeds_transfer_events(conn, context, start_position, end_position, user_ids, event_time, wallet_ids, last_transaction_id, is_money_movement_activities,
                                                 transaction_type_ids, transaction_ids, transaction_amounts, transaction_statuses, event_type_ids, device_types, dtypes, investment_ids,
                                                 vested_investments_df)
+
+    print("Missing event time values line 452: ",pd.isna(event_time[start_position:end_position]).sum())
 
     last_transaction_id = return_dict['last_transaction_id']
     vested_investments_dataframe = return_dict['vested_investments_df']
@@ -488,6 +503,8 @@ def generate_facts(conn, num_of_events):
                                      event_time, saleable_investments_df["review_current_investment_date"],
                                       device_types, dtypes, event_type_ids)
 
+    print("Missing event time values line 500: ",pd.isna(event_time[start_position:end_position]).sum())
+
     start_position = end_position
     end_position = start_position + len(saleable_investments_df)
 
@@ -518,6 +535,9 @@ def generate_facts(conn, num_of_events):
     ]
 )
 
+    
+    print("Null date values ", pd.isna(event_time[:end_position]).sum())
+
     # vestable - early_withdrawal_df and vested_investment_df
     # saleable - saleable_investments_df
 
@@ -530,6 +550,7 @@ def generate_facts(conn, num_of_events):
     #all_investments_df = all_investments_df.drop(['plan_name','tenure_days','penalty_rate_pct'])
 
     total_events = end_position
+
     
     #invesment df
     main_df = pd.DataFrame({
@@ -547,7 +568,7 @@ def generate_facts(conn, num_of_events):
     })
 
     main_df["event_date_id"] = np.array([
-    int(pd.Timestamp(ts).strftime('%Y%m%d'))
+    int(pd.to_datetime(ts).strftime('%Y%m%d'))
     for ts in main_df["event_time"]
     ], dtype=np.int32)
 

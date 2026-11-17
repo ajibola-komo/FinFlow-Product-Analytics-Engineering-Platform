@@ -13,6 +13,7 @@ CREATE OR REPLACE TABLE FACT_INVESTMENT_POSITION(
     is_withdrawn_early boolean NOT NULL DEFAULT false,
     penalty_amount decimal(18,2),
     amount_paid_out decimal(18,2), -- Not populated until the investment is redeemed
+    redemption_request_date timestamp, -- only populated for saleable assets when the user requests a sale
     early_withdrawal_date timestamp,
     early_withdrawal_date_id int,
     created_at timestamp not null,

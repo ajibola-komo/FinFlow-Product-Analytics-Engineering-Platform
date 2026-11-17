@@ -105,16 +105,18 @@ def wallet_activation_events(conn: DuckDBPyConnection, context: any, start_posit
         Returns the last_transaction_id and updated end position after updating the wallet balance for the given users.
     
     """
+    #first we need to login the users before they can activate their wallets through funding. So we will call the app_login_events() function to login the users first.
 
-    #first we need to get the customer behaviour segment to generate the transaction amount for each user
+    random_offset = np.random.randint(5,15, size=len(uids))
 
-    login_times = [et - timedelta(minutes = np.random.randint(5,15)) for et in event_time]
+    login_times = pd.to_datetime(event_time) - pd.to_timedelta(random_offset, unit='m')
 
     app_login_events(conn, context, start_position, end_position, user_ids, uids, event_times, login_times, device_types, dtypes, event_type_ids)
 
     start_position = end_position
     end_position = start_position + len(uids)
 
+    # then we call the generate_wallet_funding_amounts() function to create the funding amounts based on the user's customer behaviour segment.
     tran_amount = generate_wallet_funding_amounts(conn, uids)
     
     user_ids[start_position:end_position] = uids
@@ -236,7 +238,7 @@ def get_current_wallet_balance(conn:DuckDBPyConnection, uids:list[int]) -> dict[
 
     return current_balance_map
 
-def review_plan_options_events(conn, context, start_position, end_position, user_ids, uids, event_times, plan_review_time, event_type_ids, device_types, dtypes):
+def review_plan_options_events(context, start_position, end_position, user_ids, uids, event_times, plan_review_time, event_type_ids, device_types, dtypes):
 
     user_ids[start_position:end_position] = uids
     event_times[start_position:end_position] = plan_review_time
@@ -564,12 +566,13 @@ def generate_wallet_funding_amounts(conn: DuckDBPyConnection, uids:list[int]) ->
 
 def build_investment_creation_users_dataframe(conn:DuckDBPyConnection, wallet_activated_users_dataframe:pd.DataFrame) -> pd.DataFrame:
 
-    #cbf = get_customer_behaviour_segment(conn, wallet_activated_users_dataframe["user_id"])
+    wallet_activated_users_dataframe = wallet_activated_users_dataframe.copy()
 
-    #wallet_activated_users_dataframe = wallet_activated_users_dataframe.merge(cbf,how="inner", on="user_id")
+    conn.register('wallet_activated_users', wallet_activated_users_dataframe)
 
-    last_logins_df = get_last_login(conn, wallet_activated_users_dataframe['user_id'])
-    wallet_activated_users_dataframe = wallet_activated_users_dataframe.merge(last_logins_df,how="inner",on="user_id")
+    wallet_activated_users_dataframe = conn.execute('''
+        SELECT u.*, w.wallet_activated_at from wallet_activated_users u inner join dim_wallet w on u.user_id = w.user_id
+    ''').df()
 
     probability_of_making_first_investment = [
         np.random.choice(USERS_MAKES_FIRST_INVESTMENT_AFTER_FUNDING,p=CUSTOMER_BEHAVIOUR_SEGMENT_MAP[cp]['wallet_to_investment_conversion_probability'])
@@ -859,7 +862,7 @@ def new_investment_creation(conn:DuckDBPyConnection, context:any, start_position
 
     review_time = [lt + timedelta(minutes = np.random.randint(2,5)) for lt in login_time]
 
-    review_plan_options_events(conn, context, start_position, end_position, user_ids, uids, event_times,review_time, event_type_ids, device_types, dtypes)
+    review_plan_options_events(context, start_position, end_position, user_ids, uids, event_times,review_time, event_type_ids, device_types, dtypes)
 
     start_position = end_position
     end_position = start_position + len(uids)

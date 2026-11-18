@@ -811,6 +811,14 @@ def create_wallet_funding_events(conn:DuckDBPyConnection, context:any, start_pos
         "last_transaction_id": last_transaction_id,
         "updated_end_position": end_position}
 
+def initial_wallet_balance_creation(conn:DuckDBPyConnection, eligible_wallets_df:pd.DataFrame):
+
+    uids = eligible_wallets_df['user_id']
+
+    tran_amounts = generate_wallet_funding_amounts(conn, uids)
+
+    update_wallet_balance(conn, uids, tran_amounts, eligible_wallets_df['transaction_ids'], eligible_wallets_df['funding_time'])
+
 def new_investment_creation(conn:DuckDBPyConnection, context:any, start_position:int, end_position:int, user_ids:list[int], uids:list[int], wallet_ids:list[int], 
                             event_times:list[pd.Timestamp],
                                plan_creation_time:list[pd.Timestamp], investment_type:list[str], device_types:list[str], dtypes:list[str], 

@@ -4,8 +4,7 @@ from src.config.paths import (DDL_FACT_USER_EVENT_PATH, FACT_USER_EVENT_PARQUET_
                               FACT_INVESTMENT_POSITION_PARQUET_PATH, DDL_FACT_INVESTMENT_POSITION_PATH, DDL_FACT_TRANSACTION_PATH, FACT_TRANSACTION_PARQUET_PATH,
                               FACT_WALLET_BALANCE_PARQUET_PATH, USERS_PARQUET_PATH, WALLETS_PARQUET_PATH)
 from src.config.constants import (DEFAULT_TRANSACTION_START_DATE, DEFAULT_TRANSACTION_END_DATE, IMMEDIATE_LOGINS_TIME_FRAME, KYC_ACTIVATION_TIMEFRAME,
-                                  CUSTOMER_BEHAVIOUR_SEGMENT_MAP, 
-                                  MUTUAL_FUNDS_CUTOFF_DATE
+                                  CUSTOMER_BEHAVIOUR_SEGMENT_MAP, MUTUAL_FUNDS_CUTOFF_DATE
                                   )
 from datetime import timedelta
 from dateutil.relativedelta import relativedelta
@@ -30,10 +29,10 @@ def generate_facts(conn, num_of_events):
     conn.execute(create_fact_transaction_table)
 
     #populate all possible signups within the project duration
-    users_data = conn.execute(f'''SELECT user_id, signup_date, kyc_completed, is_activated_user, wallet_activation_timeframe, customer_behaviour_segment, device_type FROM dim_user
-     where signup_date between '{DEFAULT_TRANSACTION_START_DATE}' and '{DEFAULT_TRANSACTION_END_DATE}' order by signup_date''').df()
+    users_data = conn.execute(f'''SELECT user_id, signup_date, kyc_completed, is_activated_user, wallet_activation_timeframe, customer_behaviour_segment, device_type, supposed_activation_date 
+    FROM dim_user where signup_date between '{DEFAULT_TRANSACTION_START_DATE}' and '{DEFAULT_TRANSACTION_END_DATE}' order by signup_date''').df()
     
-    user_wallet_data = conn.execute(f'''SELECT user_id, wallet_id, wallet_activated_at from dim_wallet''').df()
+    user_wallet_data = conn.execute(f'''SELECT user_id, wallet_id, wallet_created_at, wallet_activated_at from dim_wallet''').df()
 
     device_type_map = dict(zip(users_data["user_id"],users_data["device_type"]))
 

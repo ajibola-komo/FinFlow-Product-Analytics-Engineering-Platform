@@ -109,9 +109,20 @@ def wallet_activation_events(conn: DuckDBPyConnection, context: any, start_posit
 
     random_offset = np.random.randint(5,15, size=len(uids))
 
+    print("Null event times for the users",pd.isna(event_time).sum())
+
     login_times = pd.to_datetime(event_time) - pd.to_timedelta(random_offset, unit='m')
 
+    print("Null Login times for the users",pd.isna(login_times).sum())
+
     app_login_events(conn, context, start_position, end_position, user_ids, uids, event_times, login_times, device_types, dtypes, event_type_ids)
+
+    uids = uids.tolist()
+
+    
+    df1 = conn.execute('''select user_id, supposed_activation_date, last_login_at from dim_user where user_id = ? and last_login_at IS NULL''',[uids]).df()
+
+    print("Users with no last login timestamp",df1)
 
     start_position = end_position
     end_position = start_position + len(uids)
@@ -146,6 +157,7 @@ def wallet_activation_events(conn: DuckDBPyConnection, context: any, start_posit
     update_wallet_balance(conn, uids, tran_amount, tran_ids, event_time)
 
     activate_wallet(conn, uids, event_time)
+
 
     updated_end_position = end_position
 
@@ -368,6 +380,7 @@ def investment_creation_events(conn: DuckDBPyConnection, context:any, start_posi
             - is_withdrawn_early
             - penalty_amount
             - amount_paid_out
+            - redemption_request_date
             - early_withdrawal_date
             - early_withdrawal_date_id
             - created_at
@@ -425,6 +438,7 @@ def investment_creation_events(conn: DuckDBPyConnection, context:any, start_posi
     all_investments_df['is_withdrawn_early'] = [False] * len(all_investments_df)
     all_investments_df['penalty_amount'] = 0.0
     all_investments_df['amount_paid_out'] = 0.0
+    all_investments_df['redemption_request_date'] = pd.NaT
     all_investments_df['early_withdrawal_date'] = pd.NaT
     all_investments_df['early_withdrawal_date_id'] = pd.NA
     all_investments_df['created_at'] = all_investments_df['investment_start_date']
@@ -854,6 +868,7 @@ def new_investment_creation(conn:DuckDBPyConnection, context:any, start_position
                 - is_withdrawn_early
                 - penalty_amount
                 - amount_paid_out
+                - redemption_request_date
                 - early_withdrawal_date
                 - early_withdrawal_date_id
                 - created_at

@@ -29,7 +29,8 @@ def generate_facts(conn, num_of_events):
     conn.execute(create_fact_transaction_table)
 
     #populate all possible signups within the project duration
-    users_data = conn.execute(f'''SELECT user_id, signup_date, kyc_completed, is_activated_user, wallet_activation_timeframe, customer_behaviour_segment, device_type, supposed_activation_date 
+    users_data = conn.execute(f'''SELECT user_id, signup_date, kyc_completed, is_activated_user, wallet_activation_timeframe, customer_behaviour_segment, device_type, supposed_activation_date,
+    is_immediate_login
     FROM dim_user where signup_date between '{DEFAULT_TRANSACTION_START_DATE}' and '{DEFAULT_TRANSACTION_END_DATE}' order by signup_date''').df()
     
     user_wallet_data = conn.execute(f'''SELECT user_id, wallet_id, wallet_created_at, wallet_activated_at from dim_wallet''').df()
@@ -128,7 +129,7 @@ def generate_facts(conn, num_of_events):
 
     #wallet activation
     wallet_activated_users = conn.execute(f'''
-            SELECT * FROM dim_user where supposed_activation_date between '{DEFAULT_TRANSACTION_START_DATE}' and '{DEFAULT_TRANSACTION_END_DATE}' AND is_activated_user = True order by signup_date
+            SELECT * FROM dim_user where supposed_activation_date::DATE between '{DEFAULT_TRANSACTION_START_DATE}' and '{DEFAULT_TRANSACTION_END_DATE}' AND is_activated_user = True order by signup_date
     ''').df()
 
     total_wallet_activated_users = len(wallet_activated_users)
@@ -157,16 +158,20 @@ def generate_facts(conn, num_of_events):
 
     #these users will just login and review plan options, but will not make an investment. We will create a new dataframe to hold the users who made an investment and their corresponding investment details.
 
-    
+    wallet_activated_users = conn.execute(f'''
+            SELECT * FROM dim_user where supposed_activation_date::DATE between '{DEFAULT_TRANSACTION_START_DATE}' and '{DEFAULT_TRANSACTION_END_DATE}' AND is_activated_user = True order by signup_date
+    ''').df()
     customer_subset_1 = wallet_activated_users.sample(frac = 0.55, random_state=1)
-    last_login_df = get_last_login(conn, customer_subset_1['user_id'])
+    
 
-    print("last login df",last_login_df.head(10))
-    customer_subset_1['last_login_at'] = last_login_df['last_login_at']
+    #print("last login df",last_login_df.head(10))
+    #print("customer subset 1 columns ", customer_subset_1.columns)
 
-    print("customer subset 1 ", customer_subset_1.head(10))
+    #print("customer subset 1 ", customer_subset_1.head(10))
 
-    print("The customer subset 1 user_id and last_login_at ",customer_subset_1[['user_id','supposed_activation_date','last_login_at']])
+    #print("The customer subset 1 user_id and last_login_at ",customer_subset_1[['user_id','supposed_activation_date','last_login_at']])
+
+    #print("customer subset 1 columns ", customer_subset_1.columns)
 
     total_customer_subset_1 = len(customer_subset_1)
 
@@ -341,8 +346,6 @@ def generate_facts(conn, num_of_events):
 
     start_position = updated_end_position
     end_position = start_position + len(wallet_funding_events)
-
-    print("Missing event time values line 340:", pd.isna(event_time[start_position:end_position]).sum())
 
     uids = wallet_funding_events['user_id']
 
@@ -606,6 +609,7 @@ def generate_facts(conn, num_of_events):
         "is_withdrawn_early":all_investments_df["is_withdrawn_early"],
         "penalty_amount":all_investments_df["penalty_amount"],
         "amount_paid_out":all_investments_df["amount_paid_out"],
+        "redemption_request_date":all_investments_df["redemption_request_date"],
         "early_withdrawal_date":all_investments_df["early_withdrawal_date"],
         "early_withdrawal_date_id":all_investments_df["early_withdrawal_date_id"],
         "created_at":all_investments_df["created_at"],

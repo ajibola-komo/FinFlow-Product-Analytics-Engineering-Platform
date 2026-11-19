@@ -60,6 +60,10 @@ def generate_wallet_balance(conn):
 
     eligible_users_df['funding_time'] = (pd.to_datetime(DEFAULT_WALLET_BALANCE_TOPUP_SIMULATION_START_DATE) + pd.to_timedelta(random_offset, unit='m'))
 
+    eligible_users_df = eligible_users_df.sort_values(by='funding_time').reset_index(drop=True)
+
+    eligible_users_df['transaction_ids'] = np.arange(1, len(eligible_users_df) + 1)
+
     initial_wallet_balance_creation(conn, eligible_users_df)
 
 

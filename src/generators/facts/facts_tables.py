@@ -175,16 +175,7 @@ def generate_facts(conn, num_of_events):
     ''').df()
 
     customer_subset_1 = wallet_activated_users.sample(frac = 0.55, random_state=1)
-    
 
-    #print("last login df",last_login_df.head(10))
-    #print("customer subset 1 columns ", customer_subset_1.columns)
-
-    #print("customer subset 1 ", customer_subset_1.head(10))
-
-    #print("The customer subset 1 user_id and last_login_at ",customer_subset_1[['user_id','supposed_activation_date','last_login_at']])
-
-    #print("customer subset 1 columns ", customer_subset_1.columns)
 
     total_customer_subset_1 = len(customer_subset_1)
 
@@ -310,12 +301,12 @@ def generate_facts(conn, num_of_events):
     all_investments_df = investment_creation_dict["all_investments_df"]
     last_investment_id = investment_creation_dict["last_investment_id"]
 
-    
-    customers_who_have_invested_df = get_last_login(conn, all_investments_df["user_id"])
-    cbs_map = get_customer_behaviour_segment(conn, all_investments_df["user_id"])
 
-    customers_who_have_invested_df['customer_behaviour_segment'] = customers_who_have_invested_df['user_id'].map(cbs_map)
+    uids = (all_investments_df["user_id"]).to_list()
 
+    customers_who_have_invested_df = conn.execute('''
+                SELECT * FROM dim_user where user_id = ?
+    ''',[uids]).df()
 
     active_users_subset = customers_who_have_invested_df[
     (customers_who_have_invested_df["customer_behaviour_segment"] == "High_Engagement_High_Balance")

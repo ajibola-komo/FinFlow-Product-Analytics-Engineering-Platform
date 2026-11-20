@@ -57,24 +57,31 @@ def generate_facts(conn, num_of_events):
 
     withdrawal_mask = recently_redeemed_investments_df['withdraws_returns'] == True
     reinvestment_mask = recently_redeemed_investments_df['reinvests_returns'] == True
+
+    recently_redeemed_investments_df['withdrawal_percentage'] = np.nan
+    recently_redeemed_investments_df['reinvestment_percentage'] = np.nan
     
 
-    recently_redeemed_investments_df['withdrawal_percentage'].loc[withdrawal_mask] = [np.random.randint(CUSTOMER_BEHAVIOUR_SEGMENT_MAP[segment]['withdrawal_percentage'][0],CUSTOMER_BEHAVIOUR_SEGMENT_MAP[segment]['withdrawal_percentage'][1])
+    recently_redeemed_investments_df.loc[withdrawal_mask,'withdrawal_percentage'] = [np.random.randint(CUSTOMER_BEHAVIOUR_SEGMENT_MAP[segment]['withdrawal_percentage'][0],CUSTOMER_BEHAVIOUR_SEGMENT_MAP[segment]['withdrawal_percentage'][1])
                                                                                       for segment in recently_redeemed_investments_df['customer_behaviour_segment'].loc[withdrawal_mask]]
 
 
-    recently_redeemed_investments_df['reinvestment_percentage'].loc[reinvestment_mask] = [np.random.randint(CUSTOMER_BEHAVIOUR_SEGMENT_MAP[segment]['reinvestment_percentage'][0],CUSTOMER_BEHAVIOUR_SEGMENT_MAP[segment]['reinvestment_percentage'][1])
+    recently_redeemed_investments_df.loc[reinvestment_mask,'reinvestment_percentage'] = [np.random.randint(CUSTOMER_BEHAVIOUR_SEGMENT_MAP[segment]['reinvestment_percentage'][0],CUSTOMER_BEHAVIOUR_SEGMENT_MAP[segment]['reinvestment_percentage'][1])
                                                                                           for segment in recently_redeemed_investments_df['customer_behaviour_segment'].loc[reinvestment_mask]]
 
+    withdrawals_df = recently_redeemed_investments_df[withdrawal_mask]
+    reinvestments_df = recently_redeemed_investments_df[reinvestment_mask]
+
+    successful_withdrawals_frac = np.random.uniform(0.9, 0.98)
+    successful_reinvestments_frac = np.random.uniform(0.9,0.96)
+
+    successful_withdrawals_df = withdrawals_df.sample(frac=successful_withdrawals_frac)
+    unsuccessful_withdrawals_df = withdrawals_df.drop(index=successful_withdrawals_df.index)
+
+    successful_reinvestments_df = reinvestments_df.sample(frac=successful_reinvestments_frac)
+    unsuccessful_reinvestments_df = reinvestments_df.drop(index=successful_reinvestments_df.index)
 
     
-    
-
-    
-
-    
-
-    #recently_redeemed_investments_df['withdraws_return'] = 
 
     
 

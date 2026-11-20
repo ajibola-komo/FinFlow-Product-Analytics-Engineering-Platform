@@ -15,18 +15,68 @@ from src.logic.helper_functions import (signup_completion_events, app_login_even
                                          assets_sale_events, assets_sale_investment_proceeds_wallet_transfer_events )
 from src.logic.EventContext import (load_event_context)
 
+RUN_COUNTER = 1
 
 def generate_facts(conn, num_of_events):
 
     context = load_event_context(conn)
 
-    create_fact_user_table = DDL_FACT_USER_EVENT_PATH.read_text()
-    create_fact_investment_table = DDL_FACT_INVESTMENT_POSITION_PATH.read_text()
-    create_fact_transaction_table = DDL_FACT_TRANSACTION_PATH.read_text()
+    if RUN_COUNTER == 1:
 
-    conn.execute(create_fact_user_table)
-    conn.execute(create_fact_investment_table)
-    conn.execute(create_fact_transaction_table)
+        create_fact_user_table = DDL_FACT_USER_EVENT_PATH.read_text()
+        create_fact_investment_table = DDL_FACT_INVESTMENT_POSITION_PATH.read_text()
+        create_fact_transaction_table = DDL_FACT_TRANSACTION_PATH.read_text()
+
+        conn.execute(create_fact_user_table)
+        conn.execute(create_fact_investment_table)
+        conn.execute(create_fact_transaction_table)
+
+    RUN_COUNTER +=1
+
+    #let's simulate wallet withdrawals for recently matured investments
+    recently_redeemed_investments_df = conn.execute(''' 
+    with get_balance as (SELECT f.user_id, u.customer_behaviour_segment, w.current_balance, ROW_NUMBER() OVER(
+                                    PARTITION BY f.user_id
+                                    ORDER BY f.transaction_timestamp desc) as rank
+                from fact_transaction f inner join fact_wallet_balance w on f.user_id = w.user_id 
+                inner join dim_user u on f.user_id = u.user_id where transaction_type_id = 4
+                )
+                SELECT user_id, customer_behaviour_segment, current_balance FROM get_balance where rank = 1 ''').df()
+
+    withdrawal_probabilities = (
+        recently_redeemed_investments_df["customer_behaviour_segment"]
+        .map(
+            lambda segment: CUSTOMER_BEHAVIOUR_SEGMENT_MAP[segment][
+                "withdrawal_probability"
+            ]
+        )
+    )
+
+    recently_redeemed_investments_df['withdraws_returns'] = np.random.random(size=len(recently_redeemed_investments_df)) <= withdrawal_probabilities
+    recently_redeemed_investments_df['reinvests_returns'] = ~recently_redeemed_investments_df['withdraws_returns']
+
+    withdrawal_mask = recently_redeemed_investments_df['withdraws_returns'] == True
+    reinvestment_mask = recently_redeemed_investments_df['reinvests_returns'] == True
+    
+
+    recently_redeemed_investments_df['withdrawal_percentage'].loc[withdrawal_mask] = [np.random.randint(CUSTOMER_BEHAVIOUR_SEGMENT_MAP[segment]['withdrawal_percentage'][0],CUSTOMER_BEHAVIOUR_SEGMENT_MAP[segment]['withdrawal_percentage'][1])
+                                                                                      for segment in recently_redeemed_investments_df['customer_behaviour_segment'].loc[withdrawal_mask]]
+
+
+    recently_redeemed_investments_df['reinvestment_percentage'].loc[reinvestment_mask] = [np.random.randint(CUSTOMER_BEHAVIOUR_SEGMENT_MAP[segment]['reinvestment_percentage'][0],CUSTOMER_BEHAVIOUR_SEGMENT_MAP[segment]['reinvestment_percentage'][1])
+                                                                                          for segment in recently_redeemed_investments_df['customer_behaviour_segment'].loc[reinvestment_mask]]
+
+
+    
+    
+
+    
+
+    
+
+    #recently_redeemed_investments_df['withdraws_return'] = 
+
+    
 
     #populate all possible signups within the project duration
     users_data = conn.execute(f'''SELECT user_id, signup_date, kyc_completed, is_activated_user, wallet_activation_timeframe, customer_behaviour_segment, device_type, supposed_activation_date,
@@ -333,7 +383,6 @@ def generate_facts(conn, num_of_events):
     [active_users_sample, low_activity_users_sample],
     ignore_index=True)
 
-
     engagement_dict = create_engagement_events(engagement_sample_df)
 
     login_engagement_events = engagement_dict['login_events']
@@ -412,7 +461,7 @@ def generate_facts(conn, num_of_events):
 
     plan_names = conn.execute('''select f.investment_id, f.user_id, f.plan_id, p.plan_name, p.penalty_rate_pct from all_investments_df as f inner join dim_plan p on f.plan_id = p.plan_id''').df()
 
-    all_investments_df = all_investments_df.merge(plan_names, how="inner", on=["investment_id", "user_id", "plan_id"])
+    all_investments_df['plan_name'] = plan_names["plan_name"]
 
     conn.unregister('all_investments_df')
 
@@ -427,10 +476,19 @@ def generate_facts(conn, num_of_events):
 
 
     # simulate early withdrawal requests for vestable investments based on customer behaviour segment probabilities
-    vestable_investments_df["requests_early_withdrawal"] = [
-        np.random.random()
-    <= CUSTOMER_BEHAVIOUR_SEGMENT_MAP[segment]["early_withdrawal_probability"]
-    for segment in vestable_investments_df["customer_behaviour_segment"]]
+
+    probabilities = (
+    vestable_investments_df["customer_behaviour_segment"]
+    .map(
+        lambda segment: CUSTOMER_BEHAVIOUR_SEGMENT_MAP[segment][
+            "early_withdrawal_probability"
+        ]
+    )
+)
+
+    vestable_investments_df["requests_early_withdrawal"] = (
+    np.random.random(len(vestable_investments_df)) <= probabilities
+)
 
     early_withdrawal_mask = vestable_investments_df["requests_early_withdrawal"] == True
     vested_invested_mask = vestable_investments_df["requests_early_withdrawal"] == False

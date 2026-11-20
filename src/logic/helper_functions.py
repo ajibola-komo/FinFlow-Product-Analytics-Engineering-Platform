@@ -1136,7 +1136,11 @@ def assets_sale_investment_proceeds_wallet_transfer_events(conn:DuckDBPyConnecti
         'saleable_investments_df':saleable_investment_df
     }
 
+def wallet_withdrawal_events(conn:DuckDBPyConnection, recently_redeemed_investments_df:pd.DataFrame) -> None:
 
+    recently_redeemed_investments_df = recently_redeemed_investments_df.copy()
+
+    
 
 
 

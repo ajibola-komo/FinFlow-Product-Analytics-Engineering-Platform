@@ -171,10 +171,11 @@ FIRST_INVESTMENT_TYPE = ['Savings','Investments']
 CUSTOMER_BEHAVIOUR_SEGMENT_MAP = {
 
     'High_Engagement_High_Balance':{
-        'monthly_logins':[18,35],
-        'monthly_wallet_fundings':[1,4],
+        'monthly_logins':[20,40],
+        'monthly_wallet_fundings':[2,5],
         'average_investment_amount': [5000,50000],
-        'monthly_investment_position_creation':[1,4],
+        'monthly_investment_position_creation':[0,2],
+        'monthly_savings_position_creation':[0,1],
         'retention_probability':0.95,
         'early_withdrawal_probability':0.05,
         'avg_wallet_balance_multiplier':2.5,
@@ -183,14 +184,17 @@ CUSTOMER_BEHAVIOUR_SEGMENT_MAP = {
         'first_investment_type_probability':[0.7,0.3], #70% chance their first investment is a savings product, 30% chance it's an investment product
         'device_type':[0.65,0.35],
         'investment_type_probability':[0.2,0.8],
-        'investment_percentage':[0.7,0.95]
+        'withdrawal_probability':0.15,
+        'reinvestment_probability':0.85,
+        'wallet_proceeds_withrawal_percentage':[0.05,0.2],
+        'wallet_proceeds_reinvestment_percentage':[0.8,0.95]
     },
-
     'High_Engagement_Low_Balance':{
-        'monthly_logins':[12,25],
+        'monthly_logins':[15,30],
         'monthly_wallet_fundings':[1,4],
         'average_investment_amount':[250,5000],
-        'monthly_investment_position_creation':[1,3],
+        'monthly_investment_position_creation':[0,2],
+        'monthly_savings_position_creation':[0,1],
         'retention_probability':0.85,
         'early_withdrawal_probability':0.15,
         'avg_wallet_balance_multiplier':0.5,
@@ -199,14 +203,18 @@ CUSTOMER_BEHAVIOUR_SEGMENT_MAP = {
         'first_investment_type_probability':[0.6,0.4], #60% chance their first investment is a savings product, 40% chance it's an investment product
         'device_type':[0.3,0.7],
         'investment_type_probability':[0.2,0.8],
-        'investment_percentage':[0.6,0.85]
+        'withdrawal_probability':0.25,
+        'reinvestment_probability':0.75,
+        'wallet_proceeds_withrawal_percentage':[0.15,0.35],
+        'wallet_proceeds_reinvestment_percentage':[0.65,0.85]
     },
 
     'Moderate_Engagement_High_Balance':{
-        'monthly_logins':[6,15],
+        'monthly_logins':[8,15],
         'monthly_wallet_fundings':[1,3],
         'average_investment_amount':[2500,25000],
-        'monthly_investment_position_creation':[0,2],
+        'monthly_investment_position_creation':[0,1],
+        'monthly_savings_position_creation':[0,1],
         'retention_probability':0.92,
         'early_withdrawal_probability':0.08,
         'avg_wallet_balance_multiplier':2.0,
@@ -215,14 +223,18 @@ CUSTOMER_BEHAVIOUR_SEGMENT_MAP = {
         'first_investment_type_probability':[0.5,0.5], #50% chance their first investment is a savings product, 50% chance it's an investment product
         'device_type':[0.6,0.4],
         'investment_type_probability':[0.5,0.5],
-        'investment_percentage':[0.6,0.85]
+        'withdrawal_probability':0.25,
+        'reinvestment_probability':0.75,
+        'wallet_proceeds_withrawal_percentage':[0.1,0.3],
+        'wallet_proceeds_reinvestment_percentage':[0.7,0.90]
     },
 
     'Moderate_Engagement_Low_Balance':{
         'monthly_logins':[4,10],
         'monthly_wallet_fundings':[0,2],
         'average_investment_amount':[100,2500],
-        'monthly_investment_position_creation':[0,2],
+        'monthly_investment_position_creation':[0,1],
+        'monthly_savings_position_creation':[0,1],
         'retention_probability':0.75,
         'early_withdrawal_probability':0.20,
         'avg_wallet_balance_multiplier':0.7,
@@ -231,14 +243,18 @@ CUSTOMER_BEHAVIOUR_SEGMENT_MAP = {
         'first_investment_type_probability':[0.6,0.4], #40% chance their first investment is a savings product, 60% chance it's an investment product
         'device_type':[0.25,0.75],
         'investment_type_probability':[0.5,0.5],
-        'investment_percentage':[0.5,0.75]
+        'withdrawal_probability':0.4,
+        'reinvestment_probability':0.6,
+        'wallet_proceeds_withrawal_percentage':[0.25,0.5],
+        'wallet_proceeds_reinvestment_percentage':[0.5,0.75]
     },
 
     'Low_Engagement_High_Balance':{
-        'monthly_logins':[1,5],
+        'monthly_logins':[1,3],
         'monthly_wallet_fundings':[0,1],
         'average_investment_amount':[10000,100000],
         'monthly_investment_position_creation':[0,1],
+        'monthly_savings_position_creation':[0,1],
         'retention_probability':0.90,
         'early_withdrawal_probability':0.10,
         'avg_wallet_balance_multiplier':3.0,
@@ -247,14 +263,18 @@ CUSTOMER_BEHAVIOUR_SEGMENT_MAP = {
         'first_investment_type_probability':[0.3,0.7], #30% chance their first investment is a savings product, 70% chance it's an investment product
         'device_type':[0.55,0.45],
         'investment_type_probability':[0.5,0.5],
-        'investment_percentage':[0.7,0.9]
+        'withdrawal_probability':0.35,
+        'reinvestment_probability':0.65,
+        'wallet_proceeds_withrawal_percentage':[0.2,0.45],
+        'wallet_proceeds_reinvestment_percentage':[0.55,0.80]
     },
 
     'Low_Engagement_Low_Balance':{
-        'monthly_logins':[0,3],
+        'monthly_logins':[0,2],
         'monthly_wallet_fundings':[0,1],
         'average_investment_amount':[50,1000],
         'monthly_investment_position_creation':[0,1],
+        'monthly_savings_position_creation':[0,1],
         'retention_probability':0.50,
         'early_withdrawal_probability':0.30,
         'avg_wallet_balance_multiplier':0.3,
@@ -263,9 +283,13 @@ CUSTOMER_BEHAVIOUR_SEGMENT_MAP = {
         'first_investment_type_probability':[0.8,0.2], #20% chance their first investment is a savings product, 80% chance it's an investment product
         'device_type':[0.2,0.8],
         'investment_type_probability':[0.5,0.5],
-        'investment_percentage':[0.5,0.7]
+        'withdrawal_probability':0.6,
+        'reinvestment_probability':0.4,
+        'wallet_proceeds_withrawal_percentage':[0.4,0.7],
+        'wallet_proceeds_reinvestment_percentage':[0.3,0.6]
     }
 }
+
 
 USERS_MAKES_FIRST_INVESTMENT_AFTER_FUNDING = [True,False]
 
